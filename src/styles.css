@@ -1335,18 +1335,6 @@ body:has(.app-shell) { height: 100dvh; overflow: hidden; }
   justify-self: end;
 }
 .send:disabled { opacity: 0.4; }
-.app-foot {
-  width: 100%;
-  margin: 0;
-  padding: 10px 16px 14px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  color: var(--mute);
-  font-size: 12px;
-  line-height: 1.4;
-}
 .panel-head {
   position: sticky;
   top: 0;
@@ -1452,7 +1440,7 @@ body:has(.app-shell) { height: 100dvh; overflow: hidden; }
 }
 
 @media print {
-  .site-header, .site-footer, .announce, .nav, .app-foot, .composer-wrap, .sidebar, .panel, .thread-top { display: none !important; }
+  .site-header, .site-footer, .announce, .nav, .composer-wrap, .sidebar, .panel, .thread-top { display: none !important; }
   .app-shell { display: block; height: auto; }
   .thread-scroll { overflow: visible; }
 }

@@ -630,9 +630,6 @@ export function Chat({ go, api = false }: { go: (to: string) => void; api?: bool
             </p>
           </div>
         </motion.form>
-        <footer className="app-foot">
-          <p>Scores are indicators from public chain data, not advice. KaziTrust never asks for a key.</p>
-        </footer>
         </div>
       </section>}
       <AnimatePresence>
