@@ -53,7 +53,7 @@ On the live app, sign in before a wallet read. You can use email or Google. On y
 
 ## The API
 
-Signed out, `/api` explains each call. Signed in, that page creates your key.
+Signed out, `/api` explains each call. Signed in, the API control in the app creates your key.
 
 ### The key
 

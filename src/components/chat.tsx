@@ -25,6 +25,7 @@ import {
   IconStop,
   IconTrash,
 } from "./icons";
+import { ApiDesk } from "./api";
 import { Lockup } from "./mark";
 import { EvidenceList, ReportView, reportPlainText } from "./report";
 import { VisualView, visualTitle } from "./visuals";
@@ -51,7 +52,7 @@ function contextAddresses(messages: ThreadMessage[]): string[] {
   return found;
 }
 
-export function Chat({ go }: { go: (to: string) => void }) {
+export function Chat({ go, api = false }: { go: (to: string) => void; api?: boolean }) {
   const { logout, user } = usePrivy();
   const [threads, setThreads] = useState<Thread[]>(() => loadThreads());
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -291,6 +292,7 @@ export function Chat({ go }: { go: (to: string) => void }) {
     setMenu(null);
     setRename(null);
     if (window.innerWidth < 860) setSidebar(false);
+    if (api) go("/app");
   }
 
   const visible = useMemo(() => {
@@ -382,7 +384,7 @@ export function Chat({ go }: { go: (to: string) => void }) {
                           <input name="title" defaultValue={thread.title} aria-label="Chat title" autoFocus />
                         </form>
                       ) : (
-                        <button type="button" className={thread.id === activeId ? "current" : ""} onClick={() => { setActiveId(thread.id); setPanel(null); if (window.innerWidth < 860) setSidebar(false); }}>
+                        <button type="button" className={thread.id === activeId && !api ? "current" : ""} onClick={() => { setActiveId(thread.id); setPanel(null); if (api) go("/app"); if (window.innerWidth < 860) setSidebar(false); }}>
                           {thread.title}
                         </button>
                       )}
@@ -413,7 +415,7 @@ export function Chat({ go }: { go: (to: string) => void }) {
           )}
         </div>
         <footer className="account">
-          <button type="button" className="api-entry" onClick={() => go("/api")}>
+          <button type="button" className="api-entry" aria-current={api ? "page" : undefined} onClick={() => { setPanel(null); if (!api) go("/app/api"); if (window.innerWidth < 860) setSidebar(false); }}>
             <IconKey size={16} />
             API
           </button>
@@ -436,7 +438,24 @@ export function Chat({ go }: { go: (to: string) => void }) {
           />
         </footer>
       </aside>
-      <section className="thread">
+      {api ? (
+        <section className="thread thread-api">
+          <header className="thread-top">
+            <div className="thread-start">
+              {sidebar ? null : (
+                <button type="button" className="icon-btn" aria-label="Show history" onClick={toggleHistory}>
+                  <IconSidebar />
+                </button>
+              )}
+              <h1>API</h1>
+            </div>
+          </header>
+          <div className="thread-scroll">
+            <ApiDesk />
+          </div>
+        </section>
+      ) : null}
+      {api ? null : <section className="thread">
         <header className="thread-top">
           <div className="thread-start">
             {sidebar ? null : (
@@ -615,7 +634,7 @@ export function Chat({ go }: { go: (to: string) => void }) {
           <p>Scores are indicators from public chain data, not advice. KaziTrust never asks for a key.</p>
         </footer>
         </div>
-      </section>
+      </section>}
       <AnimatePresence>
       {panel ? (
         <motion.aside className="panel" initial={{ opacity: 0, x: 28 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 28 }}>

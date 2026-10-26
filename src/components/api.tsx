@@ -1,6 +1,7 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { useEffect, useRef, useState } from "react";
 import { clearApiKey, loadApiKey, saveApiKey } from "../storage";
+import { Chrome } from "./site";
 
 const USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 const appId = import.meta.env.VITE_PRIVY_APP_ID ?? "";
@@ -102,22 +103,53 @@ const CODES = [
   ["503", "Labels, wording, token risk, or the blocked list is not configured on this server."],
 ];
 
-export function ApiAccess() {
-  if (!appId) return import.meta.env.DEV ? <ApiKeys /> : <ApiPublic />;
-  return <ApiRoute />;
+export function ApiDesk() {
+  const { authenticated, getAccessToken } = usePrivy();
+  return <ApiKeys getAccessToken={authenticated ? getAccessToken : undefined} />;
 }
 
-function ApiRoute() {
-  const { ready, authenticated, getAccessToken } = usePrivy();
-  if (!ready) {
+export function ApiEntry({ go }: { go: (to: string) => void }) {
+  if (!appId) {
+    if (import.meta.env.DEV) return <LeaveForKey go={go} />;
+    return (
+      <Chrome path="/api" go={go}>
+        <ApiPublic />
+      </Chrome>
+    );
+  }
+  return <ApiEntrySession go={go} />;
+}
+
+function LeaveForKey({ go }: { go: (to: string) => void }) {
+  useEffect(() => {
+    go("/app/api");
+  }, [go]);
+  return (
+    <div className="api-page wrap">
+      <p className="quiet">Opening your key.</p>
+    </div>
+  );
+}
+
+function ApiEntrySession({ go }: { go: (to: string) => void }) {
+  const { ready, authenticated, user } = usePrivy();
+  const signedIn = authenticated || Boolean(user);
+  const openKey = import.meta.env.DEV || (ready && signedIn);
+  useEffect(() => {
+    if (openKey) go("/app/api");
+  }, [openKey, go]);
+  if (openKey || !ready) {
     return (
       <div className="api-page wrap">
-        <p className="quiet">Checking your session.</p>
+        <p className="quiet">{openKey ? "Opening your key." : "Checking your session."}</p>
       </div>
     );
   }
-  if (!authenticated && !import.meta.env.DEV) return <ApiPublic />;
-  return <ApiKeys getAccessToken={authenticated ? getAccessToken : undefined} />;
+  return (
+    <Chrome path="/api" go={go}>
+      <ApiPublic />
+    </Chrome>
+  );
 }
 
 function ApiPublic() {
