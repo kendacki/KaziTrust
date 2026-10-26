@@ -339,6 +339,7 @@ h3 {
   border: 1px solid var(--line);
   border-radius: 12px 12px 0 0;
 }
+.try-open { display: flex; justify-content: center; margin-top: 28px; }
 .search input, .composer textarea, .msg textarea, .history input {
   width: 100%;
   border: 1px solid var(--line-strong);

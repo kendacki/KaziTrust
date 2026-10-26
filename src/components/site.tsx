@@ -233,7 +233,7 @@ export function Home({ go }: { go: (to: string) => void }) {
         </div>
       </section>
 
-      <LiveTry />
+      <LiveTry go={go} />
 
       <section className="section wrap" id="engine">
         <Reveal>
@@ -441,18 +441,23 @@ function Feed({ title, rows }: { title: string; rows: string[] }) {
   );
 }
 
-function LiveTry() {
+function LiveTry({ go }: { go: (to: string) => void }) {
   return (
     <Reveal>
       <section className="section wrap" id="try">
         <header className="section-head">
           <p className="eyebrow">Live read</p>
           <h2>Try a live read</h2>
-          <p className="lede">The mini report uses the same engine as the app, against a public node.</p>
+          <p className="lede">Ask about any wallet in the app. The read uses the same engine, on a public Solana node.</p>
         </header>
         <figure className="try-shot">
           <img src="/live-read.png" alt="The app ready for a wallet read" width={3840} height={1774} />
         </figure>
+        <div className="try-open">
+          <button type="button" className="btn ink" onClick={() => go("/app")}>
+            Sign in or sign up
+          </button>
+        </div>
       </section>
     </Reveal>
   );
