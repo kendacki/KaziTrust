@@ -1,6 +1,9 @@
-import { useState } from "react";
+import { usePrivy } from "@privy-io/react-auth";
+import { useEffect, useRef, useState } from "react";
+import { clearApiKey, loadApiKey, saveApiKey } from "../storage";
 
 const USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+const appId = import.meta.env.VITE_PRIVY_APP_ID ?? "";
 
 type Service = {
   id: string;
@@ -12,6 +15,11 @@ type Service = {
   back: string;
   limit: string;
   sample: (origin: string) => string;
+};
+
+type KeyRecord = {
+  prefix: string;
+  createdAt: string;
 };
 
 const SERVICES: Service[] = [
@@ -95,6 +103,24 @@ const CODES = [
 ];
 
 export function ApiAccess() {
+  if (!appId) return import.meta.env.DEV ? <ApiKeys /> : <ApiPublic />;
+  return <ApiRoute />;
+}
+
+function ApiRoute() {
+  const { ready, authenticated, getAccessToken } = usePrivy();
+  if (!ready) {
+    return (
+      <div className="api-page wrap">
+        <p className="quiet">Checking your session.</p>
+      </div>
+    );
+  }
+  if (!authenticated && !import.meta.env.DEV) return <ApiPublic />;
+  return <ApiKeys getAccessToken={authenticated ? getAccessToken : undefined} />;
+}
+
+function ApiPublic() {
   const [picked, setPicked] = useState(SERVICES[0].id);
   const [notice, setNotice] = useState("");
   const origin = window.location.origin;
@@ -222,4 +248,221 @@ export function ApiAccess() {
       </section>
     </div>
   );
+}
+
+function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | null> }) {
+  const origin = window.location.origin;
+  const tokenRef = useRef(getAccessToken);
+  tokenRef.current = getAccessToken;
+  const [record, setRecord] = useState<KeyRecord | null>(null);
+  const [secret, setSecret] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [working, setWorking] = useState(false);
+  const [confirm, setConfirm] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+  const bearer = secret || "kt_your_key";
+
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      try {
+        const next = await readRecord(await sessionHeaders(tokenRef.current));
+        if (!live) return;
+        setRecord(next);
+        const saved = loadApiKey();
+        if (next && saved?.prefix === next.prefix) setSecret(saved.key);
+        else if (saved) clearApiKey();
+      } catch (caught) {
+        if (!live) return;
+        setError(caught instanceof Error ? caught.message : "The key service did not answer.");
+      } finally {
+        if (live) setLoading(false);
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  async function issue() {
+    setWorking(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch("/api/keys", { method: "POST", headers: await sessionHeaders(tokenRef.current) });
+      const body = (await response.json().catch(() => null)) as { key?: string; prefix?: string; createdAt?: string } | null;
+      if (!response.ok || !body?.key?.startsWith("kt_") || !body.prefix || !body.createdAt) {
+        throw new Error(keyFailure(response.status));
+      }
+      const issued = { key: body.key, prefix: body.prefix, createdAt: body.createdAt };
+      saveApiKey(issued);
+      setRecord({ prefix: issued.prefix, createdAt: issued.createdAt });
+      setSecret(issued.key);
+      setConfirm(false);
+      setNotice("Key created. Copy it now.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "The key service did not answer.");
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function copy(value: string, done: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setNotice(done);
+      setError("");
+    } catch {
+      setNotice("");
+      setError("The browser did not allow the copy.");
+    }
+  }
+
+  return (
+    <div className="api-page api-keys wrap">
+      <header className="page-head">
+        <p className="eyebrow">API</p>
+        <h1>Your key</h1>
+        <p className="lede">Create the key for every service. It is shown in full once. A new key replaces the one before it.</p>
+      </header>
+
+      <section className="api-key" aria-label="Your key">
+        <dl className="api-key-facts">
+          <div>
+            <dt>Status</dt>
+            <dd>{loading ? "Checking" : record ? "Issued" : "Not issued"}</dd>
+          </div>
+          <div>
+            <dt>Prefix</dt>
+            <dd className="num">{record?.prefix ?? "None"}</dd>
+          </div>
+          <div>
+            <dt>Created</dt>
+            <dd className="num">{record ? issuedOn(record.createdAt) : "None"}</dd>
+          </div>
+        </dl>
+        <div className="api-key-body">
+          <p className="api-key-value num">{loading ? "Checking your key." : secret || (record ? `${record.prefix}…` : "No key yet.")}</p>
+          <p className="quiet">
+            {secret
+              ? "This browser holds the full key. Leave it here, or copy it into the client that will call the API."
+              : record
+                ? "The full key stays in the browser that created it. Create a new key to see a full value again."
+                : "Create a key, then send it as Authorization: Bearer on each call."}
+          </p>
+          <div className="api-key-actions">
+            <p className="quiet">{confirm ? "The current key stops working." : record ? "A new key retires the previous one." : "The full key is shown once."}</p>
+            <div className="api-key-buttons">
+              {secret ? (
+                <button type="button" className="btn ink" onClick={() => void copy(secret, "Key copied.")} disabled={working}>
+                  Copy key
+                </button>
+              ) : null}
+              {confirm ? (
+                <>
+                  <button type="button" className="btn ghost" onClick={() => setConfirm(false)} disabled={working}>
+                    Cancel
+                  </button>
+                  <button type="button" className="btn ink" onClick={() => void issue()} disabled={working || loading}>
+                    {working ? "Replacing" : "Replace this key"}
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className={secret ? "btn ghost" : "btn ink"}
+                  onClick={() => (record ? setConfirm(true) : void issue())}
+                  disabled={working || loading}
+                >
+                  {working ? "Creating" : record ? "Replace key" : "Create a key"}
+                </button>
+              )}
+            </div>
+          </div>
+          {notice ? <p className="quiet api-notice">{notice}</p> : null}
+          {error ? <p className="api-notice">{error}</p> : null}
+        </div>
+      </section>
+
+      <div className="api-key-grid">
+        <section className="api-key-block" aria-label="How to send the key">
+          <h2>Send</h2>
+          <dl>
+            <div>
+              <dt>Authorization</dt>
+              <dd className="num">Bearer {record ? `${record.prefix}…` : "kt_..."}</dd>
+            </div>
+            <div>
+              <dt>Base URL</dt>
+              <dd className="num">{origin}/api/v1</dd>
+            </div>
+            <div>
+              <dt>Session</dt>
+              <dd>Not used on these calls</dd>
+            </div>
+          </dl>
+        </section>
+        <section className="api-key-block" aria-label="First call">
+          <div className="api-meta">
+            <h2>First call</h2>
+            <button type="button" className="btn ghost" onClick={() => void copy(`curl ${origin}/api/v1 \\\n  -H "Authorization: Bearer ${bearer}"`, "Request copied.")}>
+              Copy request
+            </button>
+          </div>
+          <pre className="code">{`curl ${origin}/api/v1 \\\n  -H "Authorization: Bearer ${bearer}"`}</pre>
+        </section>
+      </div>
+
+      <section className="api-key-block" aria-labelledby="api-opens-title">
+        <h2 id="api-opens-title">What this key opens</h2>
+        <ul className="api-open-list">
+          {SERVICES.map((item) => (
+            <li key={item.id}>
+              <span className="api-method">{item.method}</span>
+              <strong>{item.title}</strong>
+              <code>{item.path}</code>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </div>
+  );
+}
+
+async function sessionHeaders(readToken: (() => Promise<string | null>) | undefined): Promise<HeadersInit> {
+  if (!readToken) return {};
+  try {
+    const token = await readToken();
+    return token ? { authorization: `Bearer ${token}` } : {};
+  } catch {
+    return {};
+  }
+}
+
+async function readRecord(headers: HeadersInit): Promise<KeyRecord | null> {
+  const response = await fetch("/api/keys", { headers });
+  const body = (await response.json().catch(() => null)) as { key?: KeyRecord | null } | null;
+  if (!response.ok) throw new Error(keyFailure(response.status));
+  const key = body?.key;
+  if (!key?.prefix || !key.createdAt) return null;
+  return { prefix: key.prefix, createdAt: key.createdAt };
+}
+
+function keyFailure(status: number): string {
+  if (status === 401) return "Sign in again, then create the key.";
+  if (status === 503) return "Sign-in is not configured on this server.";
+  return "The key service did not answer.";
+}
+
+function issuedOn(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Unknown";
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
 }

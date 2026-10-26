@@ -81,6 +81,33 @@ export function saveUsername(name: string) {
   if (clean) write(PROFILE, { name: clean });
 }
 
+const API_KEY = "kazitrust.apikey";
+
+export type SavedApiKey = {
+  key: string;
+  prefix: string;
+  createdAt: string;
+};
+
+export function loadApiKey(): SavedApiKey | null {
+  const saved = read<Partial<SavedApiKey> | null>(API_KEY, null);
+  if (!saved?.key?.startsWith("kt_") || !saved.prefix || !saved.createdAt) return null;
+  if (saved.key.length > 80 || saved.prefix.length > 12) return null;
+  return { key: saved.key, prefix: saved.prefix, createdAt: saved.createdAt };
+}
+
+export function saveApiKey(value: SavedApiKey) {
+  write(API_KEY, value);
+}
+
+export function clearApiKey() {
+  try {
+    localStorage.removeItem(API_KEY);
+  } catch {
+    /* The browser refused the clear. The next read still checks the prefix. */
+  }
+}
+
 export function initials(name: string): string {
   const parts = cleanUsername(name).split(" ").filter(Boolean);
   const letters = parts.length >= 2 ? `${parts[0][0] ?? ""}${parts[1][0] ?? ""}` : [...(parts[0] ?? "")].slice(0, 2).join("");
