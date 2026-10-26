@@ -502,6 +502,8 @@ h3 {
 .prose h1 { font-size: clamp(40px, 6vw, 64px); max-width: 12em; }
 .prose .page-head { margin-bottom: 8px; padding-bottom: 8px; }
 .prose h2 { font-size: 32px; margin-top: 18px; max-width: 20em; }
+.prose h3 { margin: 0; scroll-margin-top: 128px; }
+.prose .code { margin-top: 0; }
 .prose p, .prose ul { max-width: 68ch; }
 .prose ul { margin: 0; padding-left: 18px; display: grid; gap: 8px; }
 

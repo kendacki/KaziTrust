@@ -388,23 +388,15 @@ export function Home({ go }: { go: (to: string) => void }) {
           <header className="section-head">
             <p className="eyebrow">Developers</p>
             <h2>Add a wallet read to anything</h2>
-            <p className="lede">One call returns the same object the app renders: score, band, findings, and visuals. This package is not on npm yet. The shape is the contract.</p>
+            <p className="lede">One key opens every hosted service. Send it on each request. The written setup, the key, and every call are in the docs. The npm package is not published yet.</p>
           </header>
-          <pre className="code">{`import { readWallet } from "@kazitrust/sdk";
-
-const report = await readWallet({
-  address,
-  mode: "quick",
-});
-
-report.riskScore
-report.band
-report.findings[0].evidence`}</pre>
+          <pre className="code">{`curl https://your-host/api/v1 \\
+  -H "Authorization: Bearer kt_your_key"`}</pre>
           <div className="hero-actions">
             <button type="button" className="btn ink" onClick={() => go("/api")}>
               Create an API key
             </button>
-            <button type="button" className="btn ghost" onClick={() => go("/docs")}>
+            <button type="button" className="btn ghost" onClick={() => go("/docs#setup")}>
               Read the docs
             </button>
             <button type="button" className="btn ghost" onClick={() => go("/method")}>
@@ -639,7 +631,11 @@ export function Docs({ go }: { go: (to: string) => void }) {
       links={[
         ["comes-back", "What comes back"],
         ["limits", "What it will not do"],
-        ["api", "The API shape"],
+        ["setup", "Set up"],
+        ["key", "The key"],
+        ["call", "Calling the API"],
+        ["services", "Services"],
+        ["errors", "Errors"],
         ["privacy", "Privacy"],
         ["disclaimer", "Disclaimer"],
         ["rules", "The rules"],
@@ -648,17 +644,57 @@ export function Docs({ go }: { go: (to: string) => void }) {
       <header className="page-head">
         <p className="eyebrow">Docs</p>
         <h1>How to read a wallet</h1>
-        <p className="lede">Paste an address, read the score, and open the evidence behind each line.</p>
+        <p className="lede">Paste an address in the app, or call the same services with one API key.</p>
       </header>
       <p>Paste any Solana address into the app. A quick read uses the latest signatures, the balance, the token accounts, and a handful of opened transactions. A deep scan widens that window. It still does not walk the entire chain.</p>
       <h2 id="comes-back">What comes back</h2>
-      <p>A score from 0 to 100, a band, a confidence word, three to five findings, and the pictures that match the question. Each finding has an evidence control. Transaction evidence opens on Solscan. Account evidence names the slot of the read.</p>
+      <p>A score from 0 to 100, a band, a confidence word, three to five findings, and the pictures that match the question. Each finding has an evidence control. Transaction evidence opens on Solscan. Account evidence names the slot of the read. Daily live reads in this browser are capped at 30.</p>
       <h2 id="limits">What it will not do</h2>
-      <p>It will not invent a hop, a label, or a dollar value. It will not name a person. It will not ask you to sign a transaction. Mixer exposure, sanction lists, and a full funding graph need the hosted index. Until that ships, the report says when a check was not run.</p>
-      <h2 id="api">The API shape</h2>
-      <p>One key opens every hosted service at <span className="num">/api/v1</span>. Create it on the API page. The planned package call is <span className="num">readWallet</span>, returning the same report object the app renders. That package is not published. Daily live reads in this browser build are capped at 30.</p>
+      <p>It will not invent a hop, a label, or a dollar value. It will not name a person. It will not ask you to sign a transaction. Mixer exposure and a full funding graph need the hosted index. Until that ships, the report says when a check was not run. The wording service restates what the tools returned. It does not change the number, the band, or the addresses.</p>
+      <h2 id="setup">Set up</h2>
+      <p>Install dependencies, copy <span className="num">.env.example</span> to <span className="num">.env</span>, and start the app. Fill only the lines you intend to use. An empty line leaves that service off. The chain read still falls back to public Solana nodes.</p>
+      <pre className="code">{`npm install
+npm run dev`}</pre>
+      <p>The local app is at <span className="num">http://127.0.0.1:5173</span>. The API page is <span className="num">/api</span>. These docs stay on this page. A production preview is <span className="num">npm run build</span>, then <span className="num">npm run preview</span>, on port 4173. On that preview, sign in before creating a key. The local development server can create a key without sign-in.</p>
+      <h2 id="key">The key</h2>
+      <p>One key opens every hosted service. Create it on the API page, or from Create API key at the bottom of history. The key starts with <span className="num">kt_</span>. Copy it when it appears. A new key replaces the previous one, and the old key stops working.</p>
+      <p>The server stores a hash, not the key. The full value stays in the browser that created it. <span className="num">GET /api/keys</span> returns only the prefix and the time it was created. <span className="num">POST /api/keys</span> returns the full key once. On a production build, that post requires a signed-in session.</p>
+      <h2 id="call">Calling the API</h2>
+      <p>The base URL is the same host as the app, plus <span className="num">/api/v1</span>. Send the key on every call. The app itself does not need this key. The open <span className="num">/rpc</span> path is for the app. Outside callers use <span className="num">/api/v1/rpc</span>.</p>
+      <pre className="code">{`curl http://127.0.0.1:5173/api/v1 \\
+  -H "Authorization: Bearer kt_your_key"`}</pre>
+      <p>A successful index returns the service list. Query parameters on a service are forwarded. Post bodies must be JSON and stay under 200,000 bytes.</p>
+      <h2 id="services">Services</h2>
+      <h3 id="service-index">List services</h3>
+      <p><span className="num">GET /api/v1</span> returns the name, the base path, and each method, path, and short description.</p>
+      <h3 id="service-rpc">Chain read</h3>
+      <p><span className="num">POST /api/v1/rpc</span> accepts a normal Solana JSON-RPC body and returns the node result. If the first node does not answer, the request tries the public nodes.</p>
+      <pre className="code">{`curl http://127.0.0.1:5173/api/v1/rpc \\
+  -H "Authorization: Bearer kt_your_key" \\
+  -H "Content-Type: application/json" \\
+  -d "{\\"jsonrpc\\":\\"2.0\\",\\"id\\":1,\\"method\\":\\"getHealth\\"}"`}</pre>
+      <h3 id="service-rugcheck">Token risk</h3>
+      <p><span className="num">GET /api/v1/rugcheck?mint=</span> reads one mint. The body includes the mint, name, symbol, RugCheck score, normalised score, band, authorities, and any risks that were present. Good is a raw score under 1000. Warning runs through 5000. Above that is Danger. This number does not move the KaziTrust score. Executable contracts are not sent here.</p>
+      <h3 id="service-restrictions">Blocked list</h3>
+      <p><span className="num">GET /api/v1/restrictions</span> returns the OFAC SDN Solana addresses currently published, with a source name, the fetch time, and entries of address and name.</p>
+      <h3 id="service-solscan">Labels and activity</h3>
+      <p><span className="num">GET /api/v1/solscan?path=&amp;address=</span> takes a Solana address and one of three paths: <span className="num">account/metadata</span>, <span className="num">account/portfolio</span>, or <span className="num">account/defi/activities</span>. Any other path is rejected.</p>
+      <h3 id="service-wording">Wording</h3>
+      <p><span className="num">POST /api/v1/wording</span> writes sentences from the JSON you send. Use <span className="num">kind</span> <span className="num">chat</span> with a question, or <span className="num">kind</span> <span className="num">explain</span> with a question and a facts object. A chat answer comes back as text and followups. An explain answer comes back as summary, meaning, nextStep, and followups. The key does not change a score.</p>
+      <pre className="code">{`curl http://127.0.0.1:5173/api/v1/wording \\
+  -H "Authorization: Bearer kt_your_key" \\
+  -H "Content-Type: application/json" \\
+  -d "{\\"kind\\":\\"chat\\",\\"question\\":\\"What does a low score mean?\\"}"`}</pre>
+      <h2 id="errors">Errors</h2>
+      <ul>
+        <li><strong>401. </strong>The key is missing, retired, or not in the Authorization header. On a production build, creating a key without signing in also returns 401.</li>
+        <li><strong>404. </strong>The path is not a service on this key, or the method does not match.</li>
+        <li><strong>405. </strong>The key endpoint was called with a method other than GET or POST.</li>
+        <li><strong>502. </strong>The service did not answer, or the chain nodes did not answer.</li>
+        <li><strong>503. </strong>Sign-in, labels, wording, or the blocked list is not configured on this server.</li>
+      </ul>
       <h2 id="privacy">Privacy</h2>
-      <p>Chats, the watchlist, and the daily counter stay in this browser. KaziTrust does not run an account system in this version. Chain queries go to a public Solana node and contain the address you asked about.</p>
+      <p>Chats, the watchlist, the daily counter, and the full API key stay in this browser. The server keeps a hash of the active key and does not keep an account system in this version. Chain queries contain the address you asked about.</p>
       <h2 id="disclaimer">Disclaimer</h2>
       <p>Scores are indicators. They are a probabilistic read of public data under a published method. They are not a finding of fact about any person, and they are not financial, legal, or tax advice. Full terms will be drafted before a public launch. $KTRUST, if issued, is a utility for limits and label voting, not a promise of value.</p>
       <h2 id="rules">The rules, in short</h2>
@@ -670,7 +706,7 @@ export function Docs({ go }: { go: (to: string) => void }) {
           </li>
         ))}
       </ul>
-      <PageFoot go={go} links={[["/app", "Open app"], ["/method", "Scoring method"], ["/", "Home"]]} />
+      <PageFoot go={go} links={[["/api", "Create an API key"], ["/app", "Open app"], ["/method", "Scoring method"], ["/", "Home"]]} />
     </DocFrame>
   );
 }
