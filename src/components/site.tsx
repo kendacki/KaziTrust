@@ -475,6 +475,9 @@ function LiveTry({ go }: { go: (to: string) => void }) {
         <h2>Try a live read</h2>
         <p className="lede">Paste a Solana address. The mini report uses the same engine as the app, against a public node.</p>
       </header>
+      <figure className="try-shot">
+        <img src="/live-read.png" alt="The app ready for a wallet read" width={1024} height={473} />
+      </figure>
       <form
         className="try-form"
         onSubmit={(event) => {

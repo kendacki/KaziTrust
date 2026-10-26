@@ -327,6 +327,14 @@ h3 {
 .feed p { color: var(--soft); }
 @keyframes rise { from { transform: translateY(0); } to { transform: translateY(-50%); } }
 
+.try-shot { margin: 28px auto 0; width: min(1024px, 100%); }
+.try-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px 12px 0 0;
+}
 .try-form { margin-top: 22px; display: grid; gap: 8px; }
 .try-form label { color: var(--mute); font-size: 13px; }
 .try-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
