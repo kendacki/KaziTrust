@@ -77,16 +77,6 @@ function read(): SavedKey | null {
   }
 }
 
-export function savedKey(): SavedKey | null {
-  return saved;
-}
-
-export function rememberKey(record: SavedKey) {
-  if (!record.hash || !record.prefix || !record.createdAt) return;
-  saved = { hash: record.hash, prefix: record.prefix, createdAt: record.createdAt };
-  write(saved);
-}
-
 function write(record: SavedKey) {
   if (!root) return;
   try {

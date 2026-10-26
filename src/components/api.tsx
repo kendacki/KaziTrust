@@ -323,9 +323,9 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
     setNotice("");
     try {
       const response = await fetch("/api/keys", { method: "POST", headers: await sessionHeaders(tokenRef.current), credentials: "include" });
-      const body = (await response.json().catch(() => null)) as { key?: string; prefix?: string; createdAt?: string } | null;
+      const body = (await response.json().catch(() => null)) as { key?: string; prefix?: string; createdAt?: string; error?: string } | null;
       if (!response.ok || !body?.key?.startsWith("kt_") || !body.prefix || !body.createdAt) {
-        throw new Error(keyFailure(response.status));
+        throw new Error(keyFailure(response.status, body?.error));
       }
       const issued = { key: body.key, prefix: body.prefix, createdAt: body.createdAt };
       saveApiKey(issued);
@@ -480,9 +480,9 @@ async function readRecord(headers: HeadersInit): Promise<KeyRecord | null> {
   return { prefix: key.prefix, createdAt: key.createdAt };
 }
 
-function keyFailure(status: number): string {
-  if (status === 401) return "Sign in again, then create the key.";
-  if (status === 503) return "Sign-in is not configured on this server.";
+function keyFailure(status: number, error?: string): string {
+  if (status === 401 || error === "Sign in before creating a key.") return "Sign in again, then create the key.";
+  if (error === "Sign-in is not configured.") return "Sign-in is not configured on this server.";
   return "The key service did not answer.";
 }
 

@@ -1,85 +1,75 @@
-import { bearer, bindKeyStore, issueKey, keyRecord, rememberKey, savedKey, type SavedKey } from "./apikey";
 import { signedIn } from "./session";
 
-declare const process: { env: Record<string, string | undefined> };
-
-type Header = string | string[] | undefined;
-
-export type KeyRequest = {
-  method?: string;
-  headers: { authorization?: Header; cookie?: Header; host?: Header; "x-forwarded-host"?: Header };
-};
-
-export type KeyResponse = {
-  statusCode: number;
-  setHeader(name: string, value: string): void;
-  end(body: string): void;
+type SavedKey = {
+  hash: string;
+  prefix: string;
+  createdAt: string;
 };
 
 const COOKIE = "kazitrust_key";
-let bound = false;
+let current: SavedKey | null = null;
 
-export async function handleKeys(req: KeyRequest, res: KeyResponse) {
+export async function handleKeyRequest(request: Request): Promise<Response> {
   try {
-    if (!bound) {
-      bound = true;
-      bindKeyStore("/tmp/kazitrust");
+    const appId = env("PRIVY_APP_ID") || env("VITE_PRIVY_APP_ID");
+    const secret = env("PRIVY_APP_SECRET");
+    if (!appId || !secret) return json({ error: "Sign-in is not configured." }, 503);
+    const restored = await readCookie(request.headers.get("cookie") ?? "", secret);
+    if (restored) current = restored;
+    const token = (request.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+    if (!(await signedIn(appId, secret, token))) return json({ error: "Sign in before creating a key." }, 401);
+    if (request.method === "GET") {
+      return json({ key: current ? { prefix: current.prefix, createdAt: current.createdAt } : null }, 200);
     }
-    const appId = process.env.PRIVY_APP_ID ?? "";
-    const secret = process.env.PRIVY_APP_SECRET ?? "";
-    if (!appId || !secret) {
-      send(res, 503, { error: "Sign-in is not configured." });
-      return;
+    if (request.method === "POST") {
+      const issued = await mint();
+      current = { hash: await sha(issued.key), prefix: issued.prefix, createdAt: issued.createdAt };
+      const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
+      return json(issued, 200, { "set-cookie": await seal(current, secret, host) });
     }
-    const restored = await readCookie(header(req.headers.cookie), secret);
-    if (restored) rememberKey(restored);
-    if (!(await signedIn(appId, secret, bearer(req.headers.authorization)))) {
-      send(res, 401, { error: "Sign in before creating a key." });
-      return;
-    }
-    if (req.method === "GET") {
-      send(res, 200, { key: keyRecord() });
-      return;
-    }
-    if (req.method === "POST") {
-      const issued = await issueKey();
-      const saved = savedKey();
-      if (saved) res.setHeader("set-cookie", await seal(saved, secret, header(req.headers["x-forwarded-host"]) || header(req.headers.host)));
-      send(res, 200, issued);
-      return;
-    }
-    send(res, 405, { error: "Use GET or POST." });
+    return json({ error: "Use GET or POST." }, 405);
   } catch {
-    send(res, 503, { error: "Sign-in is not configured." });
+    return json({ error: "The key service did not answer." }, 500);
   }
 }
 
-function header(value: Header): string {
-  return (Array.isArray(value) ? value[0] : value)?.split(",")[0]?.trim() ?? "";
+function env(name: string): string {
+  const fromProcess = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.[name];
+  return fromProcess ?? "";
 }
 
-function send(res: KeyResponse, status: number, body: unknown) {
-  res.statusCode = status;
-  res.setHeader("content-type", "application/json");
-  res.end(JSON.stringify(body));
+function json(body: unknown, status: number, extra?: Record<string, string>): Response {
+  return Response.json(body, { status, headers: extra });
+}
+
+async function mint(): Promise<{ key: string; prefix: string; createdAt: string }> {
+  const bytes = crypto.getRandomValues(new Uint8Array(24));
+  const key = `kt_${[...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+  const createdAt = new Date().toISOString();
+  return { key, prefix: key.slice(0, 7), createdAt };
+}
+
+async function sha(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 async function seal(record: SavedKey, secret: string, host: string): Promise<string> {
-  const payload = b64(JSON.stringify({ hash: record.hash, prefix: record.prefix, createdAt: record.createdAt }));
+  const payload = b64(JSON.stringify(record));
   const sig = await mac(secret, payload);
-  const domain = host.endsWith("kazitrustai.fun") ? "; Domain=.kazitrustai.fun" : "";
+  const name = host.split(":")[0];
+  const domain = name === "kazitrustai.fun" || name.endsWith(".kazitrustai.fun") ? "; Domain=.kazitrustai.fun" : "";
   return `${COOKIE}=${payload}.${sig}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=31536000${domain}`;
 }
 
 async function readCookie(cookie: string, secret: string): Promise<SavedKey | null> {
   const pair = cookie.split(";").map((part) => part.trim()).find((part) => part.startsWith(`${COOKIE}=`));
   if (!pair) return null;
-  const value = pair.slice(COOKIE.length + 1);
+  const value = decodeURIComponent(pair.slice(COOKIE.length + 1));
   const dot = value.lastIndexOf(".");
   if (dot <= 0) return null;
   const payload = value.slice(0, dot);
-  const sig = value.slice(dot + 1);
-  if ((await mac(secret, payload)) !== sig) return null;
+  if ((await mac(secret, payload)) !== value.slice(dot + 1)) return null;
   try {
     const body = JSON.parse(unb64(payload)) as Partial<SavedKey>;
     if (!body.hash || !body.prefix || !body.createdAt) return null;
