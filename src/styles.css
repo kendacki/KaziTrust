@@ -240,7 +240,7 @@ h3 {
   }
   .hero > h1 { grid-area: title; }
   .hero-copy { grid-area: copy; }
-  .hero .field { grid-area: field; min-height: 460px; }
+  .hero .field { grid-area: field; min-height: 0; }
 }
 .hero h1 span { display: block; }
 .hero-copy { display: grid; gap: 22px; justify-items: start; }
@@ -254,16 +254,21 @@ h3 {
   align-items: center;
   gap: 8px;
 }
-.field {
+.hero-film {
+  padding: 0;
+  overflow: hidden;
+  min-height: 0;
+  aspect-ratio: 16 / 9;
+  display: block;
   border-radius: 28px;
-  min-height: 520px;
-  padding: 28px;
-  display: grid;
-  place-items: center;
-  background:
-    radial-gradient(160px 110px at 86% 88%, color-mix(in srgb, var(--green) 45%, transparent), transparent 70%),
-    radial-gradient(80% 70% at 18% 0%, var(--field-3), transparent 60%),
-    linear-gradient(165deg, var(--field-3), var(--field-2) 46%, var(--field-1));
+  background: #0b0c0e;
+}
+.hero-film video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
 }
 .product-card, .cards article, .question-panel, .evidence-demo, .try-result, .visual, .report, .panel, .composer {
   background: var(--panel);
@@ -1045,7 +1050,7 @@ body:has(.app-shell) { height: 100dvh; overflow: hidden; }
   .nav .btn.ghost { display: none; }
   .nav .btn.ink { padding: 10px 12px; }
   .announce button { font-size: 12px; line-height: 1.35; text-align: left; }
-  .field { padding: 16px; min-height: 0; }
+  .field.hero-film { padding: 0; min-height: 0; }
   .field > * { min-width: 0; max-width: 100%; }
   .sample-score, .verdict { flex-wrap: wrap; align-items: start; }
   .product-card { padding: 16px; }

@@ -7,7 +7,6 @@ import { Card, CardGrid, Line, Reveal } from "../motion";
 import { Lockup } from "./mark";
 import { IconAgent, IconArrow, IconBook, IconBuilding, IconChat, IconCite, IconClose, IconLock, IconMenu, IconPackage, IconPeople, IconSearch, IconToken } from "./icons";
 import { MiniRead } from "./report";
-import { Gauge } from "./visuals";
 import type { Report } from "../types";
 
 const explorerRows = [
@@ -162,28 +161,18 @@ export function Home({ go }: { go: (to: string) => void }) {
             Scroll to explore <IconArrow size={16} />
           </motion.button>
         </div>
-        <div className="field" aria-hidden="false">
-          <motion.article className="product-card" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35, duration: 0.8 }}>
-            <div className="address-line">
-              <strong className="num">7xKp…q9Rd</strong>
-              <span className="quiet">Token deployer</span>
-            </div>
-            <div className="sample-score">
-              <p className="score num">72</p>
-              <div>
-                <Gauge score={72} band="Elevated" />
-                <p>Elevated</p>
-                <p className="quiet">Confidence medium</p>
-              </div>
-            </div>
-            <ul className="sample-list">
-              <li>Launched six tokens in 30 days. Five lost most liquidity within 48 hours.</li>
-              <li>First funded by a wallet that also funded two earlier deployers.</li>
-              <li className="clean-line">
-                <span className="dot" /> No mixer exposure found.
-              </li>
-            </ul>
-          </motion.article>
+        <div className="field hero-film">
+          <video
+            src="/hero.mp4"
+            width={1280}
+            height={720}
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="auto"
+            aria-label="A robot working in a room"
+          />
         </div>
       </section>
 
