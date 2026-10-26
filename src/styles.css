@@ -854,7 +854,21 @@ body:has(.app-shell) { height: 100dvh; overflow: hidden; }
 .profile-edit { border: 0; background: transparent; padding: 0; font: inherit; font-size: 14px; font-weight: 500; text-align: left; }
 .profile-edit span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .profile-meta { font-size: 12px; line-height: 1.35; }
-.profile-signout { border: 0; background: transparent; padding: 0; font: inherit; font-size: 12px; color: var(--mute); text-align: left; width: fit-content; }
+.profile-signout {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  margin-left: auto;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  display: grid;
+  place-items: center;
+}
+.profile-signout:hover { background: var(--surface-2); }
+.profile-signout:focus,
+.profile-signout:focus-visible { outline: none; }
 .profile input { width: 100%; border: 0; border-bottom: 1px solid var(--line-strong); background: transparent; padding: 4px 0; font: inherit; font-size: 14px; }
 
 .thread { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; min-height: 0; min-width: 0; overflow: hidden; background: var(--paper); }

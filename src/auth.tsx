@@ -74,7 +74,12 @@ function AuthGate({ go, children }: { go: (to: string) => void; children: ReactN
   const { login } = useLogin();
 
   useEffect(() => {
-    if (!ready || authenticated || prompted) return;
+    if (!ready) return;
+    if (authenticated) {
+      prompted = true;
+      return;
+    }
+    if (prompted) return;
     prompted = true;
     login();
   }, [ready, authenticated, login]);

@@ -71,6 +71,12 @@ export const IconKey = (p: IconProps) => (
   </Svg>
 );
 export const IconSidebar = (p: IconProps) => <Pen {...p} d="M4 4.5h12v11H4zM8 4.5v11" />;
+export const IconSignOut = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M8 4.5H5.5A1.5 1.5 0 0 0 4 6v8a1.5 1.5 0 0 0 1.5 1.5H8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M10.5 10h6M13.5 7 16.5 10 13.5 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+  </Svg>
+);
 export const IconAttach = (p: IconProps) => <Pen {...p} d="M8.2 10.2 12.6 5.8a2.2 2.2 0 0 1 3.1 3.1l-5.6 5.6a3.2 3.2 0 0 1-4.5-4.5l5.2-5.2" />;
 export const IconChat = (p: IconProps) => <Pen {...p} d="M4 5.5h12v8H8l-3 2.5v-2.5H4z" />;
 export const IconBook = (p: IconProps) => <Pen {...p} d="M4.5 4.5h5.2A2.3 2.3 0 0 1 12 6.8V16a2 2 0 0 0-2.3-1.6H4.5zM15.5 4.5H10.3A2.3 2.3 0 0 0 8 6.8V16a2 2 0 0 1 2.3-1.6h5.2z" />;

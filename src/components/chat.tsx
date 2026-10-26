@@ -21,6 +21,7 @@ import {
   IconSearch,
   IconSend,
   IconSidebar,
+  IconSignOut,
   IconStop,
   IconTrash,
 } from "./icons";
@@ -51,7 +52,7 @@ function contextAddresses(messages: ThreadMessage[]): string[] {
 }
 
 export function Chat({ go }: { go: (to: string) => void }) {
-  const { authenticated, logout, user } = usePrivy();
+  const { logout, user } = usePrivy();
   const [threads, setThreads] = useState<Thread[]>(() => loadThreads());
   const [activeId, setActiveId] = useState<string | null>(null);
   const [watch, setWatch] = useState<WatchItem[]>(() => loadWatch());
@@ -431,7 +432,7 @@ export function Chat({ go }: { go: (to: string) => void }) {
               if (next) setUsername(next);
               setEditingName(false);
             }}
-            onSignOut={authenticated ? () => void logout() : undefined}
+            onSignOut={() => void logout()}
           />
         </footer>
       </aside>
@@ -810,10 +811,12 @@ function ProfileName({
           </button>
         )}
         <p className="quiet profile-meta">{detail}</p>
-        {onSignOut ? (
-          <button type="button" className="profile-signout" onClick={onSignOut}>Sign out</button>
-        ) : null}
       </div>
+      {onSignOut ? (
+        <button type="button" className="profile-signout" onClick={onSignOut} aria-label="Sign out">
+          <IconSignOut size={16} />
+        </button>
+      ) : null}
     </div>
   );
 }
