@@ -338,12 +338,11 @@ export function Home({ go }: { go: (to: string) => void }) {
               </li>
             </ol>
           </Reveal>
-          <article className="device" aria-label="Illustrative sample on a device screen">
+          <article className="device" aria-label="Sample read on a device screen">
             <div className="device-chassis">
               <div className="device-speaker" aria-hidden="true" />
               <div className="device-screen">
                 <header className="device-head">
-                  <p className="eyebrow">Illustrative sample</p>
                   <div className="device-id">
                     <div>
                       <h3>Token deployer</h3>

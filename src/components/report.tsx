@@ -18,7 +18,6 @@ export function ReportView({
 }) {
   return (
     <motion.article className="report" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-      {report.illustrative ? <p className="banner">Illustrative sample. No chain call was made.</p> : null}
       {report.warnings.map((warning) => (
         <p className="banner" key={warning}>
           {warning}

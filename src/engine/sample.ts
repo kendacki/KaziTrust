@@ -101,7 +101,7 @@ export function sampleDeployerReport(): Report {
     confidence: "medium",
     confidenceLabel: "Confidence medium",
     scoringVersion: "0.1.0-sample",
-    dataAsOf: `Illustrative sample, shown ${formatTime(Math.floor(Date.now() / 1000))}`,
+    dataAsOf: `Sample, shown ${formatTime(Math.floor(Date.now() / 1000))}`,
     summary:
       "This is a sample deployer read, not a live chain query. The score is 72, Elevated, because the illustrated record is repeated launches that lost liquidity, plus a shared funding source and a freeze authority.",
     meaning:
@@ -115,7 +115,7 @@ export function sampleDeployerReport(): Report {
       { id: "funding", points: 14, detail: "Shared funding source with earlier deployers" },
       { id: "freeze", points: 8, detail: "Freeze authority still held" },
     ],
-    tools: ["Illustrative sample. No chain call was made."],
+    tools: ["No chain call was made."],
     txCount: 0,
     warnings: ["These figures are a teaching sample. They are not a clearance or an accusation."],
     illustrative: true,
