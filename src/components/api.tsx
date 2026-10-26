@@ -322,7 +322,7 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
     setError("");
     setNotice("");
     try {
-      const response = await fetch("/api/keys", { method: "POST", headers: await sessionHeaders(tokenRef.current) });
+      const response = await fetch("/api/keys", { method: "POST", headers: await sessionHeaders(tokenRef.current), credentials: "include" });
       const body = (await response.json().catch(() => null)) as { key?: string; prefix?: string; createdAt?: string } | null;
       if (!response.ok || !body?.key?.startsWith("kt_") || !body.prefix || !body.createdAt) {
         throw new Error(keyFailure(response.status));
@@ -473,7 +473,7 @@ async function sessionHeaders(readToken: (() => Promise<string | null>) | undefi
 }
 
 async function readRecord(headers: HeadersInit): Promise<KeyRecord | null> {
-  const response = await fetch("/api/keys", { headers });
+  const response = await fetch("/api/keys", { headers, credentials: "include" });
   const body = (await response.json().catch(() => null)) as { key?: KeyRecord | null } | null;
   if (!response.ok) throw new Error(keyFailure(response.status));
   const key = body?.key;

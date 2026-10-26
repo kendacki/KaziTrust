@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { signedIn } from "./session";
 
-type SavedKey = {
+export type SavedKey = {
   hash: string;
   prefix: string;
   createdAt: string;
@@ -77,10 +77,24 @@ function read(): SavedKey | null {
   }
 }
 
+export function savedKey(): SavedKey | null {
+  return saved;
+}
+
+export function rememberKey(record: SavedKey) {
+  if (!record.hash || !record.prefix || !record.createdAt) return;
+  saved = { hash: record.hash, prefix: record.prefix, createdAt: record.createdAt };
+  write(saved);
+}
+
 function write(record: SavedKey) {
   if (!root) return;
-  const slash = root.includes("\\") ? "\\" : "/";
-  const dir = `${root}${slash}data`;
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(filePath(), JSON.stringify(record));
+  try {
+    const slash = root.includes("\\") ? "\\" : "/";
+    const dir = `${root}${slash}data`;
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(filePath(), JSON.stringify(record));
+  } catch {
+    /* A read-only disk still leaves the record in memory and in the signed cookie. */
+  }
 }
