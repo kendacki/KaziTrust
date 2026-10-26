@@ -1,5 +1,5 @@
 import { loadEnv, type Connect, type Plugin } from "vite";
-import { signedIn } from "./session";
+import { permit } from "./apikey";
 
 const ALLOWED = new Set(["account/portfolio", "account/metadata", "account/defi/activities"]);
 
@@ -64,17 +64,14 @@ async function handle(
     send(res, 503, { error: "Solscan is not configured." });
     return;
   }
-  if (!auth.local) {
-    if (!auth.appId || !auth.appSecret) {
-      send(res, 503, { error: "Sign-in is not configured." });
-      return;
-    }
-    const header = req.headers?.authorization;
-    const token = (Array.isArray(header) ? header[0] : header)?.replace(/^Bearer\s+/i, "").trim() ?? "";
-    if (!(await signedIn(auth.appId, auth.appSecret, token))) {
-      send(res, 401, { error: "Sign in before a query." });
-      return;
-    }
+  const gate = await permit(req.headers?.authorization, auth.local, auth.appId, auth.appSecret);
+  if (gate === "unconfigured") {
+    send(res, 503, { error: "Sign-in is not configured." });
+    return;
+  }
+  if (gate === "denied") {
+    send(res, 401, { error: "Sign in before a query." });
+    return;
   }
   const target = new URL(`https://pro-api.solscan.io/v2.0/${path}`);
   target.searchParams.set("address", address);

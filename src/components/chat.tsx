@@ -16,6 +16,7 @@ import {
   IconCopy,
   IconEdit,
   IconExport,
+  IconKey,
   IconPin,
   IconSearch,
   IconSend,
@@ -411,6 +412,10 @@ export function Chat({ go }: { go: (to: string) => void }) {
           )}
         </div>
         <footer className="account">
+          <button type="button" className="api-entry" onClick={() => go("/api")}>
+            <IconKey size={16} />
+            Create API key
+          </button>
           <ProfileName
             name={username || user?.google?.name || user?.email?.address?.split("@")[0] || "Reader"}
             detail={`${quota.remaining} of ${quota.limit} live reads left today`}

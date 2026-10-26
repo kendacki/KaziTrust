@@ -1,5 +1,5 @@
 import { loadEnv, type Connect, type Plugin } from "vite";
-import { signedIn } from "./session";
+import { permit } from "./apikey";
 
 const MINT = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
@@ -89,17 +89,14 @@ async function handle(
     send(res, 400, { error: "That mint cannot be scanned." });
     return;
   }
-  if (!auth.local) {
-    if (!auth.appId || !auth.appSecret) {
-      send(res, 503, { error: "Sign-in is not configured." });
-      return;
-    }
-    const header = req.headers?.authorization;
-    const token = (Array.isArray(header) ? header[0] : header)?.replace(/^Bearer\s+/i, "").trim() ?? "";
-    if (!(await signedIn(auth.appId, auth.appSecret, token))) {
-      send(res, 401, { error: "Sign in before a query." });
-      return;
-    }
+  const gate = await permit(req.headers?.authorization, auth.local, auth.appId, auth.appSecret);
+  if (gate === "unconfigured") {
+    send(res, 503, { error: "Sign-in is not configured." });
+    return;
+  }
+  if (gate === "denied") {
+    send(res, 401, { error: "Sign in before a query." });
+    return;
   }
   try {
     const report = await loadReport(mint, auth.apiKey);

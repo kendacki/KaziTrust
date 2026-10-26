@@ -64,6 +64,12 @@ export const IconTrash = (p: IconProps) => <Pen {...p} d="M4.5 6h11M8 6V4.5h4V6M
 export const IconEdit = (p: IconProps) => <Pen {...p} d="M12.5 4.5 15.5 7.5 7 16H4v-3l8.5-8.5z" />;
 export const IconCheck = (p: IconProps) => <Pen {...p} d="M4.5 10.5 8 14 15.5 6" />;
 export const IconArrow = (p: IconProps) => <Pen {...p} d="M4 10h12M11 5.5 15.5 10 11 14.5" />;
+export const IconKey = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="7.2" cy="10" r="2.7" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M9.8 10H16.2M13.6 10v2.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </Svg>
+);
 export const IconSidebar = (p: IconProps) => <Pen {...p} d="M4 4.5h12v11H4zM8 4.5v11" />;
 export const IconAttach = (p: IconProps) => <Pen {...p} d="M8.2 10.2 12.6 5.8a2.2 2.2 0 0 1 3.1 3.1l-5.6 5.6a3.2 3.2 0 0 1-4.5-4.5l5.2-5.2" />;
 export const IconChat = (p: IconProps) => <Pen {...p} d="M4 5.5h12v8H8l-3 2.5v-2.5H4z" />;

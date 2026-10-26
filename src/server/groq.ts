@@ -1,5 +1,5 @@
 import { loadEnv, type Connect, type Plugin } from "vite";
-import { signedIn } from "./session";
+import { permit } from "./apikey";
 
 const MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b"];
 
@@ -81,25 +81,22 @@ async function handle(
     const raw = await readBody(req);
     const body = JSON.parse(raw) as GroqBody;
     if (!auth.apiKey) {
-      send(res, 503, { error: "Groq is not configured." });
+      send(res, 503, { error: "The wording service is not configured." });
       return;
     }
-    if (!auth.local) {
-      if (!auth.appId || !auth.appSecret) {
-        send(res, 503, { error: "Sign-in is not configured." });
-        return;
-      }
-      const header = req.headers?.authorization;
-      const token = (Array.isArray(header) ? header[0] : header)?.replace(/^Bearer\s+/i, "").trim() ?? "";
-      if (!(await signedIn(auth.appId, auth.appSecret, token))) {
-        send(res, 401, { error: "Sign in before a query." });
-        return;
-      }
+    const gate = await permit(req.headers?.authorization, auth.local, auth.appId, auth.appSecret);
+    if (gate === "unconfigured") {
+      send(res, 503, { error: "Sign-in is not configured." });
+      return;
+    }
+    if (gate === "denied") {
+      send(res, 401, { error: "Sign in before a query." });
+      return;
     }
     const result = await complete(auth.apiKey, body);
     send(res, 200, result);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Groq did not answer.";
+    const message = error instanceof Error ? error.message : "The wording service did not answer.";
     send(res, 502, { error: message.slice(0, 240) });
   }
 }
@@ -115,7 +112,7 @@ async function complete(apiKey: string, body: GroqBody): Promise<Record<string, 
     body.kind === "chat"
       ? `Question: ${question}\n\nContext you may use, and must not go beyond:\n${(body.context ?? "").slice(0, 4000)}`
       : `Question: ${question}\n\nFacts from the chain tools:\n${facts}`;
-  let last = "Groq did not answer.";
+  let last = "The wording service did not answer.";
   for (const model of MODELS) {
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -134,7 +131,7 @@ async function complete(apiKey: string, body: GroqBody): Promise<Record<string, 
       }),
     });
     if (!response.ok) {
-      last = `Groq returned ${response.status}.`;
+      last = `The wording service returned ${response.status}.`;
       if (response.status === 401 || response.status === 403) break;
       continue;
     }
@@ -142,9 +139,9 @@ async function complete(apiKey: string, body: GroqBody): Promise<Record<string, 
     const content = payload.choices?.[0]?.message?.content ?? "";
     try {
       const parsed = JSON.parse(content) as Record<string, unknown>;
-      return { ...parsed, model };
+      return parsed;
     } catch {
-      last = "Groq returned text that was not JSON.";
+      last = "The wording service returned text that was not JSON.";
     }
   }
   throw new Error(last);

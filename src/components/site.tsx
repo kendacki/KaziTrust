@@ -76,6 +76,7 @@ export function Chrome({
             {item("/#engine", "Risk engine")}
             {item("/#developers", "Developers")}
             {item("/docs", "Docs")}
+            {item("/api", "API")}
           </nav>
           <div className="nav-actions">
             <button type="button" className="btn ghost" onClick={() => go("/docs")}>
@@ -109,6 +110,7 @@ export function Chrome({
               <div className="footer-col">
                 <p className="eyebrow">Developers</p>
                 <button type="button" onClick={() => go("/docs")}>Docs</button>
+                <button type="button" onClick={() => go("/api")}>API</button>
                 <button type="button" onClick={() => go("/#developers")}>API shape</button>
               </div>
               <div className="footer-col">
@@ -399,6 +401,9 @@ report.riskScore
 report.band
 report.findings[0].evidence`}</pre>
           <div className="hero-actions">
+            <button type="button" className="btn ink" onClick={() => go("/api")}>
+              Create an API key
+            </button>
             <button type="button" className="btn ghost" onClick={() => go("/docs")}>
               Read the docs
             </button>
@@ -651,7 +656,7 @@ export function Docs({ go }: { go: (to: string) => void }) {
       <h2 id="limits">What it will not do</h2>
       <p>It will not invent a hop, a label, or a dollar value. It will not name a person. It will not ask you to sign a transaction. Mixer exposure, sanction lists, and a full funding graph need the hosted index. Until that ships, the report says when a check was not run.</p>
       <h2 id="api">The API shape</h2>
-      <p>The planned call is <span className="num">readWallet</span>, returning the same report object the app renders. The package is not published. Daily live reads in this browser build are capped at 30.</p>
+      <p>One key opens every hosted service at <span className="num">/api/v1</span>. Create it on the API page. The planned package call is <span className="num">readWallet</span>, returning the same report object the app renders. That package is not published. Daily live reads in this browser build are capped at 30.</p>
       <h2 id="privacy">Privacy</h2>
       <p>Chats, the watchlist, and the daily counter stay in this browser. KaziTrust does not run an account system in this version. Chain queries go to a public Solana node and contain the address you asked about.</p>
       <h2 id="disclaimer">Disclaimer</h2>

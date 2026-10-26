@@ -1,6 +1,6 @@
 import { inflateRawSync } from "node:zlib";
 import { loadEnv, type Connect, type Plugin } from "vite";
-import { signedIn } from "./session";
+import { permit } from "./apikey";
 
 const SDN_ZIP = "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/SDN_ADVANCED.ZIP";
 const TTL = 6 * 60 * 60 * 1000;
@@ -65,17 +65,14 @@ async function handle(
     next();
     return;
   }
-  if (!auth.local) {
-    if (!auth.appId || !auth.appSecret) {
-      send(res, 503, { error: "Sign-in is not configured." });
-      return;
-    }
-    const header = req.headers?.authorization;
-    const token = (Array.isArray(header) ? header[0] : header)?.replace(/^Bearer\s+/i, "").trim() ?? "";
-    if (!(await signedIn(auth.appId, auth.appSecret, token))) {
-      send(res, 401, { error: "Sign in before a query." });
-      return;
-    }
+  const gate = await permit(req.headers?.authorization, auth.local, auth.appId, auth.appSecret);
+  if (gate === "unconfigured") {
+    send(res, 503, { error: "Sign-in is not configured." });
+    return;
+  }
+  if (gate === "denied") {
+    send(res, 401, { error: "Sign in before a query." });
+    return;
   }
   try {
     const list = await loadList();

@@ -4,9 +4,10 @@ import { RequireAuth } from "./auth";
 import { Chat } from "./components/chat";
 import { Lost } from "./components/lost";
 import { Chrome, Docs, Home, Method } from "./components/site";
+import { ApiAccess } from "./components/api";
 import { ease } from "./motion";
 
-const KNOWN = new Set(["/", "/app", "/docs", "/method"]);
+const KNOWN = new Set(["/", "/app", "/docs", "/method", "/api"]);
 
 function useOnline() {
   const [online, setOnline] = useState(() => navigator.onLine);
@@ -47,7 +48,7 @@ export function App() {
   const online = useOnline();
   const missing = !KNOWN.has(path);
   useEffect(() => {
-    document.title = !online ? "Offline · KaziTrust" : missing ? "Page not found · KaziTrust" : path === "/app" ? "App · KaziTrust" : path === "/docs" ? "Docs · KaziTrust" : path === "/method" ? "Method · KaziTrust" : "KaziTrust AI";
+    document.title = !online ? "Offline · KaziTrust" : missing ? "Page not found · KaziTrust" : path === "/app" ? "App · KaziTrust" : path === "/docs" ? "Docs · KaziTrust" : path === "/method" ? "Method · KaziTrust" : path === "/api" ? "API · KaziTrust" : "KaziTrust AI";
   }, [path, online, missing]);
 
   let body;
@@ -56,6 +57,7 @@ export function App() {
   else if (path === "/app") body = <RequireAuth go={go}><Chat go={go} /></RequireAuth>;
   else if (path === "/docs") body = <Chrome path={path} go={go}><Docs go={go} /></Chrome>;
   else if (path === "/method") body = <Chrome path={path} go={go}><Method go={go} /></Chrome>;
+  else if (path === "/api") body = <Chrome path={path} go={go}><ApiAccess go={go} /></Chrome>;
   else body = <Chrome path={path} go={go}><Home go={go} /></Chrome>;
 
   return (

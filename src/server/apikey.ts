@@ -1,0 +1,86 @@
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { signedIn } from "./session";
+
+type SavedKey = {
+  hash: string;
+  prefix: string;
+  createdAt: string;
+};
+
+let root = "";
+let saved: SavedKey | null = null;
+
+export function bindKeyStore(nextRoot: string) {
+  root = nextRoot;
+  saved = read();
+}
+
+export function keyRecord(): { prefix: string; createdAt: string } | null {
+  if (!saved) return null;
+  return { prefix: saved.prefix, createdAt: saved.createdAt };
+}
+
+export async function issueKey(): Promise<{ key: string; prefix: string; createdAt: string }> {
+  const bytes = crypto.getRandomValues(new Uint8Array(24));
+  const key = `kt_${[...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+  const createdAt = new Date().toISOString();
+  const prefix = key.slice(0, 7);
+  saved = { hash: await sha(key), prefix, createdAt };
+  write(saved);
+  return { key, prefix, createdAt };
+}
+
+export async function keyMatches(token: string): Promise<boolean> {
+  if (!saved || !token.startsWith("kt_") || token.length > 80) return false;
+  return (await sha(token)) === saved.hash;
+}
+
+export function bearer(header: string | string[] | undefined): string {
+  const raw = Array.isArray(header) ? header[0] : header;
+  return raw?.replace(/^Bearer\s+/i, "").trim() ?? "";
+}
+
+export async function permit(
+  header: string | string[] | undefined,
+  local: boolean,
+  appId: string,
+  appSecret: string,
+): Promise<"ok" | "unconfigured" | "denied"> {
+  const token = bearer(header);
+  if (token.startsWith("kt_") && (await keyMatches(token))) return "ok";
+  if (local) return "ok";
+  if (!appId || !appSecret) return "unconfigured";
+  if (await signedIn(appId, appSecret, token)) return "ok";
+  return "denied";
+}
+
+async function sha(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function filePath(): string {
+  const slash = root.includes("\\") ? "\\" : "/";
+  return `${root}${slash}data${slash}api-keys.json`;
+}
+
+function read(): SavedKey | null {
+  if (!root) return null;
+  const path = filePath();
+  if (!existsSync(path)) return null;
+  try {
+    const body = JSON.parse(readFileSync(path, "utf8")) as Partial<SavedKey>;
+    if (!body.hash || !body.prefix || !body.createdAt) return null;
+    return { hash: body.hash, prefix: body.prefix, createdAt: body.createdAt };
+  } catch {
+    return null;
+  }
+}
+
+function write(record: SavedKey) {
+  if (!root) return;
+  const slash = root.includes("\\") ? "\\" : "/";
+  const dir = `${root}${slash}data`;
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(filePath(), JSON.stringify(record));
+}
