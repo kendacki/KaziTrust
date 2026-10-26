@@ -57,6 +57,7 @@ export function Chat({ go }: { go: (to: string) => void }) {
   const [draft, setDraft] = useState("");
   const [mode, setMode] = useState<"quick" | "deep">("quick");
   const [filter, setFilter] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [sidebar, setSidebar] = useState(() => window.matchMedia("(min-width: 961px)").matches);
   const [panel, setPanel] = useState<Panel>(null);
   const [busy, setBusy] = useState(false);
@@ -313,14 +314,50 @@ export function Chat({ go }: { go: (to: string) => void }) {
             <IconSidebar />
           </button>
         </header>
-        <button type="button" className="history-new" onClick={newChat}>
-          <IconCompose size={16} />
-          New chat
-        </button>
-        <label className="search">
-          <IconSearch size={16} />
-          <input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Search chats" aria-label="Search chats" />
-        </label>
+        <div className="history-tools">
+          {searchOpen ? (
+            <label className="search">
+              <IconSearch size={16} />
+              <input
+                value={filter}
+                onChange={(event) => setFilter(event.target.value)}
+                onBlur={() => {
+                  if (!filter) setSearchOpen(false);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    setFilter("");
+                    setSearchOpen(false);
+                  }
+                }}
+                placeholder="Search chats"
+                aria-label="Search chats"
+                autoFocus
+              />
+            </label>
+          ) : (
+            <button type="button" className="history-new" onClick={newChat}>
+              <IconCompose size={16} />
+              New chat
+            </button>
+          )}
+          <button
+            type="button"
+            className="history-search"
+            aria-label="Search chats"
+            aria-pressed={searchOpen}
+            onClick={() => {
+              if (searchOpen) {
+                setFilter("");
+                setSearchOpen(false);
+                return;
+              }
+              setSearchOpen(true);
+            }}
+          >
+            <IconSearch size={16} />
+          </button>
+        </div>
         <div className="side-scroll">
           <p className="side-label">History</p>
           {Object.entries(groups).map(([label, items]) =>
