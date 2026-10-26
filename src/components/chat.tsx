@@ -440,16 +440,15 @@ export function Chat({ go, api = false }: { go: (to: string) => void; api?: bool
       </aside>
       {api ? (
         <section className="thread thread-api">
-          <header className="thread-top">
-            <div className="thread-start">
-              {sidebar ? null : (
+          {sidebar ? null : (
+            <header className="thread-top">
+              <div className="thread-start">
                 <button type="button" className="icon-btn" aria-label="Show history" onClick={toggleHistory}>
                   <IconSidebar />
                 </button>
-              )}
-              <h1>API</h1>
-            </div>
-          </header>
+              </div>
+            </header>
+          )}
           <div className="thread-scroll">
             <ApiDesk />
           </div>

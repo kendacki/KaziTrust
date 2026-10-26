@@ -354,7 +354,6 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
   return (
     <div className="api-page api-keys wrap">
       <header className="page-head">
-        <p className="eyebrow">API</p>
         <h1>Your key</h1>
         <p className="lede">Create the key for every service. It is shown in full once. A new key replaces the one before it.</p>
       </header>
