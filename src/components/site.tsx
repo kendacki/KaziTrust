@@ -591,7 +591,7 @@ function EvidenceDemo() {
     confidence: 1,
     explanation: "",
     evidence: [
-      { kind: "transaction", signature: USDC_TX, slot: 461713863, label: shortAddress(USDC_TX) },
+      { kind: "transaction", signature: USDC_TX, label: shortAddress(USDC_TX) },
       { kind: "read", address: USDC_ACCOUNT, label: shortAddress(USDC_ACCOUNT) },
     ],
   };
