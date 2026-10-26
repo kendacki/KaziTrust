@@ -143,8 +143,8 @@ export function Home({ go }: { go: (to: string) => void }) {
     <>
       <section className="hero wrap">
         <h1>
-          <Line index={0}>Know the Wallet.</Line>
-          <Line index={1}>Measure the Risk.</Line>
+          <Line index={0}>Know the Wallet,</Line>
+          <Line index={1}>Measure the Risk,</Line>
           <Line index={2}>Protect Your Assets.</Line>
         </h1>
         <div className="hero-copy">
