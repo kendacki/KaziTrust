@@ -113,8 +113,8 @@ export function ApiAccess() {
     <div className="api-page wrap">
       <header className="page-head">
         <p className="eyebrow">API</p>
-        <h1>The services, without a session</h1>
-        <p className="lede">This page is a reference. It stays open when no one is signed in. A call uses a bearer key. Sign-in is for the app, and it does not replace the key.</p>
+        <h1>One key for every service</h1>
+        <p className="lede">Send your key with each request. Choose a service to see the path, what to send, and what comes back.</p>
       </header>
 
       <dl className="api-facts">
@@ -223,8 +223,6 @@ export function ApiAccess() {
           </ul>
         </div>
       </section>
-
-      <p className="quiet api-notice">This page does not create a key. Issuing a key needs a signed-in session, and that action is not offered here.</p>
     </div>
   );
 }
