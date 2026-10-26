@@ -327,19 +327,39 @@ h3 {
 .feed p { color: var(--soft); }
 @keyframes rise { from { transform: translateY(0); } to { transform: translateY(-50%); } }
 
-.try-shot {
-  width: min(3840px, calc(100vw - 64px));
-  margin: 36px 0 0;
-  margin-left: calc(50% - 50vw + 32px);
-}
-.try-shot img {
-  display: block;
-  width: 100%;
-  height: auto;
+.try-stage {
+  width: min(920px, 100%);
+  height: 520px;
+  margin: 28px auto 0;
   border: 1px solid var(--line);
   border-radius: 12px 12px 0 0;
+  overflow: hidden;
+  background: var(--paper);
 }
+.try-stage .app-shell,
+.try-stage .app-shell[data-side="open"][data-panel="closed"] {
+  height: 100%;
+  max-height: none;
+  grid-template-columns: 220px minmax(0, 1fr);
+}
+.try-stage .sidebar {
+  position: relative;
+  inset: auto;
+  width: 220px;
+  max-width: 220px;
+  height: 100%;
+  max-height: none;
+  z-index: auto;
+}
+.try-stage .empty-chat { padding: 16px 0 20px; gap: 12px; }
+.try-stage .empty-chat h2 { font-size: 28px; }
 .try-open { display: flex; justify-content: center; margin-top: 28px; }
+@media (max-width: 720px) {
+  .try-stage { height: 460px; }
+  .try-stage .app-shell,
+  .try-stage .app-shell[data-side="open"][data-panel="closed"] { grid-template-columns: minmax(0, 1fr); }
+  .try-stage .sidebar { display: none; }
+}
 .search input, .composer textarea, .msg textarea, .history input {
   width: 100%;
   border: 1px solid var(--line-strong);
@@ -516,7 +536,7 @@ h3 {
 .prose p, .prose ul { max-width: 68ch; }
 .prose ul { margin: 0; padding-left: 18px; display: grid; gap: 8px; }
 
-body:has(.app-shell) { height: 100dvh; overflow: hidden; }
+body:has(.page-app) { height: 100dvh; overflow: hidden; }
 .app-shell {
   height: 100dvh;
   max-height: 100dvh;

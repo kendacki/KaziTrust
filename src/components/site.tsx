@@ -4,7 +4,7 @@ import { RULE_CATALOG, SCORING_VERSION } from "../engine/labels";
 import { shortAddress } from "../format";
 import { Card, CardGrid, Line, Reveal } from "../motion";
 import { Lockup } from "./mark";
-import { IconAgent, IconArrow, IconBook, IconBuilding, IconChat, IconCite, IconClose, IconLock, IconMenu, IconPackage, IconPeople, IconPlus, IconSearch, IconToken } from "./icons";
+import { IconAgent, IconArrow, IconAttach, IconBook, IconBuilding, IconChat, IconCite, IconClose, IconCompose, IconKey, IconLock, IconMenu, IconPackage, IconPeople, IconPlus, IconSearch, IconSend, IconSidebar, IconToken } from "./icons";
 import { EvidenceList } from "./report";
 import type { Finding } from "../types";
 
@@ -441,6 +441,81 @@ function Feed({ title, rows }: { title: string; rows: string[] }) {
   );
 }
 
+function AppPreview() {
+  return (
+    <div className="try-stage" inert>
+      <div className="app-shell" data-side="open" data-panel="closed">
+        <aside className="sidebar">
+          <header className="side-top">
+            <span className="lockup-btn">
+              <Lockup size={24} />
+            </span>
+            <span className="icon-btn" aria-hidden="true">
+              <IconSidebar />
+            </span>
+          </header>
+          <div className="history-tools">
+            <span className="history-new">
+              <IconCompose size={16} />
+              New chat
+            </span>
+            <span className="history-search" aria-hidden="true">
+              <IconSearch size={16} />
+            </span>
+          </div>
+          <div className="side-scroll">
+            <p className="side-label">History</p>
+          </div>
+          <footer className="account">
+            <span className="api-entry">
+              <IconKey size={16} />
+              API
+            </span>
+          </footer>
+        </aside>
+        <section className="thread">
+          <header className="thread-top">
+            <div className="thread-start" />
+          </header>
+          <div className="thread-scroll">
+            <div className="empty-chat">
+              <Lockup size={42} />
+              <h2>Which wallet are we looking at?</h2>
+              <div className="suggest">
+                <button type="button" tabIndex={-1}>Show a sample deployer</button>
+                <button type="button" tabIndex={-1}>Read the Jupiter contract</button>
+                <button type="button" tabIndex={-1}>Trace where it was funded</button>
+                <button type="button" tabIndex={-1}>Find risky approvals</button>
+                <button type="button" tabIndex={-1}>Compare two wallets</button>
+              </div>
+            </div>
+          </div>
+          <div className="thread-bottom">
+            <form className="composer-wrap" onSubmit={(event) => event.preventDefault()}>
+              <div className="composer">
+                <textarea rows={1} readOnly tabIndex={-1} placeholder="Ask about a Solana wallet, mint, or contract" aria-label="Message" />
+                <div className="composer-bar">
+                  <span className="icon-btn" aria-hidden="true">
+                    <IconAttach size={18} />
+                  </span>
+                  <div className="mode">
+                    <button type="button" aria-pressed="true" tabIndex={-1}>Quick read</button>
+                    <button type="button" tabIndex={-1}>Deep scan</button>
+                  </div>
+                  <button type="button" className="send" aria-label="Send" tabIndex={-1} disabled>
+                    <IconSend size={16} />
+                  </button>
+                </div>
+                <p className="mode-note">Quick read stays on the latest signatures and four opened transactions.</p>
+              </div>
+            </form>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
 function LiveTry({ go }: { go: (to: string) => void }) {
   return (
     <Reveal>
@@ -450,12 +525,10 @@ function LiveTry({ go }: { go: (to: string) => void }) {
           <h2>Try a live read</h2>
           <p className="lede">Ask about any wallet in the app. The read uses the same engine, on a public Solana node.</p>
         </header>
-        <figure className="try-shot">
-          <img src="/live-read.png" alt="The app ready for a wallet read" width={3840} height={1774} />
-        </figure>
+        <AppPreview />
         <div className="try-open">
           <button type="button" className="btn ink" onClick={() => go("/app")}>
-            Sign in or sign up
+            Try now
           </button>
         </div>
       </section>
