@@ -117,26 +117,27 @@ export function ApiAccess() {
         <p className="lede">Send your key with each request. Choose a service to see the path, what to send, and what comes back.</p>
       </header>
 
-      <dl className="api-facts">
-        <div>
-          <dt>Base URL</dt>
-          <dd className="num">{origin}/api/v1</dd>
-        </div>
-        <div>
-          <dt>Authorization</dt>
-          <dd className="num">Bearer kt_...</dd>
-        </div>
-        <div>
-          <dt>Session</dt>
-          <dd>Not used on these calls</dd>
-        </div>
-      </dl>
-
-      <ol className="api-steps">
-        <li><span>1</span>Send the key as Authorization: Bearer kt_...</li>
-        <li><span>2</span>Call a path under {origin}/api/v1.</li>
-        <li><span>3</span>Read the status code and the JSON body.</li>
-      </ol>
+      <section className="api-board" aria-label="How to call">
+        <dl className="api-facts">
+          <div>
+            <dt>Base URL</dt>
+            <dd className="num">{origin}/api/v1</dd>
+          </div>
+          <div>
+            <dt>Authorization</dt>
+            <dd className="num">Bearer kt_...</dd>
+          </div>
+          <div>
+            <dt>Session</dt>
+            <dd>Not used on these calls</dd>
+          </div>
+        </dl>
+        <ol className="api-steps">
+          <li><span>1</span>Send the key as Authorization: Bearer kt_...</li>
+          <li><span>2</span>Call a path under {origin}/api/v1.</li>
+          <li><span>3</span>Read the status code and the JSON body.</li>
+        </ol>
+      </section>
 
       <div className="api-work">
         <section className="api-services" id="services" aria-label="Services">
@@ -204,10 +205,7 @@ export function ApiAccess() {
       </div>
 
       <section className="api-errors" id="errors" aria-labelledby="api-errors-title">
-        <div className="api-meta">
-          <h2 id="api-errors-title">Status codes</h2>
-          <p className="quiet">A body over 200,000 bytes is refused before the service runs.</p>
-        </div>
+        <h2 id="api-errors-title">Status codes</h2>
         <div className="api-codes">
           <div className="api-head" aria-hidden="true">
             <span>Status</span>
