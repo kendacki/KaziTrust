@@ -771,21 +771,26 @@ function makeFinding(
   signatures: { signature: string; slot: number; blockTime: number | null }[] = [],
   extraAddresses: string[] = [],
 ): Finding {
-  const evidence: Evidence[] = signatures.slice(0, 3).map((item) => ({
-    kind: "transaction",
-    signature: item.signature,
-    slot: item.slot,
-    time: item.blockTime ? formatTime(item.blockTime) : undefined,
-    label: shortAddress(item.signature),
-  }));
-  if (!evidence.length) {
+  const evidence: Evidence[] = [];
+  for (const item of signatures.slice(0, 3)) {
+    if (!item.signature) continue;
     evidence.push({
-      kind: "read",
-      slot: facts.slot,
-      label: `Account read at slot ${facts.slot || "unknown"}`,
+      kind: "transaction",
+      signature: item.signature,
+      slot: item.slot,
+      time: item.blockTime ? formatTime(item.blockTime) : undefined,
+      label: shortAddress(item.signature),
     });
   }
-  void extraAddresses;
+  for (const address of extraAddresses) {
+    if (!isSolanaAddress(address) || evidence.some((item) => item.address === address)) continue;
+    evidence.push({
+      kind: "read",
+      address,
+      ...(facts.slot ? { slot: facts.slot } : {}),
+      label: shortAddress(address),
+    });
+  }
   return {
     id,
     title,

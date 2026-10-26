@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { shortAddress } from "../format";
+import { formatNumber, shortAddress } from "../format";
 import type { Finding, Report, Visual } from "../types";
 import { isSolanaAddress } from "../engine/address";
 import { FindingIcon, IconClose, IconCopy, IconPlus } from "./icons";
@@ -72,15 +72,17 @@ export function ReportView({
                   <p>{finding.explanation}</p>
                   <div className="finding-meta">
                     <span className="num">{Math.round(finding.confidence * 100)}% confidence</span>
-                    <button
-                      type="button"
-                      className="evidence-toggle"
-                      aria-expanded={openId === finding.id}
-                      aria-label={openId === finding.id ? "Close evidence" : "Open evidence"}
-                      onClick={() => setOpenId((current) => (current === finding.id ? null : finding.id))}
-                    >
-                      {openId === finding.id ? <IconClose size={14} /> : <IconPlus size={14} />}
-                    </button>
+                    {linkedEvidence(finding).length ? (
+                      <button
+                        type="button"
+                        className="evidence-toggle"
+                        aria-expanded={openId === finding.id}
+                        aria-label={openId === finding.id ? "Close evidence" : "Open evidence"}
+                        onClick={() => setOpenId((current) => (current === finding.id ? null : finding.id))}
+                      >
+                        {openId === finding.id ? <IconClose size={14} /> : <IconPlus size={14} />}
+                      </button>
+                    ) : null}
                   </div>
                   {openId === finding.id ? <EvidenceList finding={finding} /> : null}
                 </div>
@@ -123,39 +125,61 @@ export function ReportView({
   );
 }
 
+export function linkedEvidence(finding: Finding) {
+  return finding.evidence.filter((item) => (item.kind === "transaction" ? Boolean(item.signature) : Boolean(item.address)));
+}
+
+function scanHref(item: Finding["evidence"][number]): string | null {
+  if (item.signature) return `https://solscan.io/tx/${item.signature}`;
+  if (item.address) return `https://solscan.io/account/${item.address}`;
+  return null;
+}
+
 export function EvidenceList({ finding }: { finding: Finding }) {
+  const rows = linkedEvidence(finding);
+  if (!rows.length) return null;
   return (
     <div className="evidence">
       <div className="evidence-head">
         <p>Instances</p>
-        <span className="num">{finding.evidence.length}</span>
+        <span className="num">{rows.length}</span>
       </div>
       <ol>
-        {finding.evidence.map((item, index) => (
-          <li key={`${item.label}-${index}`}>
-            <span className="evidence-index num">{index + 1}</span>
-            <div className="evidence-body">
-              <div className="evidence-top">
-                <strong>{item.kind === "transaction" ? "Transaction" : "Account read"}</strong>
-                <span className="evidence-actions">
-                  {item.time ? <span className="quiet">{item.time}</span> : null}
-                  {item.slot ? <span className="quiet num">Slot {item.slot}</span> : null}
-                  {item.signature ? (
-                    <a href={`https://solscan.io/tx/${item.signature}`} target="_blank" rel="noreferrer">
-                      Solscan
-                    </a>
-                  ) : null}
-                  {item.signature ? (
-                    <button type="button" className="text-btn" onClick={() => navigator.clipboard.writeText(item.signature ?? "")}>
-                      Copy
-                    </button>
-                  ) : null}
-                </span>
+        {rows.map((item, index) => {
+          const href = scanHref(item);
+          const value = item.signature || item.address || "";
+          return (
+            <li key={`${item.label}-${index}`}>
+              <span className="evidence-index num">{index + 1}</span>
+              <div className="evidence-body">
+                <div className="evidence-top">
+                  <strong>{item.kind === "transaction" ? "Transaction" : "Account read"}</strong>
+                  <span className="evidence-actions">
+                    {item.time ? <span className="quiet">{item.time}</span> : null}
+                    {item.slot ? <span className="quiet num">Slot {formatNumber(item.slot, 0)}</span> : null}
+                    {href ? (
+                      <a href={href} target="_blank" rel="noreferrer">
+                        Solscan
+                      </a>
+                    ) : null}
+                    {value ? (
+                      <button type="button" className="text-btn" onClick={() => navigator.clipboard.writeText(value)}>
+                        Copy
+                      </button>
+                    ) : null}
+                  </span>
+                </div>
+                {href ? (
+                  <a className="quiet-link num" href={href} target="_blank" rel="noreferrer">
+                    {item.label}
+                  </a>
+                ) : (
+                  <p className="num">{item.label}</p>
+                )}
               </div>
-              <p className="num">{item.label}</p>
-            </div>
-          </li>
-        ))}
+            </li>
+          );
+        })}
       </ol>
     </div>
   );

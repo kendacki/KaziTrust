@@ -374,6 +374,8 @@ h3 {
   gap: 8px;
 }
 .evidence-demo .evidence { margin: 0 12px 12px; border-radius: 12px; }
+.evidence-actions a { color: var(--soft); text-decoration: none; }
+.evidence-body > a { width: fit-content; }
 .evidence-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .evidence-head p { margin: 0; font-size: 13px; font-weight: 500; }
 .evidence ol { list-style: none; margin: 0; padding: 0; display: grid; }

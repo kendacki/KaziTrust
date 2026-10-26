@@ -6,6 +6,7 @@ export type Evidence = {
   kind: "transaction" | "read";
   label: string;
   signature?: string;
+  address?: string;
   slot?: number;
   time?: string;
 };

@@ -6,8 +6,8 @@ import { shortAddress } from "../format";
 import { Card, CardGrid, Line, Reveal } from "../motion";
 import { Lockup } from "./mark";
 import { IconAgent, IconArrow, IconBook, IconBuilding, IconChat, IconCite, IconClose, IconLock, IconMenu, IconPackage, IconPeople, IconPlus, IconSearch, IconToken } from "./icons";
-import { MiniRead } from "./report";
-import type { Report } from "../types";
+import { EvidenceList, MiniRead } from "./report";
+import type { Finding, Report } from "../types";
 
 const explorerRows = [
   "5jF2…a91k  System program  2.40 SOL",
@@ -578,44 +578,33 @@ function Questions() {
   );
 }
 
+const USDC_TX = "3LXB727v5JgaLaY2ak5qqFmxXWKQiQGmzaeeajc89o4SjBUHjwwHoiqiGP4DuLoqWLArPJkZea7ExgMma4w9PHye";
+const USDC_ACCOUNT = "2Y7HATmn9aJBcxCskE5V2U2epmjvkZmB51zTJBbhj4cU";
+
 function EvidenceDemo() {
   const [open, setOpen] = useState(false);
+  const finding: Finding = {
+    id: "usdc-move",
+    title: "USDC left this token account.",
+    severity: "note",
+    severityWord: "Noted",
+    confidence: 1,
+    explanation: "",
+    evidence: [
+      { kind: "transaction", signature: USDC_TX, slot: 461713863, label: shortAddress(USDC_TX) },
+      { kind: "read", address: USDC_ACCOUNT, label: shortAddress(USDC_ACCOUNT) },
+    ],
+  };
   return (
     <article className="evidence-demo">
       <button type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open}>
-        <span>Open delegate can move the USDC account.</span>
+        <span>USDC left this token account.</span>
         <span className="evidence-mark" aria-hidden="true">{open ? <IconClose size={16} /> : <IconPlus size={16} />}</span>
       </button>
       <AnimatePresence>
         {open ? (
-          <motion.div className="evidence" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
-            <div className="evidence-head">
-              <p>Instances</p>
-              <span className="num">2</span>
-            </div>
-            <ol>
-              <li>
-                <span className="evidence-index num">1</span>
-                <div className="evidence-body">
-                  <div className="evidence-top">
-                    <strong>Transaction</strong>
-                    <span className="quiet num">4kQm…aa91</span>
-                  </div>
-                  <p className="quiet">Slot 210,441,002</p>
-                </div>
-              </li>
-              <li>
-                <span className="evidence-index num">2</span>
-                <div className="evidence-body">
-                  <div className="evidence-top">
-                    <strong>Account read</strong>
-                    <span className="quiet num">8pQe…11aa</span>
-                  </div>
-                  <p className="quiet">Token account</p>
-                </div>
-              </li>
-            </ol>
-            <p className="quiet">These two lines are illustrations. A live finding links to Solscan.</p>
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} style={{ overflow: "hidden" }}>
+            <EvidenceList finding={finding} />
           </motion.div>
         ) : null}
       </AnimatePresence>
@@ -648,7 +637,7 @@ export function Docs({ go }: { go: (to: string) => void }) {
       </header>
       <p>Paste any Solana address into the app. A quick read uses the latest signatures, the balance, the token accounts, and a handful of opened transactions. A deep scan widens that window. It still does not walk the entire chain.</p>
       <h2 id="comes-back">What comes back</h2>
-      <p>A score from 0 to 100, a band, a confidence word, three to five findings, and the pictures that match the question. Each finding has an evidence control. Transaction evidence opens on Solscan. Account evidence names the slot of the read. Daily live reads in this browser are capped at 30.</p>
+      <p>A score from 0 to 100, a band, a confidence word, three to five findings, and the pictures that match the question. Each finding has an evidence control when the tools returned a signature or an address. A signature opens on Solscan. An address opens on Solscan. A line with neither is left out. Daily live reads in this browser are capped at 30.</p>
       <h2 id="limits">What it will not do</h2>
       <p>It will not invent a hop, a label, or a dollar value. It will not name a person. It will not ask you to sign a transaction. Mixer exposure and a full funding graph need the hosted index. Until that ships, the report says when a check was not run. The wording service restates what the tools returned. It does not change the number, the band, or the addresses.</p>
       <h2 id="setup">Set up</h2>

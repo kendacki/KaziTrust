@@ -1,11 +1,6 @@
 import { formatTime } from "../format";
 import type { Finding, Report, Visual } from "../types";
 
-const sampleEvidence = {
-  kind: "read" as const,
-  label: "Illustrative row. Not a chain signature.",
-};
-
 function finding(
   id: string,
   title: string,
@@ -14,7 +9,7 @@ function finding(
   confidence: number,
   explanation: string,
 ): Finding {
-  return { id, title, severity, severityWord, confidence, explanation, evidence: [sampleEvidence] };
+  return { id, title, severity, severityWord, confidence, explanation, evidence: [] };
 }
 
 export function sampleDeployerReport(): Report {
