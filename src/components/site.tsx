@@ -9,6 +9,8 @@ import { IconAgent, IconArrow, IconBook, IconBuilding, IconChat, IconCite, IconC
 import { EvidenceList, MiniRead } from "./report";
 import type { Finding, Report } from "../types";
 
+const SITE = "https://kazitrustai.fun";
+
 const explorerRows = [
   "5jF2…a91k  System program  2.40 SOL",
   "3kLm…qq02  Token program  0.00 SOL",
@@ -380,7 +382,7 @@ export function Home({ go }: { go: (to: string) => void }) {
             <h2>Add a wallet read to anything</h2>
             <p className="lede">One key opens every hosted service. Send it on each request. The written setup, the key, and every call are in the docs. The npm package is not published yet.</p>
           </header>
-          <pre className="code">{`curl https://your-host/api/v1 \\
+          <pre className="code">{`curl ${SITE}/api/v1 \\
   -H "Authorization: Bearer kt_your_key"`}</pre>
           <div className="hero-actions">
             <button type="button" className="btn ink" onClick={() => go("/api")}>
@@ -662,13 +664,13 @@ export function Docs({ go }: { go: (to: string) => void }) {
       <p>Install dependencies, copy <span className="num">.env.example</span> to <span className="num">.env</span>, and start the app. Fill only the lines you intend to use. An empty line leaves that service off. The chain read still falls back to public Solana nodes.</p>
       <pre className="code">{`npm install
 npm run dev`}</pre>
-      <p>The local app is at <span className="num">http://127.0.0.1:5173</span>. The API reference is <span className="num">/api</span>, and it stays readable with no session. These docs stay on this page. A production preview is <span className="num">npm run build</span>, then <span className="num">npm run preview</span>, on port 4173.</p>
+      <p>The live app is at <span className="num">{SITE}</span>. The local app is at <span className="num">http://127.0.0.1:5173</span>. The API reference is <span className="num">/api</span>, and it stays readable with no session. These docs stay on this page. A production preview is <span className="num">npm run build</span>, then <span className="num">npm run preview</span>, on port 4173.</p>
       <h2 id="key">The key</h2>
       <p>One key opens every hosted service. The reference page does not issue one. <span className="num">POST /api/keys</span> returns the full key once, and on a production build that post requires a signed-in session. The key starts with <span className="num">kt_</span>. A new key replaces the previous one, and the old key stops working.</p>
       <p>The server stores a hash, not the key. The full value stays in the browser that created it. <span className="num">GET /api/keys</span> returns only the prefix and the time it was created. <span className="num">POST /api/keys</span> returns the full key once. On a production build, that post requires a signed-in session.</p>
       <h2 id="call">Calling the API</h2>
-      <p>The base URL is the same host as the app, plus <span className="num">/api/v1</span>. Send the key on every call. The app itself does not need this key. The open <span className="num">/rpc</span> path is for the app. Outside callers use <span className="num">/api/v1/rpc</span>.</p>
-      <pre className="code">{`curl http://127.0.0.1:5173/api/v1 \\
+      <p>The live base URL is <span className="num">{SITE}/api/v1</span>. Send the key on every call. The app itself does not need this key. The open <span className="num">/rpc</span> path is for the app. Outside callers use <span className="num">/api/v1/rpc</span>.</p>
+      <pre className="code">{`curl ${SITE}/api/v1 \\
   -H "Authorization: Bearer kt_your_key"`}</pre>
       <p>A successful index returns the service list. Query parameters on a service are forwarded. Post bodies must be JSON and stay under 200,000 bytes.</p>
       <h2 id="services">Services</h2>
@@ -676,7 +678,7 @@ npm run dev`}</pre>
       <p><span className="num">GET /api/v1</span> returns the name, the base path, and each method, path, and short description.</p>
       <h3 id="service-rpc">Chain read</h3>
       <p><span className="num">POST /api/v1/rpc</span> accepts a normal Solana JSON-RPC body and returns the node result. If the first node does not answer, the request tries the public nodes.</p>
-      <pre className="code">{`curl http://127.0.0.1:5173/api/v1/rpc \\
+      <pre className="code">{`curl ${SITE}/api/v1/rpc \\
   -H "Authorization: Bearer kt_your_key" \\
   -H "Content-Type: application/json" \\
   -d "{\\"jsonrpc\\":\\"2.0\\",\\"id\\":1,\\"method\\":\\"getHealth\\"}"`}</pre>
@@ -688,7 +690,7 @@ npm run dev`}</pre>
       <p><span className="num">GET /api/v1/solscan?path=&amp;address=</span> takes a Solana address and one of three paths: <span className="num">account/metadata</span>, <span className="num">account/portfolio</span>, or <span className="num">account/defi/activities</span>. Any other path is rejected.</p>
       <h3 id="service-wording">Wording</h3>
       <p><span className="num">POST /api/v1/wording</span> writes sentences from the JSON you send. Use <span className="num">kind</span> <span className="num">chat</span> with a question, or <span className="num">kind</span> <span className="num">explain</span> with a question and a facts object. A chat answer comes back as text and followups. An explain answer comes back as summary, meaning, nextStep, and followups. The key does not change a score.</p>
-      <pre className="code">{`curl http://127.0.0.1:5173/api/v1/wording \\
+      <pre className="code">{`curl ${SITE}/api/v1/wording \\
   -H "Authorization: Bearer kt_your_key" \\
   -H "Content-Type: application/json" \\
   -d "{\\"kind\\":\\"chat\\",\\"question\\":\\"What does a low score mean?\\"}"`}</pre>

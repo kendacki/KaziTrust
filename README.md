@@ -2,7 +2,7 @@
 
 Know the Wallet. Measure the Risk. Protect Your Assets.
 
-The app reads a public Solana address and returns a score, a band, findings, and evidence. One API key opens the same hosted services from outside the app.
+The app reads a public Solana address and returns a score, a band, findings, and evidence. One API key opens the same hosted services from outside the app. The live app is [https://kazitrustai.fun](https://kazitrustai.fun).
 
 ## Set up
 
@@ -36,10 +36,10 @@ One key is active. It starts with `kt_`. Creating another key retires the previo
 
 ## Calling the API
 
-The base URL is the same host as the app, plus `/api/v1`. Send the key on every call.
+The live base URL is `https://kazitrustai.fun/api/v1`. Send the key on every call.
 
 ```bash
-curl http://127.0.0.1:5173/api/v1 \
+curl https://kazitrustai.fun/api/v1 \
   -H "Authorization: Bearer kt_your_key"
 ```
 
