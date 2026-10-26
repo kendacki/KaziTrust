@@ -45,6 +45,12 @@ export const IconShare = (p: IconProps) => <Pen {...p} d="M8 10.5 12.5 7M8 10.5 
 export const IconExport = (p: IconProps) => <Pen {...p} d="M10 3.5v8M6.5 7 10 3.5 13.5 7M4.5 12.5v2h11v-2" />;
 export const IconSearch = (p: IconProps) => <Pen {...p} d="M9 15a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM13.5 13.5 17 17" />;
 export const IconPlus = (p: IconProps) => <Pen {...p} d="M10 4v12M4 10h12" />;
+export const IconCompose = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M11.5 3.8 16.2 8.5 7.2 17.5H3.5v-3.7L11.5 3.8z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    <path d="M9.6 5.7 14.3 10.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </Svg>
+);
 export const IconSend = (p: IconProps) => <Pen {...p} d="M10 15.5V5M6 8.5 10 4.5 14 8.5" />;
 export const IconStop = (p: IconProps) => (
   <Svg {...p}>

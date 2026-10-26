@@ -12,11 +12,11 @@ import type { Finding, Report, Visual } from "../types";
 import {
   IconAttach,
   IconClose,
+  IconCompose,
   IconCopy,
   IconEdit,
   IconExport,
   IconPin,
-  IconPlus,
   IconSearch,
   IconSend,
   IconSidebar,
@@ -313,18 +313,16 @@ export function Chat({ go }: { go: (to: string) => void }) {
             <IconSidebar />
           </button>
         </header>
+        <button type="button" className="history-new" onClick={newChat}>
+          <IconCompose size={16} />
+          New chat
+        </button>
         <label className="search">
           <IconSearch size={16} />
           <input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Search chats" aria-label="Search chats" />
         </label>
         <div className="side-scroll">
-          <div className="history-head">
-            <p className="side-label">History</p>
-            <button type="button" className="history-new" onClick={newChat}>
-              <IconPlus size={15} />
-              New chat
-            </button>
-          </div>
+          <p className="side-label">History</p>
           {Object.entries(groups).map(([label, items]) =>
             items.length ? (
               <section key={label}>
