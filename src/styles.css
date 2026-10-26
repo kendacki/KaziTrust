@@ -850,17 +850,19 @@ body:has(.app-shell) { height: 100dvh; overflow: hidden; }
   letter-spacing: 0.04em;
 }
 .profile-copy { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.profile-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.profile-line .profile-edit, .profile-line form { flex: 1; min-width: 0; }
 .profile-edit, .profile form { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .profile-edit { border: 0; background: transparent; padding: 0; font: inherit; font-size: 14px; font-weight: 500; text-align: left; }
 .profile-edit span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .profile-meta { font-size: 12px; line-height: 1.35; }
 .profile-signout {
-  width: 36px;
-  height: 36px;
+  width: 28px;
+  height: 28px;
   flex: 0 0 auto;
   margin-left: auto;
   border: 0;
-  border-radius: 10px;
+  border-radius: 8px;
   background: transparent;
   color: var(--text);
   display: grid;

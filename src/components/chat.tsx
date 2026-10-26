@@ -775,48 +775,50 @@ function ProfileName({
     <div className="profile">
       <span className="profile-mark" aria-hidden="true">{initials(name)}</span>
       <div className="profile-copy">
-        {editing ? (
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              commit();
-            }}
-          >
-            <input
-              value={draft}
-              onChange={(event) => onDraft(event.target.value)}
-              onBlur={() => {
-                if (skipBlur.current) {
-                  skipBlur.current = false;
-                  return;
-                }
+        <div className="profile-line">
+          {editing ? (
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
                 commit();
               }}
-              onKeyDown={(event) => {
-                if (event.key === "Escape") {
-                  event.preventDefault();
-                  skipBlur.current = true;
-                  onCancel();
-                }
-              }}
-              aria-label="Username"
-              maxLength={32}
-              autoFocus
-            />
-          </form>
-        ) : (
-          <button type="button" className="profile-edit" onClick={onStart} aria-label={`Edit username, ${name}`}>
-            <span>{name}</span>
-            <IconEdit size={14} />
-          </button>
-        )}
+            >
+              <input
+                value={draft}
+                onChange={(event) => onDraft(event.target.value)}
+                onBlur={() => {
+                  if (skipBlur.current) {
+                    skipBlur.current = false;
+                    return;
+                  }
+                  commit();
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    skipBlur.current = true;
+                    onCancel();
+                  }
+                }}
+                aria-label="Username"
+                maxLength={32}
+                autoFocus
+              />
+            </form>
+          ) : (
+            <button type="button" className="profile-edit" onClick={onStart} aria-label={`Edit username, ${name}`}>
+              <span>{name}</span>
+              <IconEdit size={14} />
+            </button>
+          )}
+          {onSignOut ? (
+            <button type="button" className="profile-signout" onClick={onSignOut} aria-label="Sign out">
+              <IconSignOut size={16} />
+            </button>
+          ) : null}
+        </div>
         <p className="quiet profile-meta">{detail}</p>
       </div>
-      {onSignOut ? (
-        <button type="button" className="profile-signout" onClick={onSignOut} aria-label="Sign out">
-          <IconSignOut size={16} />
-        </button>
-      ) : null}
     </div>
   );
 }
