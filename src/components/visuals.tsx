@@ -2,6 +2,7 @@ import { useId, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import type { Band, Visual } from "../types";
 import { shortAddress } from "../format";
+import { isSolName, SolText } from "./sol";
 import { isSolanaAddress } from "../engine/address";
 
 export function Gauge({ score, band, large = false }: { score: number | null; band: Band | null; large?: boolean }) {
@@ -230,7 +231,7 @@ function Holdings({ visual }: { visual: Extract<Visual, { type: "holdings" }> })
       {visual.rows.map((row) => (
         <div className="bar-row" role="listitem" key={row.label}>
           <div className="bar-meta">
-            <span>{row.label}</span>
+            {row.mark === "sol" || isSolName(row.label) ? <SolText>{row.label}</SolText> : <span>{row.label}</span>}
             <span className="num">{row.amount}</span>
           </div>
           <div className="bar-track">
@@ -275,7 +276,7 @@ function FlowColumn({
             ) : (
               <span>{row.label}</span>
             )}
-            <span className="num">{row.amount}</span>
+            <span className="num"><SolText>{row.amount}</SolText></span>
           </li>
         ))}
       </ul>
@@ -429,7 +430,7 @@ export function visualTitle(visual: Visual): string {
     case "timeline":
       return "Timeline";
     case "holdings":
-      return "What it holds";
+      return "What this address holds";
     case "counterparties":
       return "Counterparties";
     case "approvals":

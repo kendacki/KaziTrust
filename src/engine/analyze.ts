@@ -1240,6 +1240,7 @@ function holdingsVisual(facts: WalletFacts): Visual | null {
         label: token.symbol,
         amount: `$${formatNumber(token.value, token.value >= 1000 ? 0 : 2)}`,
         pct: Math.max(8, Math.round((token.value / max) * 100)),
+        ...(token.symbol === "SOL" || token.symbol === "Wrapped SOL" ? { mark: "sol" as const } : {}),
       });
     }
     return {
@@ -1250,20 +1251,22 @@ function holdingsVisual(facts: WalletFacts): Visual | null {
   }
   if (!facts.tokens.length && facts.lamports === 0) return null;
   const rows: HoldingRow[] = [];
-  if (facts.lamports > 0) rows.push({ label: "SOL", amount: formatSol(facts.lamports), pct: 100 });
+  if (facts.lamports > 0) rows.push({ label: "SOL", amount: formatSol(facts.lamports), pct: 100, mark: "sol" });
   const top = facts.tokens.slice(0, 6);
   const max = Math.max(...top.map((row) => row.amount), 0.0001);
   for (const token of top) {
+    const label = mintName(token.mint);
     rows.push({
-      label: mintName(token.mint),
+      label,
       amount: token.amountText,
       pct: Math.max(8, Math.round((token.amount / max) * 100)),
       flag: token.delegate ? "Delegate set" : token.frozen ? "Frozen" : undefined,
+      ...(label === "SOL" || label === "Wrapped SOL" ? { mark: "sol" as const } : {}),
     });
   }
   return {
     type: "holdings",
-    caption: "SOL is the native balance. Token bars are scaled within the tokens shown, not by dollar value. Only named mints are labelled.",
+    caption: "The SOL row is the native balance on this address. Each token bar is sized against the other tokens here, so length is not a dollar value. A mint is named only when the method already knows that name.",
     rows,
   };
 }
