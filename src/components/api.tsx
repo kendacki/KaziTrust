@@ -143,7 +143,6 @@ export function ApiAccess() {
         <section className="api-services" id="services" aria-label="Services">
           <div className="api-meta">
             <h2>Services</h2>
-            <p className="quiet">Select a row. The panel on the right follows it.</p>
           </div>
           <div className="api-table">
             <div className="api-head" aria-hidden="true">
