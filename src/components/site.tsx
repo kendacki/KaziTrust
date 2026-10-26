@@ -384,7 +384,7 @@ export function Home({ go }: { go: (to: string) => void }) {
   -H "Authorization: Bearer kt_your_key"`}</pre>
           <div className="hero-actions">
             <button type="button" className="btn ink" onClick={() => go("/api")}>
-              Create an API key
+              API reference
             </button>
             <button type="button" className="btn ghost" onClick={() => go("/docs#setup")}>
               Read the docs
@@ -662,9 +662,9 @@ export function Docs({ go }: { go: (to: string) => void }) {
       <p>Install dependencies, copy <span className="num">.env.example</span> to <span className="num">.env</span>, and start the app. Fill only the lines you intend to use. An empty line leaves that service off. The chain read still falls back to public Solana nodes.</p>
       <pre className="code">{`npm install
 npm run dev`}</pre>
-      <p>The local app is at <span className="num">http://127.0.0.1:5173</span>. The API page is <span className="num">/api</span>. These docs stay on this page. A production preview is <span className="num">npm run build</span>, then <span className="num">npm run preview</span>, on port 4173. On that preview, sign in before creating a key. The local development server can create a key without sign-in.</p>
+      <p>The local app is at <span className="num">http://127.0.0.1:5173</span>. The API reference is <span className="num">/api</span>, and it stays readable with no session. These docs stay on this page. A production preview is <span className="num">npm run build</span>, then <span className="num">npm run preview</span>, on port 4173.</p>
       <h2 id="key">The key</h2>
-      <p>One key opens every hosted service. Create it on the API page, or from Create API key at the bottom of history. The key starts with <span className="num">kt_</span>. Copy it when it appears. A new key replaces the previous one, and the old key stops working.</p>
+      <p>One key opens every hosted service. The reference page does not issue one. <span className="num">POST /api/keys</span> returns the full key once, and on a production build that post requires a signed-in session. The key starts with <span className="num">kt_</span>. A new key replaces the previous one, and the old key stops working.</p>
       <p>The server stores a hash, not the key. The full value stays in the browser that created it. <span className="num">GET /api/keys</span> returns only the prefix and the time it was created. <span className="num">POST /api/keys</span> returns the full key once. On a production build, that post requires a signed-in session.</p>
       <h2 id="call">Calling the API</h2>
       <p>The base URL is the same host as the app, plus <span className="num">/api/v1</span>. Send the key on every call. The app itself does not need this key. The open <span className="num">/rpc</span> path is for the app. Outside callers use <span className="num">/api/v1/rpc</span>.</p>
@@ -713,7 +713,7 @@ npm run dev`}</pre>
           </li>
         ))}
       </ul>
-      <PageFoot go={go} links={[["/api", "Create an API key"], ["/app", "Open app"], ["/method", "Scoring method"], ["/", "Home"]]} />
+      <PageFoot go={go} links={[["/api", "API reference"], ["/app", "Open app"], ["/method", "Scoring method"], ["/", "Home"]]} />
     </DocFrame>
   );
 }

@@ -24,9 +24,9 @@ Copy `.env.example` to `.env` and fill only the lines you intend to use. An empt
 npm run dev
 ```
 
-Open `http://127.0.0.1:5173`. The docs are at `/docs`. Create a key at `/api`, or from Create API key at the bottom of history.
+Open `http://127.0.0.1:5173`. The docs are at `/docs`. The API reference is at `/api`. That page stays open with no session, and it does not issue a key.
 
-`npm run build`, then `npm run preview`, serves a production preview on port 4173. On that preview, sign in before creating a key. The local development server can create a key without sign-in. `/api/v1` still requires the key in both cases.
+`npm run build`, then `npm run preview`, serves a production preview on port 4173. `/api/v1` requires the key on both servers. On a production build, `POST /api/keys` requires a signed-in session.
 
 ## The key
 

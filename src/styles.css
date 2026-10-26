@@ -658,8 +658,26 @@ body:has(.app-shell) { height: 100dvh; overflow: hidden; }
 .api-entry:focus,
 .api-entry:focus-visible { outline: none; }
 .api-page { padding: 48px 0 88px; display: grid; gap: 28px; }
-.api-page h1 { margin: 0; font-size: clamp(40px, 6vw, 64px); max-width: 12em; }
-.api-page .lede { max-width: 46ch; }
+.api-page h1 { margin: 0; font-size: clamp(40px, 6vw, 64px); max-width: 14em; }
+.api-page .lede { max-width: 62ch; }
+.api-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+.api-facts > div {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel);
+  padding: 16px 18px;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-height: 96px;
+}
+.api-facts dt { margin: 0; color: var(--mute); font-size: 13px; }
+.api-facts dd { margin: 0; word-break: break-all; }
 .api-steps {
   list-style: none;
   margin: 0;
@@ -689,32 +707,39 @@ body:has(.app-shell) { height: 100dvh; overflow: hidden; }
   font-size: 12px;
   color: var(--text);
 }
-.api-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 16px; align-items: stretch; }
-.api-card, .api-try {
+.api-work { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr); gap: 16px; align-items: start; }
+.api-try {
   border: 1px solid var(--line);
   border-radius: 20px;
   background: var(--panel);
   padding: 22px;
   display: grid;
-  gap: 12px;
+  gap: 16px;
   align-content: start;
+  position: sticky;
+  top: 120px;
 }
 .api-meta { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.api-card h2, .api-services h2, .api-try h2 { margin: 0; font-size: 20px; font-weight: 500; letter-spacing: 0; max-width: none; }
-.api-secret {
-  margin: 0;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  word-break: break-all;
+.api-services h2, .api-try h2, .api-errors h2 { margin: 0; font-size: 20px; font-weight: 500; letter-spacing: 0; max-width: none; }
+.api-spec { margin: 0; display: grid; gap: 12px; }
+.api-spec > div { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 12px; align-items: start; }
+.api-spec dt { margin: 0; color: var(--mute); font-size: 13px; }
+.api-spec dd { margin: 0; }
+.api-table, .api-codes { margin-top: 14px; border: 1px solid var(--line); border-radius: 20px; overflow: hidden; background: var(--panel); }
+.api-head, .api-codes li {
+  display: grid;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 18px;
 }
-.api-services ul { list-style: none; margin: 14px 0 0; padding: 0; display: grid; border: 1px solid var(--line); border-radius: 20px; overflow: hidden; background: var(--panel); }
-.api-services li { border-top: 1px solid var(--line); }
-.api-services li:first-child { border-top: 0; }
+.api-head { color: var(--mute); font-size: 12px; border-bottom: 1px solid var(--line); }
+.api-table .api-head, .api-row { grid-template-columns: 72px minmax(160px, 0.9fr) minmax(0, 1.1fr); }
+.api-codes .api-head, .api-codes li { grid-template-columns: 72px minmax(0, 1fr); }
+.api-services ul, .api-codes ul { list-style: none; margin: 0; padding: 0; display: grid; }
+.api-services li, .api-codes li { border-top: 1px solid var(--line); }
+.api-services li:first-child, .api-codes li:first-child { border-top: 0; }
 .api-row {
   display: grid;
-  grid-template-columns: 72px minmax(180px, 0.9fr) minmax(0, 1.2fr);
   gap: 12px;
   align-items: center;
   width: 100%;
@@ -725,7 +750,8 @@ body:has(.app-shell) { height: 100dvh; overflow: hidden; }
   font: inherit;
   color: inherit;
 }
-.api-row code { font-family: inherit; font-size: 14px; }
+.api-row code { font-family: inherit; font-size: 14px; overflow-wrap: anywhere; }
+.api-spec dd { overflow-wrap: anywhere; }
 .api-row[aria-pressed="true"] { background: var(--surface); }
 .api-row:hover { background: var(--surface); }
 .api-row:focus,
@@ -1265,9 +1291,12 @@ body:has(.app-shell) { height: 100dvh; overflow: hidden; }
   .nav .btn.ink { padding: 10px 12px; }
   .announce button { font-size: 12px; line-height: 1.35; text-align: left; }
   .field.hero-film { padding: 0; min-height: 0; }
-  .api-grid, .api-steps { grid-template-columns: 1fr; }
+  .api-facts, .api-steps, .api-work { grid-template-columns: 1fr; }
+  .api-try { position: static; }
+  .api-table .api-head { display: none; }
   .api-row { grid-template-columns: auto minmax(0, 1fr); }
   .api-row span:last-child { grid-column: 1 / -1; }
+  .api-spec > div, .api-codes .api-head, .api-codes li { grid-template-columns: 72px minmax(0, 1fr); }
   .field > * { min-width: 0; max-width: 100%; }
   .sample-score, .verdict { flex-wrap: wrap; align-items: start; }
   .product-card { padding: 16px; }

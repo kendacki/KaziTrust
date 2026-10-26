@@ -414,7 +414,7 @@ export function Chat({ go }: { go: (to: string) => void }) {
         <footer className="account">
           <button type="button" className="api-entry" onClick={() => go("/api")}>
             <IconKey size={16} />
-            Create API key
+            API
           </button>
           <ProfileName
             name={username || user?.google?.name || user?.email?.address?.split("@")[0] || "Reader"}
