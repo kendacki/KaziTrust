@@ -201,7 +201,7 @@ async function voiceReport(
   const narrated = signal.aborted ? null : await narrateReport(modelQuestion(question), report, signal);
   onStep("Writing the read", "done");
   assertGrounded(report);
-  if (!report.tools.some((tool) => tool.startsWith("Groq"))) {
+  if (!report.tools.includes("Wording")) {
     report.warnings.push("The language model did not answer, so this wording comes from the scoring rules.");
   }
   return { kind: "report", report, followups: narrated ?? followups };

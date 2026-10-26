@@ -333,27 +333,40 @@ export function Home({ go }: { go: (to: string) => void }) {
                 <span>3</span>
                 <div>
                   <strong>The score cites them</strong>
-                  <p>Groq writes the sentences. It does not change the number, the band, or the addresses.</p>
+                  <p>The sentences only restate what the tools returned. They do not change the number, the band, or the addresses.</p>
                 </div>
               </li>
             </ol>
           </Reveal>
-          <article className="receipt">
-            <header>
-              <p className="eyebrow">Illustrative sample</p>
-              <h3>Token deployer</h3>
-              <p className="quiet num">7xKp…q9Rd · Score 72 · Elevated</p>
-            </header>
-            <ul>
-              <li><span>Sample base</span><span className="num">+22</span></li>
-              <li><span>Repeated launches that lost liquidity</span><span className="num">+28</span></li>
-              <li><span>Shared funding source</span><span className="num">+14</span></li>
-              <li><span>Freeze authority still held</span><span className="num">+8</span></li>
-            </ul>
-            <p className="quiet">These figures teach the shape of a read. They are not a live chain query.</p>
-            <button type="button" className="text-btn" onClick={() => go("/app?q=Show%20the%20illustrative%20deployer%20read")}>
-              Open this sample in the app <IconArrow size={14} />
-            </button>
+          <article className="device" aria-label="Illustrative sample on a device screen">
+            <div className="device-chassis">
+              <div className="device-speaker" aria-hidden="true" />
+              <div className="device-screen">
+                <header className="device-head">
+                  <p className="eyebrow">Illustrative sample</p>
+                  <div className="device-id">
+                    <div>
+                      <h3>Token deployer</h3>
+                      <p className="quiet num">7xKp…q9Rd</p>
+                    </div>
+                    <div className="device-score">
+                      <p className="score num">72</p>
+                      <p>Elevated</p>
+                    </div>
+                  </div>
+                </header>
+                <ul>
+                  <li><span>Sample base</span><span className="num">+22</span></li>
+                  <li><span>Repeated launches that lost liquidity</span><span className="num">+28</span></li>
+                  <li><span>Shared funding source</span><span className="num">+14</span></li>
+                  <li><span>Freeze authority still held</span><span className="num">+8</span></li>
+                </ul>
+                <p className="quiet">These figures teach the shape of a read. They are not a live chain query.</p>
+                <button type="button" className="btn ink wide" onClick={() => go("/app?q=Show%20the%20illustrative%20deployer%20read")}>
+                  Open this sample in the app
+                </button>
+              </div>
+            </div>
           </article>
         </div>
       </section>

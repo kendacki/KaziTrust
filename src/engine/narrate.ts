@@ -73,7 +73,7 @@ export async function narrateReport(question: string, report: Report, signal: Ab
     if (summary) report.summary = summary;
     if (meaning) report.meaning = meaning;
     if (nextStep) report.nextStep = nextStep;
-    if (narration.model) report.tools = [...report.tools, `Groq ${narration.model}`];
+    report.tools = [...report.tools, "Wording"];
     const next = followups(narration.followups).filter((item) => grounded(item, report));
     return next.length ? next : null;
   } catch {
