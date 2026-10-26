@@ -653,7 +653,7 @@ export function Docs({ go }: { go: (to: string) => void }) {
         <h1>How to read a wallet</h1>
         <p className="lede">Paste an address in the app, or call the same services with one API key.</p>
       </header>
-      <p>Paste any Solana address into the app. A quick read uses the latest signatures, the balance, the token accounts, and a handful of opened transactions. A deep scan widens that window. It still does not walk the entire chain.</p>
+      <p>Paste any Solana address into the app. A quick read uses the latest 25 signatures, the balance, the token accounts, and 4 opened transactions. A deep scan walks up to 80 signatures, opens 16 transactions from both ends of that window, and reads the oldest funding address. It still does not walk the entire chain.</p>
       <h2 id="comes-back">What comes back</h2>
       <p>A score from 0 to 100, a band, a confidence word, three to five findings, and the pictures that match the question. Each finding has an evidence control when the tools returned a signature or an address. A signature opens on Solscan. An address opens on Solscan. A line with neither is left out. Daily live reads in this browser are capped at 30.</p>
       <h2 id="limits">What it will not do</h2>
@@ -738,7 +738,7 @@ export function Method({ go }: { go: (to: string) => void }) {
       </header>
       <p>The investigator plans the question, calls chain tools, and writes only from what those tools return. An automated check removes any address that was not in the tool output. That is the difference from a general chat model, which can describe a funding path it never fetched.</p>
       <h2 id="tools">Tools</h2>
-      <p>getBalance, getAccountInfo, getSignaturesForAddress, getTokenAccountsByOwner, and getTransaction. Quick mode asks for 25 signatures and opens 4 transactions. Deep mode asks for 80 and opens 10. Token accounts are skipped for programs and mints. A mint read also asks RugCheck for its published token report. That score is shown on its own and does not move the KaziTrust number.</p>
+      <p>getBalance, getAccountInfo, getSignaturesForAddress, getTokenAccountsByOwner, and getTransaction. Quick read asks for 25 signatures and opens 4 of the newest transactions. Deep scan walks up to 80 signatures, opens 8 of the newest and 8 of the oldest, and then reads the balance and recent signatures of the oldest funding address. Token accounts are skipped for contracts and mints. A mint read also asks RugCheck for its published token report. That score is shown on its own and does not move the KaziTrust number.</p>
       <h2 id="rules">Rules in this version</h2>
       <ul>
         {RULE_CATALOG.map((rule) => (

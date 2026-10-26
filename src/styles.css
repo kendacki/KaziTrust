@@ -1189,6 +1189,7 @@ body:has(.app-shell) { height: 100dvh; overflow: hidden; }
 .mode { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
 .mode button { background: transparent; border: 0; padding: 6px 10px; font-size: 13px; }
 .mode button[aria-pressed="true"] { background: var(--surface-2); }
+.mode-note { margin: 0; color: var(--mute); font-size: 12px; line-height: 1.4; }
 .send {
   width: 36px;
   height: 36px;

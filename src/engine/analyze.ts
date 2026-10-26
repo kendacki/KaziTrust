@@ -70,6 +70,8 @@ type WalletFacts = {
   flowWarning?: string;
   historyComplete: boolean;
   scanned: number;
+  mode: "quick" | "deep";
+  hop?: { address: string; lamports: number; signatures: number };
   solscan?: SolscanBook;
   solscanWarning?: string;
   rugcheck?: RugcheckReport;
@@ -251,9 +253,9 @@ async function loadFacts(
     rpc<ContextResult<AccountValue>>("getAccountInfo", [address, { encoding: "jsonParsed", commitment: "confirmed" }], signal),
   ]);
   onStep(`${tag}Reading balance and account type`, "done");
-  onStep(`${tag}Reading recent transactions`, "active");
-  const signatures = await rpc<SignatureInfo[]>("getSignaturesForAddress", [address, { limit, commitment: "confirmed" }], signal);
-  onStep(`${tag}Reading recent transactions`, "done");
+  onStep(`${tag}${mode === "deep" ? "Walking a wider transaction history" : "Reading recent transactions"}`, "active");
+  const signatures = await loadSignatures(address, limit, signal);
+  onStep(`${tag}${mode === "deep" ? "Walking a wider transaction history" : "Reading recent transactions"}`, "done");
 
   const value = account.value;
   const parsed = value && typeof value.data === "object" ? value.data.parsed : undefined;
@@ -274,17 +276,28 @@ async function loadFacts(
     onStep(`${tag}Reading token accounts`, "done");
   }
 
-  const parseCount = mode === "deep" ? 10 : 4;
+  const opened = mode === "deep" ? spreadSignatures(signatures, 16) : signatures.slice(0, 4);
   let flows: Flow[] = [];
   let flowWarning: string | undefined;
-  if (signatures.length) {
-    onStep(`${tag}Opening transactions for counterparties`, "active");
+  if (opened.length) {
+    onStep(`${tag}${mode === "deep" ? "Opening transactions at both ends" : "Opening transactions for counterparties"}`, "active");
     try {
-      flows = await loadFlows(address, signatures.slice(0, parseCount), signal);
+      flows = await loadFlows(address, opened, signal);
     } catch (error) {
       flowWarning = error instanceof RpcError ? error.message : "Some transactions could not be opened.";
     }
-    onStep(`${tag}Opening transactions for counterparties`, "done");
+    onStep(`${tag}${mode === "deep" ? "Opening transactions at both ends" : "Opening transactions for counterparties"}`, "done");
+  }
+
+  let hop: WalletFacts["hop"];
+  if (mode === "deep" && signatures.length) {
+    onStep(`${tag}Reading the oldest funding address`, "active");
+    try {
+      hop = (await readHop(address, flows, signal)) ?? undefined;
+    } catch {
+      hop = undefined;
+    }
+    onStep(`${tag}Reading the oldest funding address`, "done");
   }
 
   const scanMint = accountType === "mint";
@@ -319,6 +332,7 @@ async function loadFacts(
     if (token.delegate) watched.push(token.delegate);
   }
   if (solscan?.fundedBy) watched.push(solscan.fundedBy);
+  if (hop) watched.push(hop.address);
   const hits = restrictionIndex ? screenAddresses(restrictionIndex, watched) : [];
   const restrictions: RestrictionFacts | undefined = restrictionIndex
     ? {
@@ -344,6 +358,8 @@ async function loadFacts(
     flowWarning,
     historyComplete: signatures.length < limit,
     scanned: signatures.length,
+    mode,
+    hop,
     solscan: solscan ?? undefined,
     solscanWarning: solscanWarning || undefined,
     rugcheck: rugcheck ?? undefined,
@@ -359,6 +375,48 @@ function readMint(info: Record<string, unknown>): WalletFacts["mintInfo"] {
   const mintAuthority = typeof info.mintAuthority === "string" ? info.mintAuthority : null;
   const freezeAuthority = typeof info.freezeAuthority === "string" ? info.freezeAuthority : null;
   return { supply, decimals, mintAuthority, freezeAuthority };
+}
+
+async function loadSignatures(address: string, limit: number, signal: AbortSignal): Promise<SignatureInfo[]> {
+  const all: SignatureInfo[] = [];
+  let before = "";
+  while (all.length < limit) {
+    const pageLimit = Math.min(40, limit - all.length);
+    const page = await rpc<SignatureInfo[]>(
+      "getSignaturesForAddress",
+      [address, { limit: pageLimit, commitment: "confirmed", ...(before ? { before } : {}) }],
+      signal,
+    );
+    if (!page.length) break;
+    all.push(...page);
+    if (page.length < pageLimit) break;
+    before = page[page.length - 1]?.signature ?? "";
+    if (!before) break;
+  }
+  return all.slice(0, limit);
+}
+
+function spreadSignatures(signatures: SignatureInfo[], count: number): SignatureInfo[] {
+  if (signatures.length <= count) return signatures;
+  const half = Math.floor(count / 2);
+  const picked = [...signatures.slice(0, half), ...signatures.slice(-half)];
+  const seen = new Set<string>();
+  return picked.filter((item) => {
+    if (seen.has(item.signature)) return false;
+    seen.add(item.signature);
+    return true;
+  });
+}
+
+async function readHop(address: string, flows: Flow[], signal: AbortSignal): Promise<WalletFacts["hop"] | null> {
+  const oldestFirst = [...flows].sort((a, b) => (a.time ?? 0) - (b.time ?? 0));
+  const source = oldestFirst.flatMap((flow) => flow.inboundSol).find((row) => row.address !== address)?.address;
+  if (!source || !isSolanaAddress(source)) return null;
+  const [balance, page] = await Promise.all([
+    rpc<ContextResult<number>>("getBalance", [source, { commitment: "confirmed" }], signal),
+    rpc<SignatureInfo[]>("getSignaturesForAddress", [source, { limit: 20, commitment: "confirmed" }], signal),
+  ]);
+  return { address: source, lamports: balance.value ?? 0, signatures: page.length };
 }
 
 async function loadTokens(address: string, signal: AbortSignal): Promise<TokenRow[]> {
@@ -526,6 +584,7 @@ function buildReport(facts: WalletFacts, intent: ReturnType<typeof detectIntent>
     `getSignaturesForAddress (${facts.scanned})`,
     facts.executable || facts.accountType === "mint" ? "token accounts skipped" : "getTokenAccountsByOwner",
     facts.flows.length ? `getTransaction (${facts.flows.length})` : "getTransaction not needed",
+    facts.mode === "deep" ? "Deep scan: wider history, both ends, one funding hop" : "Quick read: latest window",
     facts.restrictions ? "OFAC SDN list" : "OFAC SDN list unavailable",
   ];
   if (facts.solscan) tools.push("Solscan portfolio, metadata, and recent DeFi activity");
@@ -705,7 +764,7 @@ function walletFindings(
     );
   } else if (newest) {
     findings.push(
-      makeFinding(facts, "history", `The scan covers the latest ${facts.scanned} signatures, not the full history.`, "note", 0.64, `${newest.blockTime ? `The newest is ${formatTime(newest.blockTime)}.` : ""} ${oldest?.blockTime ? `The oldest in this window is ${formatTime(oldest.blockTime)}.` : ""} Balance is ${formatSol(facts.lamports)}. A deeper scan widens the window. It still may not reach the first funding transaction.`, [newest, oldest].filter((item): item is SignatureInfo => Boolean(item))),
+      makeFinding(facts, "history", `The scan covers the latest ${facts.scanned} signatures, not the full history.`, "note", 0.64, `${newest.blockTime ? `The newest is ${formatTime(newest.blockTime)}.` : ""} ${oldest?.blockTime ? `The oldest in this window is ${formatTime(oldest.blockTime)}.` : ""} Balance is ${formatSol(facts.lamports)}. ${facts.mode === "deep" ? "This is the deep scan window. It still may not reach the first funding transaction." : "A deep scan widens the window and checks the oldest funding address."}`, [newest, oldest].filter((item): item is SignatureInfo => Boolean(item))),
     );
   }
 
@@ -751,7 +810,27 @@ function walletFindings(
     );
   }
 
-  return findings.slice(0, 5);
+  if (facts.hop) findings.unshift(hopFinding(facts));
+  return findings.slice(0, facts.mode === "deep" ? 6 : 5);
+}
+
+function hopFinding(facts: WalletFacts): Finding {
+  const hop = facts.hop;
+  if (!hop) {
+    return makeFinding(facts, "hop", "Deep scan found no inbound funding address in the opened transactions.", "note", 0.7, "Both ends of the window were opened. None of those transactions showed SOL arriving from another address.", []);
+  }
+  const name = lookupLabel(hop.address)?.name ?? shortAddress(hop.address);
+  const oldest = facts.signatures[facts.signatures.length - 1];
+  return makeFinding(
+    facts,
+    "hop",
+    `Deep scan read the oldest funding address, ${name}.`,
+    hop.lamports === 0 && hop.signatures === 0 ? "watch" : "note",
+    0.8,
+    `${name} holds ${formatSol(hop.lamports)}. A short read returned ${hop.signatures} signature${hop.signatures === 1 ? "" : "s"}. This is one hop, not the start of the wallet.`,
+    oldest ? [oldest] : [],
+    [hop.address],
+  );
 }
 
 function activityFinding(facts: WalletFacts): Finding {
@@ -761,7 +840,11 @@ function activityFinding(facts: WalletFacts): Finding {
     facts.scanned ? `${facts.scanned} recent signatures were read.` : "No recent signatures came back.",
     "note",
     0.8,
-    facts.historyComplete ? "Fewer signatures came back than the scan requested, so this is the visible history." : "The window is the most recent signatures, capped by the scan mode.",
+    facts.historyComplete
+      ? "Fewer signatures came back than the scan requested, so this is the visible history."
+      : facts.mode === "deep"
+        ? "Deep scan walked more than one page when the history was long enough, and it still may not reach the first transaction."
+        : "The window is the most recent signatures. A deep scan walks further and checks the oldest funding address.",
     facts.signatures.slice(0, 2),
   );
 }
@@ -907,6 +990,7 @@ function citedFrom(facts: WalletFacts): string[] {
   if (facts.rugcheck?.mintAuthority) cited.add(facts.rugcheck.mintAuthority);
   if (facts.rugcheck?.freezeAuthority) cited.add(facts.rugcheck.freezeAuthority);
   if (facts.solscan?.fundedBy) cited.add(facts.solscan.fundedBy);
+  if (facts.hop) cited.add(facts.hop.address);
   for (const token of facts.solscan?.tokens ?? []) {
     if (token.address) cited.add(token.address);
   }
@@ -1052,9 +1136,11 @@ function nextStep(facts: WalletFacts, intent: ReturnType<typeof detectIntent>): 
   if (facts.restrictions?.self) return "Treat the OFAC listing as the fact to act on. The behaviour score does not override it.";
   if (facts.rugcheck && facts.rugcheck.band !== "Good") return "Read the RugCheck risks before treating this mint as safe. That score is separate from the KaziTrust number.";
   if (facts.restrictions?.counterparties.length) return "Open the matched address on its own before treating this wallet as unrelated to the listing.";
-  if (!facts.historyComplete && intent !== "funding") return "Run a deep scan if you need a wider window than the latest signatures.";
+  if (facts.mode === "quick" && !facts.historyComplete) return "Run a deep scan for a wider history, transactions at both ends, and one read of the oldest funding address.";
+  if (facts.mode === "deep" && facts.hop) return "The deep scan checked one funding address. A full index is still required to walk further back.";
+  if (facts.mode === "deep" && !facts.historyComplete) return "This deep scan widened the window. A full index is still required to reach the first funding transaction.";
   if (facts.tokens.some((token) => token.delegate)) return "Open the approvals panel and match each delegate to a contract you recognise.";
-  if (intent === "funding" && !facts.historyComplete) return "This window may not include the first funding transaction. A full index is required to walk further back than the scan.";
+  if (intent === "funding") return "Ask about the approvals or the contracts if you want the next layer of this read.";
   return "Ask a follow-up about funding, approvals, or the contracts it uses.";
 }
 
@@ -1083,7 +1169,9 @@ function pickVisuals(facts: WalletFacts, intent: ReturnType<typeof detectIntent>
               : intent === "activity"
                 ? [heatmap, timeline, programs]
                 : [heatmap ?? timeline, holdings ?? programs, counterparties ?? funding];
-  return [rugcheck, restrictions, ...ordered].filter((item): item is Visual => Boolean(item)).slice(0, 3);
+  const list = [rugcheck, restrictions, ...ordered].filter((item): item is Visual => Boolean(item));
+  if (facts.mode === "deep" && funding && !list.includes(funding)) list.unshift(funding);
+  return list.slice(0, facts.mode === "deep" ? 4 : 3);
 }
 
 function rugcheckVisual(facts: WalletFacts): Visual | null {
@@ -1165,16 +1253,22 @@ function fundingVisual(facts: WalletFacts): Visual | null {
       ? mintName(tokenSource.mint)
       : "No counterparty";
   const head = facts.historyComplete ? "First transaction" : "Oldest in scan";
+  const hops = [
+    ...(facts.hop
+      ? [{ label: lookupLabel(facts.hop.address)?.name ?? shortAddress(facts.hop.address), detail: `${formatSol(facts.hop.lamports)}, ${facts.hop.signatures} signatures in the hop read` }]
+      : []),
+    { label: sourceLabel, detail: solSource || tokenSource ? "Inbound change" : "Not in this transaction" },
+    { label: head, detail: oldestSig.blockTime ? formatTime(oldestSig.blockTime) : `Slot ${oldestSig.slot}` },
+    { label: shortAddress(facts.address), detail: lookupLabel(facts.address)?.name ?? "Address under review" },
+  ];
   return {
     type: "funding",
-    caption: facts.historyComplete
-      ? "The signature list was shorter than the request, so this is the start of the visible history. One hop only."
-      : "This is the oldest transaction inside the scanned window, not proof of the wallet's first funding.",
-    hops: [
-      { label: sourceLabel, detail: solSource || tokenSource ? "Inbound change" : "Not in this transaction" },
-      { label: head, detail: oldestSig.blockTime ? formatTime(oldestSig.blockTime) : `Slot ${oldestSig.slot}` },
-      { label: shortAddress(facts.address), detail: lookupLabel(facts.address)?.name ?? "Address under review" },
-    ],
+    caption: facts.hop
+      ? "Deep scan opened transactions at both ends and read the oldest funding address. One hop only."
+      : facts.historyComplete
+        ? "The signature list was shorter than the request, so this is the start of the visible history. One hop only."
+        : "This is the oldest transaction inside the scanned window, not proof of the wallet's first funding.",
+    hops,
   };
 }
 

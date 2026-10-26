@@ -603,6 +603,11 @@ export function Chat({ go }: { go: (to: string) => void }) {
                 </button>
               )}
             </div>
+            <p className="mode-note">
+              {mode === "deep"
+                ? "Deep scan walks a wider history, opens transactions at both ends, and reads the oldest funding address."
+                : "Quick read stays on the latest signatures and four opened transactions."}
+            </p>
           </div>
         </motion.form>
         <footer className="app-foot">
