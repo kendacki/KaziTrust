@@ -1196,6 +1196,16 @@ body:has(.app-shell) { height: 100dvh; overflow: hidden; }
   background: transparent !important;
   font-family: Aeonik, Inter, system-ui, sans-serif;
 }
+#privy-modal-content :has(> button.login-method-button) {
+  background: none !important;
+  padding: 0 !important;
+}
+#privy-modal-content button.login-method-button,
+#privy-modal-content button.login-method-button:focus,
+#privy-modal-content button.login-method-button:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
 @media (prefers-reduced-transparency: reduce) {
   #privy-dialog-backdrop { background: rgba(255, 255, 255, 0.72); backdrop-filter: none; }
   #privy-dialog-backdrop + div > div {
