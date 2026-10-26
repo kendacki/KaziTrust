@@ -15,7 +15,7 @@ Copy `.env.example` to `.env` and fill only the lines you intend to use. An empt
 | Name | What it unlocks |
 | --- | --- |
 | `GROQ_API_KEY` | Wording. Sentences only. It does not change a score. |
-| `PRIVY_APP_ID`, `VITE_PRIVY_APP_ID`, `PRIVY_APP_SECRET` | Sign-in. Required before a key can be created on a production build. |
+| `PRIVY_APP_ID`, `VITE_PRIVY_APP_ID`, `PRIVY_APP_SECRET` | Sign-in. Required before a key can be created on a production build. The Privy app must allow `https://kazitrustai.fun` and `https://www.kazitrustai.fun`. |
 | `SOLSCAN_API_KEY` | Labels, portfolio, and recent DeFi activity. |
 | `RUGCHECK_API_KEY` | Token risk for a mint. That number stays separate from the KaziTrust score. |
 | `FLUX_RPC_URL` | First Solana node. Public nodes are the fallback. |
