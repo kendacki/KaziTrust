@@ -301,12 +301,25 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
       try {
         const next = await readRecord(await sessionHeaders(tokenRef.current));
         if (!live) return;
-        setRecord(next);
         const saved = loadApiKey();
-        if (next && saved?.prefix === next.prefix) setSecret(saved.key);
-        else if (saved) clearApiKey();
+        if (next && saved?.prefix === next.prefix) {
+          setRecord(next);
+          setSecret(saved.key);
+        } else if (next) {
+          if (saved) clearApiKey();
+          setRecord(next);
+        } else if (saved) {
+          setRecord({ prefix: saved.prefix, createdAt: saved.createdAt });
+          setSecret(saved.key);
+        }
       } catch (caught) {
         if (!live) return;
+        const saved = loadApiKey();
+        if (saved) {
+          setRecord({ prefix: saved.prefix, createdAt: saved.createdAt });
+          setSecret(saved.key);
+          return;
+        }
         setError(caught instanceof Error ? caught.message : "The key service did not answer.");
       } finally {
         if (live) setLoading(false);
@@ -473,8 +486,8 @@ async function sessionHeaders(readToken: (() => Promise<string | null>) | undefi
 
 async function readRecord(headers: HeadersInit): Promise<KeyRecord | null> {
   const response = await fetch("/api/keys", { headers, credentials: "include" });
-  const body = (await response.json().catch(() => null)) as { key?: KeyRecord | null } | null;
-  if (!response.ok) throw new Error(keyFailure(response.status));
+  const body = (await response.json().catch(() => null)) as { key?: KeyRecord | null; error?: string } | null;
+  if (!response.ok) throw new Error(keyFailure(response.status, body?.error));
   const key = body?.key;
   if (!key?.prefix || !key.createdAt) return null;
   return { prefix: key.prefix, createdAt: key.createdAt };
