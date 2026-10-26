@@ -1,13 +1,12 @@
 import { useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { EXAMPLE_MINT, EXAMPLE_PROGRAM, RULE_CATALOG, SCORING_VERSION } from "../engine/labels";
-import { investigate } from "../engine/analyze";
+import { RULE_CATALOG, SCORING_VERSION } from "../engine/labels";
 import { shortAddress } from "../format";
 import { Card, CardGrid, Line, Reveal } from "../motion";
 import { Lockup } from "./mark";
 import { IconAgent, IconArrow, IconBook, IconBuilding, IconChat, IconCite, IconClose, IconLock, IconMenu, IconPackage, IconPeople, IconPlus, IconSearch, IconToken } from "./icons";
-import { EvidenceList, MiniRead } from "./report";
-import type { Finding, Report } from "../types";
+import { EvidenceList } from "./report";
+import type { Finding } from "../types";
 
 const SITE = "https://kazitrustai.fun";
 
@@ -234,7 +233,7 @@ export function Home({ go }: { go: (to: string) => void }) {
         </div>
       </section>
 
-      <LiveTry go={go} />
+      <LiveTry />
 
       <section className="section wrap" id="engine">
         <Reveal>
@@ -442,85 +441,18 @@ function Feed({ title, rows }: { title: string; rows: string[] }) {
   );
 }
 
-function LiveTry({ go }: { go: (to: string) => void }) {
-  const [address, setAddress] = useState("");
-  const [report, setReport] = useState<Report | null>(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  async function run(value: string) {
-    setLoading(true);
-    setError("");
-    setReport(null);
-    try {
-      const answer = await investigate({
-        question: `Read ${value}`,
-        mode: "quick",
-        signal: AbortSignal.timeout(35000),
-      });
-      if (answer.kind === "report") setReport(answer.report);
-      else setError(answer.text);
-    } catch {
-      setError("The read did not finish. Try again in a moment.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
+function LiveTry() {
   return (
     <Reveal>
       <section className="section wrap" id="try">
-      <header className="section-head">
-        <p className="eyebrow">Live read</p>
-        <h2>Try a live read</h2>
-        <p className="lede">Paste a Solana address. The mini report uses the same engine as the app, against a public node.</p>
-      </header>
-      <figure className="try-shot">
-        <img src="/live-read.png" alt="The app ready for a wallet read" width={1024} height={473} />
-      </figure>
-      <form
-        className="try-form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (address.trim()) void run(address.trim());
-        else setError("Paste an address, or try one of the examples.");
-        }}
-      >
-        <label htmlFor="wallet">Wallet, mint, or program</label>
-        <div className="try-row">
-          <input
-            id="wallet"
-            value={address}
-            onChange={(event) => setAddress(event.target.value)}
-            placeholder="Paste a Solana address"
-            spellCheck={false}
-            autoComplete="off"
-          />
-          <button type="submit" className="btn ink" disabled={loading}>
-            {loading ? "Reading" : "Read wallet"}
-          </button>
-        </div>
-      </form>
-      <div className="try-examples">
-        <button type="button" onClick={() => { setAddress(EXAMPLE_PROGRAM); void run(EXAMPLE_PROGRAM); }}>
-          Jupiter program {shortAddress(EXAMPLE_PROGRAM)}
-        </button>
-        <button type="button" onClick={() => { setAddress(EXAMPLE_MINT); void run(EXAMPLE_MINT); }}>
-          USDC mint {shortAddress(EXAMPLE_MINT)}
-        </button>
-      </div>
-      {error ? <motion.p className="banner" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>{error}</motion.p> : null}
-      {loading ? <div className="skeleton" aria-hidden="true" /> : null}
-      <AnimatePresence>
-        {report ? (
-          <motion.div className="try-result" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-            <MiniRead report={report} />
-            <button type="button" className="btn ghost" onClick={() => go(`/app?address=${report.wallet}&t=${Date.now()}`)}>
-              Open this read in the app
-            </button>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
+        <header className="section-head">
+          <p className="eyebrow">Live read</p>
+          <h2>Try a live read</h2>
+          <p className="lede">The mini report uses the same engine as the app, against a public node.</p>
+        </header>
+        <figure className="try-shot">
+          <img src="/live-read.png" alt="The app ready for a wallet read" width={3840} height={1774} />
+        </figure>
       </section>
     </Reveal>
   );
