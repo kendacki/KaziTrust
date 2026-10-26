@@ -255,11 +255,15 @@ export function Chat({ go }: { go: (to: string) => void }) {
   }
 
   function pin(report: Report) {
-    if (!report.watchAddress) return;
+    if (!report.watchAddress || !activeId) return;
+    const address = report.watchAddress;
+    const threadId = activeId;
+    const saved = watch.some((item) => item.address === address);
     setWatch((current) => {
-      const previous = current.find((item) => item.address === report.watchAddress);
+      if (saved) return current.filter((item) => item.address !== address);
+      const previous = current.find((item) => item.address === address);
       const item: WatchItem = {
-        address: report.watchAddress!,
+        address,
         label: report.typeGuess,
         score: report.riskScore,
         band: report.band ?? "Unscored",
@@ -268,6 +272,9 @@ export function Chat({ go }: { go: (to: string) => void }) {
       };
       return [item, ...current.filter((row) => row.address !== item.address)];
     });
+    setThreads((current) =>
+      current.map((thread) => (thread.id === threadId ? { ...thread, pinned: !saved, updatedAt: Date.now() } : thread)),
+    );
   }
 
   function toggleHistory() {
@@ -458,6 +465,7 @@ export function Chat({ go }: { go: (to: string) => void }) {
                     if (user) void submit(user.content, { threadId: active.id, userId: user.id });
                   }}
                   onCopy={() => navigator.clipboard.writeText(message.report ? reportPlainText(message.report) : message.content)}
+                  watching={Boolean(message.report?.watchAddress && watch.some((item) => item.address === message.report?.watchAddress))}
                   onPin={() => message.report && pin(message.report)}
                   onExpand={(visual) => setPanel({ kind: "visual", visual })}
                   onEvidence={(finding) => setPanel({ kind: "evidence", finding })}
@@ -594,6 +602,7 @@ function Message({
   onEdit,
   onRetry,
   onCopy,
+  watching,
   onPin,
   onExpand,
   onEvidence,
@@ -606,6 +615,7 @@ function Message({
   onEdit: (text: string) => void;
   onRetry: () => void;
   onCopy: () => void;
+  watching: boolean;
   onPin: () => void;
   onExpand: (visual: Visual) => void;
   onEvidence: (finding: Finding) => void;
@@ -682,8 +692,8 @@ function Message({
             <IconCopy size={14} /> Copy
           </button>
           {message.report?.watchAddress ? (
-            <button type="button" onClick={onPin}>
-              <IconPin size={14} /> Watch
+            <button type="button" className={watching ? "watching" : ""} aria-pressed={watching} onClick={onPin}>
+              <IconPin size={14} /> {watching ? "Watching" : "Watch"}
             </button>
           ) : null}
           {message.stopped ? <span className="quiet">Stopped</span> : null}
