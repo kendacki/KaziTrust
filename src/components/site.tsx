@@ -354,7 +354,7 @@ export function Home({ go }: { go: (to: string) => void }) {
                 </ul>
                 <p className="quiet">These figures teach the shape of a read. They are not a live chain query.</p>
                 <button type="button" className="btn ink wide" onClick={() => go("/app?q=Show%20the%20illustrative%20deployer%20read")}>
-                  Open this sample in the app
+                  See the full sample read
                 </button>
               </div>
             </div>
