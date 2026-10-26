@@ -8,7 +8,7 @@ import { sampleDeployerReport } from "./sample";
 import { readRugcheck, type RugcheckReport } from "./rugcheck";
 import { readSolscan, type SolscanBook } from "./solscan";
 import { readRestrictions, screenAddresses, type RestrictionFacts, type RestrictionIndex } from "./restrictions";
-import { bandFromScore, clamp, formatNow, formatNumber, formatSol, formatTime, severityWord, shortAddress } from "../format";
+import { bandFromScore, clamp, formatNow, formatNumber, formatRawUnits, formatSol, formatTime, severityWord, shortAddress } from "../format";
 import type { Answer, ApprovalRow, Evidence, Finding, FlowRow, HoldingRow, ProgramSlice, Report, ScoreRule, Severity, TimelineEvent, Visual } from "../types";
 
 type Stepper = (label: string, state: "active" | "done") => void;
@@ -377,15 +377,20 @@ async function loadTokens(address: string, signal: AbortSignal): Promise<TokenRo
     for (const item of batch.value ?? []) {
       const info = item.account?.data?.parsed?.info;
       if (!info) continue;
-      const tokenAmount = info.tokenAmount as { uiAmount?: number | null; uiAmountString?: string } | undefined;
-      const amount = Number(tokenAmount?.uiAmount ?? 0);
-      if (!amount) continue;
+      const tokenAmount = info.tokenAmount as { amount?: string; decimals?: number; uiAmountString?: string } | undefined;
+      const raw = typeof tokenAmount?.amount === "string" ? tokenAmount.amount : "0";
+      if (/^0+$/.test(raw.replace("-", ""))) continue;
+      const decimals = typeof tokenAmount?.decimals === "number" ? tokenAmount.decimals : 0;
+      const printed = tokenAmount?.uiAmountString && !/^0+(?:\.0+)?$/.test(tokenAmount.uiAmountString)
+        ? tokenAmount.uiAmountString
+        : formatRawUnits(raw, decimals);
+      const amount = Number(printed);
       const delegate = typeof info.delegate === "string" ? info.delegate : undefined;
       rows.push({
         pubkey: item.pubkey,
         mint: String(info.mint ?? ""),
-        amount,
-        amountText: tokenAmount?.uiAmountString ?? formatNumber(amount, 4),
+        amount: amount > 0 ? amount : Number.MIN_VALUE,
+        amountText: printed,
         delegate,
         frozen: info.state === "frozen",
       });
@@ -814,17 +819,20 @@ function emptyReport(facts: WalletFacts, tools: string[]): Report {
     confidenceLabel: "Confidence low",
     scoringVersion: SCORING_VERSION,
     dataAsOf: `Slot ${facts.slot || "unknown"}, read ${formatNow()}`,
-    summary: "There is no balance and no transaction history on this address. A score would pretend to know more than the chain showed, so none is given.",
-    meaning: "An unused address is not a clean bill of health. It is an address with nothing to measure yet.",
-    nextStep: "Check the wallet that funded it, once it has a first transaction.",
+    summary: "This wallet has no score. Treat it with caution. There is no balance and no transaction history, so the method will not invent a number.",
+    meaning: "No score is not a clean result. Caution means there is nothing on this address to measure yet.",
+    nextStep: "Do not treat this address as safe. Read it again after the first transaction.",
     findings: leadFindings(facts, [
-      makeFinding(facts, "empty", "No balance and no signatures.", "note", 0.95, "getBalance returned 0 lamports and getSignaturesForAddress returned an empty list.", []),
+      {
+        ...makeFinding(facts, "empty", "No score. Treat this wallet with caution.", "watch", 0.95, "getBalance returned 0 lamports and getSignaturesForAddress returned an empty list. A missing score is caution, not a clean result.", []),
+        severityWord: "Caution",
+      },
     ]),
     visuals: [],
     rules: [],
     tools,
     txCount: 0,
-    warnings: [facts.solscanWarning, facts.restrictionWarning, "Not enough history for a score."].filter((item): item is string => Boolean(item)),
+    warnings: [facts.solscanWarning, facts.restrictionWarning, "No score. Treat this wallet with caution."].filter((item): item is string => Boolean(item)),
     illustrative: false,
     watchAddress: facts.address,
     cited: citedFrom(facts),
@@ -1243,9 +1251,29 @@ function holdingsVisual(facts: WalletFacts): Visual | null {
         ...(token.symbol === "SOL" || token.symbol === "Wrapped SOL" ? { mark: "sol" as const } : {}),
       });
     }
+    const seen = new Set(rows.map((row) => row.label));
+    if (facts.lamports > 0 && !seen.has("SOL")) {
+      rows.push({ label: "SOL", amount: formatSol(facts.lamports), pct: 8, mark: "sol" });
+    }
+    const extras = facts.tokens.filter((token) => !seen.has(mintName(token.mint)));
+    const pick = extras.slice(0, 5);
+    const smallest = extras[extras.length - 1];
+    if (smallest && !pick.includes(smallest)) pick.push(smallest);
+    for (const token of pick) {
+      const label = mintName(token.mint);
+      seen.add(label);
+      rows.push({
+        label,
+        amount: token.amountText,
+        pct: 8,
+        ...(label === "SOL" || label === "Wrapped SOL" ? { mark: "sol" as const } : {}),
+      });
+    }
     return {
       type: "holdings",
-      caption: "Bars follow Solscan dollar value. The score still comes from the chain rules.",
+      caption: rows.length > pool.slice(0, 6).length
+        ? "The longer bars follow dollar value. Shorter bars are chain balances too small for that list, kept down to the last unit."
+        : "Bars follow Solscan dollar value. The score still comes from the chain rules.",
       rows,
     };
   }
@@ -1253,6 +1281,8 @@ function holdingsVisual(facts: WalletFacts): Visual | null {
   const rows: HoldingRow[] = [];
   if (facts.lamports > 0) rows.push({ label: "SOL", amount: formatSol(facts.lamports), pct: 100, mark: "sol" });
   const top = facts.tokens.slice(0, 6);
+  const smallest = facts.tokens[facts.tokens.length - 1];
+  if (smallest && !top.includes(smallest)) top.push(smallest);
   const max = Math.max(...top.map((row) => row.amount), 0.0001);
   for (const token of top) {
     const label = mintName(token.mint);
@@ -1417,7 +1447,7 @@ function batchReport(reports: Report[]): Report {
         rows: reports.map((item) => ({
           address: item.wallet,
           score: item.riskScore,
-          band: item.band ?? "Unscored",
+          band: item.riskScore === null ? "Caution" : item.band ?? "Unscored",
           line: item.typeGuess,
         })),
       },

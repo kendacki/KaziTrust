@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { formatNumber, shortAddress } from "../format";
+import { cautionLabel, formatNumber, shortAddress } from "../format";
 import type { Finding, Report, Visual } from "../types";
 import { isSolanaAddress } from "../engine/address";
 import { FindingIcon, IconClose, IconCopy, IconPlus } from "./icons";
@@ -43,7 +43,7 @@ export function ReportView({
         <div className="verdict-score">
           <p className="eyebrow">Score</p>
           <p className="score num">{report.riskScore ?? "None"}</p>
-          <p className="verdict-band">{report.band ?? "Unscored"}</p>
+          <p className="verdict-band">{cautionLabel(report.kind, report.riskScore, report.band)}</p>
           <Gauge score={report.riskScore} band={report.band} />
           <p className="quiet">{report.confidenceLabel}</p>
         </div>
@@ -190,7 +190,7 @@ export function reportPlainText(report: Report): string {
     `KaziTrust ${report.scoringVersion}`,
     report.displayAddress,
     report.typeGuess,
-    report.riskScore === null ? "No score" : `Score ${report.riskScore} ${report.band}`,
+    report.riskScore === null ? `No score. ${cautionLabel(report.kind, report.riskScore, report.band)}` : `Score ${report.riskScore} ${report.band}`,
     report.summary,
     "",
     ...report.findings.map((finding) => `${finding.severityWord}: ${finding.title}`),
@@ -212,7 +212,7 @@ export function MiniRead({ report }: { report: Report }) {
         <div className="verdict-score">
           <p className="score num">{report.riskScore ?? "None"}</p>
           <Gauge score={report.riskScore} band={report.band} />
-          <p>{report.band ?? "Unscored"}</p>
+          <p>{cautionLabel(report.kind, report.riskScore, report.band)}</p>
         </div>
       </div>
       <ul className="findings compact">

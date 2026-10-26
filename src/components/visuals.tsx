@@ -13,8 +13,8 @@ export function Gauge({ score, band, large = false }: { score: number | null; ba
   const gap = 4;
   const seg = (width - gap * 3) / 4;
   return (
-    <svg className="gauge" width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={band ? `${band} band, score ${score}` : "No score"}>
-      <title>{band ? `${band}, ${score}` : "Unscored"}</title>
+    <svg className="gauge" width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={band ? `${band} band, score ${score}` : score === null ? "Caution, no score" : "No score"}>
+      <title>{band ? `${band}, ${score}` : score === null ? "Caution, no score" : "Unscored"}</title>
       <defs>
         <pattern id={`hatch-${raw}`} patternUnits="userSpaceOnUse" width="5" height="5" patternTransform="rotate(45)">
           <line x1="0" y1="0" x2="0" y2="5" stroke="currentColor" strokeWidth="1.4" />
@@ -394,7 +394,7 @@ function Compare({ visual }: { visual: Extract<Visual, { type: "compare" }> }) {
           <h3>{side.title}</h3>
           <p className="score num">{side.score ?? "None"}</p>
           <Gauge score={side.score} band={side.band} />
-          <p>{side.band ?? "Unscored"}</p>
+          <p>{side.score === null ? "Caution" : side.band ?? "Unscored"}</p>
           <p className="quiet">{side.line}</p>
         </article>
       ))}

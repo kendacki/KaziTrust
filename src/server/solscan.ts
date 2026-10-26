@@ -75,7 +75,7 @@ async function handle(
   }
   const target = new URL(`https://pro-api.solscan.io/v2.0/${path}`);
   target.searchParams.set("address", address);
-  if (path === "account/portfolio") target.searchParams.set("exclude_low_score_tokens", "true");
+  if (path === "account/portfolio") target.searchParams.set("exclude_low_score_tokens", "false");
   if (path === "account/defi/activities") {
     target.searchParams.set("page", "1");
     target.searchParams.set("page_size", "10");

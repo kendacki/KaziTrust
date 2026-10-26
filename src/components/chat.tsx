@@ -6,7 +6,7 @@ import { extractAddresses } from "../engine/address";
 import { investigate } from "../engine/analyze";
 import { walletQuestionAllowed } from "../engine/scope";
 import { readQuota } from "../engine/quota";
-import { shortAddress } from "../format";
+import { cautionLabel, shortAddress } from "../format";
 import { cleanUsername, initials, loadThreads, loadUsername, loadWatch, saveThreads, saveUsername, saveWatch, type Thread, type ThreadMessage, type WatchItem } from "../storage";
 import type { Finding, Report, Visual } from "../types";
 import {
@@ -268,7 +268,7 @@ export function Chat({ go }: { go: (to: string) => void }) {
         address,
         label: report.typeGuess,
         score: report.riskScore,
-        band: report.band ?? "Unscored",
+        band: cautionLabel(report.kind, report.riskScore, report.band),
         previousScore: previous?.score,
         updatedAt: Date.now(),
       };
