@@ -5,7 +5,7 @@ import { investigate } from "../engine/analyze";
 import { shortAddress } from "../format";
 import { Card, CardGrid, Line, Reveal } from "../motion";
 import { Lockup } from "./mark";
-import { IconAgent, IconArrow, IconBook, IconBuilding, IconChat, IconCite, IconClose, IconLock, IconMenu, IconPackage, IconPeople, IconSearch, IconToken } from "./icons";
+import { IconAgent, IconArrow, IconBook, IconBuilding, IconChat, IconCite, IconClose, IconLock, IconMenu, IconPackage, IconPeople, IconPlus, IconSearch, IconToken } from "./icons";
 import { MiniRead } from "./report";
 import type { Report } from "../types";
 
@@ -587,7 +587,7 @@ function EvidenceDemo() {
     <article className="evidence-demo">
       <button type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open}>
         <span>Open delegate can move the USDC account.</span>
-        <span>{open ? "Hide" : "Evidence"}</span>
+        <span className="evidence-mark" aria-hidden="true">{open ? <IconClose size={16} /> : <IconPlus size={16} />}</span>
       </button>
       <AnimatePresence>
         {open ? (

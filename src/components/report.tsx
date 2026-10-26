@@ -1,21 +1,21 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { shortAddress } from "../format";
 import type { Finding, Report, Visual } from "../types";
 import { isSolanaAddress } from "../engine/address";
-import { FindingIcon, IconCopy } from "./icons";
+import { FindingIcon, IconClose, IconCopy, IconPlus } from "./icons";
 import { Gauge, VisualFrame, VisualView, visualTitle } from "./visuals";
 
 export function ReportView({
   report,
   onExpand,
-  onEvidence,
   onPick,
 }: {
   report: Report;
   onExpand: (visual: Visual) => void;
-  onEvidence: (finding: Finding) => void;
   onPick: (address: string) => void;
 }) {
+  const [openId, setOpenId] = useState<string | null>(null);
   return (
     <motion.article className="report" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
       {report.warnings.map((warning) => (
@@ -72,10 +72,17 @@ export function ReportView({
                   <p>{finding.explanation}</p>
                   <div className="finding-meta">
                     <span className="num">{Math.round(finding.confidence * 100)}% confidence</span>
-                    <button type="button" className="text-btn" onClick={() => onEvidence(finding)}>
-                      Evidence
+                    <button
+                      type="button"
+                      className="evidence-toggle"
+                      aria-expanded={openId === finding.id}
+                      aria-label={openId === finding.id ? "Close evidence" : "Open evidence"}
+                      onClick={() => setOpenId((current) => (current === finding.id ? null : finding.id))}
+                    >
+                      {openId === finding.id ? <IconClose size={14} /> : <IconPlus size={14} />}
                     </button>
                   </div>
+                  {openId === finding.id ? <EvidenceList finding={finding} /> : null}
                 </div>
               </motion.li>
             ))}

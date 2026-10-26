@@ -362,7 +362,8 @@ h3 {
 .question-tabs button[aria-pressed="true"] { border-color: var(--ink); background: var(--panel); }
 .question-panel { border-radius: 16px; border: 1px solid var(--line); padding: 28px; display: grid; gap: 12px; align-content: center; min-height: 240px; }
 .evidence-demo { margin-top: 22px; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
-.evidence-demo > button { width: 100%; background: var(--panel); display: flex; justify-content: space-between; }
+.evidence-demo > button { width: 100%; background: var(--panel); display: flex; justify-content: space-between; align-items: center; }
+.evidence-mark { display: grid; place-items: center; color: var(--text); }
 .evidence-demo ul { margin: 0; padding: 0 18px 16px 36px; color: var(--soft); }
 
 .code {
@@ -674,7 +675,23 @@ body:has(.app-shell) { height: 100dvh; overflow: hidden; }
 .finding-icon { color: var(--text); padding-top: 2px; }
 .finding-top strong { min-width: 0; line-height: 1.4; text-align: left; }
 .sev-word, .finding-top .clean-word { flex: 0 0 auto; }
-.finding-meta { display: flex; gap: 12px; color: var(--mute); font-size: 13px; margin-top: 6px; }
+.finding-meta { display: flex; gap: 12px; align-items: center; color: var(--mute); font-size: 13px; margin-top: 6px; }
+.evidence-toggle {
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+.evidence-toggle:hover { background: var(--surface-2); }
+.evidence-toggle:focus,
+.evidence-toggle:focus-visible { outline: none; }
+.finding .evidence { margin-top: 8px; }
 .findings.compact li { display: flex; gap: 8px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--line); }
 .summary, .meaning p { color: var(--soft); }
 .cards article .text-btn { margin-top: auto; }

@@ -503,7 +503,6 @@ export function Chat({ go }: { go: (to: string) => void }) {
                   watching={Boolean(message.report?.watchAddress && watch.some((item) => item.address === message.report?.watchAddress))}
                   onPin={() => message.report && pin(message.report)}
                   onExpand={(visual) => setPanel({ kind: "visual", visual })}
-                  onEvidence={(finding) => setPanel({ kind: "evidence", finding })}
                   onPick={(address) => void submit(`Read ${address}`)}
                   onRestore={(earlier) => {
                     setThreads((current) =>
@@ -640,7 +639,6 @@ function Message({
   watching,
   onPin,
   onExpand,
-  onEvidence,
   onPick,
   onRestore,
 }: {
@@ -653,7 +651,6 @@ function Message({
   watching: boolean;
   onPin: () => void;
   onExpand: (visual: Visual) => void;
-  onEvidence: (finding: Finding) => void;
   onPick: (address: string) => void;
   onRestore: (earlier: { content: string; after: ThreadMessage[] }) => void;
 }) {
@@ -707,7 +704,7 @@ function Message({
         </ol>
       ) : null}
       {message.report ? (
-        <ReportView report={message.report} onExpand={onExpand} onEvidence={onEvidence} onPick={onPick} />
+        <ReportView report={message.report} onExpand={onExpand} onPick={onPick} />
       ) : message.content ? (
         <p>{message.content}</p>
       ) : null}
