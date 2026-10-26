@@ -60,7 +60,7 @@ const SERVICES: Service[] = [
   },
 ];
 
-export function ApiAccess({ go }: { go: (to: string) => void }) {
+export function ApiAccess() {
   const [secret, setSecret] = useState(() => localStorage.getItem(KEY) ?? "");
   const [prefix, setPrefix] = useState("");
   const [createdAt, setCreatedAt] = useState("");
@@ -201,12 +201,6 @@ export function ApiAccess({ go }: { go: (to: string) => void }) {
       </section>
 
       {notice ? <p className="quiet api-notice">{notice}</p> : null}
-
-      <footer className="page-foot">
-        <button type="button" onClick={() => go("/docs#setup")}>Read the docs</button>
-        <button type="button" onClick={() => go("/method")}>Scoring method</button>
-        <button type="button" onClick={() => go("/app")}>Open app</button>
-      </footer>
     </div>
   );
 }

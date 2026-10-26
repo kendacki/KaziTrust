@@ -57,7 +57,7 @@ export function App() {
   else if (path === "/app") body = <RequireAuth go={go}><Chat go={go} /></RequireAuth>;
   else if (path === "/docs") body = <Chrome path={path} go={go}><Docs go={go} /></Chrome>;
   else if (path === "/method") body = <Chrome path={path} go={go}><Method go={go} /></Chrome>;
-  else if (path === "/api") body = <Chrome path={path} go={go}><ApiAccess go={go} /></Chrome>;
+  else if (path === "/api") body = <Chrome path={path} go={go}><ApiAccess /></Chrome>;
   else body = <Chrome path={path} go={go}><Home go={go} /></Chrome>;
 
   return (
