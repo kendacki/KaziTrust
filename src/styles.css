@@ -1184,17 +1184,29 @@ body:has(.app-shell) { height: 100dvh; overflow: hidden; }
   border: 1px solid rgba(255, 255, 255, 0.78);
   border-radius: 28px !important;
   box-shadow: 0 28px 70px rgba(11, 12, 14, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  overflow: hidden;
+  overflow: visible;
 }
 #privy-modal-content,
 #privy-modal-content * {
-  --privy-color-background: transparent !important;
-  --privy-color-background-2: rgba(255, 255, 255, 0.46) !important;
-  --privy-color-background-3: rgba(255, 255, 255, 0.28) !important;
+  --privy-color-background: #ffffff !important;
+  --privy-color-background-2: #f3f4f5 !important;
+  --privy-color-background-3: #eaebed !important;
+  --privy-color-foreground: #0b0c0e !important;
+  --privy-color-foreground-2: #34373c !important;
+  --privy-color-foreground-4: #cfd2d6 !important;
 }
-#privy-modal-content {
-  background: transparent !important;
+#privy-modal-content,
+#privy-modal-content > div {
+  height: auto !important;
+  overflow: visible !important;
+  background: #ffffff !important;
   font-family: Aeonik, Inter, system-ui, sans-serif;
+}
+#privy-modal-content input {
+  background: #ffffff !important;
+  color: #0b0c0e !important;
+  border: 1px solid #cfd2d6 !important;
+  opacity: 1 !important;
 }
 #privy-modal-content :has(> button.login-method-button) {
   background: none !important;
