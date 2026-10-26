@@ -216,17 +216,7 @@ export function Home({ go }: { go: (to: string) => void }) {
         </CardGrid>
       </section>
 
-      <section className="wrap tool-strip" aria-label="What a read uses">
-        <p className="eyebrow">A read uses</p>
-        <ul>
-          <li>Solana mainnet</li>
-          <li>FluxRPC, then a public node</li>
-          <li>RugCheck, for the token risk report on a mint</li>
-          <li>Solscan, for the label, portfolio, and recent DeFi activity</li>
-          <li>The OFAC SDN list, for blocked Solana addresses</li>
-          <li>Method {SCORING_VERSION}</li>
-        </ul>
-      </section>
+      <LogoCarousel />
 
       <section className="section wrap" id="problem">
         <Reveal>
@@ -580,6 +570,34 @@ function Questions() {
 
 const USDC_TX = "3LXB727v5JgaLaY2ak5qqFmxXWKQiQGmzaeeajc89o4SjBUHjwwHoiqiGP4DuLoqWLArPJkZea7ExgMma4w9PHye";
 const USDC_ACCOUNT = "2Y7HATmn9aJBcxCskE5V2U2epmjvkZmB51zTJBbhj4cU";
+
+const logos = [
+  { name: "Solana", src: "/logos/solana.svg" },
+  { name: "Solscan", src: "/logos/solscan.png" },
+  { name: "RugCheck", src: "/logos/rugcheck.png" },
+  { name: "FluxRPC", src: "/logos/fluxrpc.png" },
+  { name: "Groq", src: "/logos/groq.svg" },
+  { name: "ChatGPT", src: "/logos/openai.svg" },
+  { name: "Privy", src: "/logos/privy.svg" },
+];
+
+function LogoCarousel() {
+  return (
+    <section className="logo-carousel" aria-label="Services in the build">
+      <div className="logo-track">
+        {[0, 1].map((copy) => (
+          <ul key={copy} aria-hidden={copy === 1}>
+            {logos.map((logo) => (
+              <li key={`${copy}-${logo.name}`}>
+                <img src={logo.src} alt={copy === 0 ? logo.name : ""} />
+              </li>
+            ))}
+          </ul>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 function EvidenceDemo() {
   const [open, setOpen] = useState(false);
