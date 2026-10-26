@@ -760,6 +760,12 @@ body:has(.app-shell) { height: 100dvh; overflow: hidden; }
   padding: 3px 8px;
 }
 .api-page .code, .api-try .code { margin: 0; }
+.api-page,
+.api-page *,
+.api-page pre,
+.api-page code {
+  font-family: Aeonik, Inter, system-ui, sans-serif;
+}
 .api-notice { margin: 0; }
 .profile { display: flex; align-items: center; gap: 10px; width: 100%; }
 .profile-mark {
