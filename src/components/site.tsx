@@ -591,11 +591,35 @@ function EvidenceDemo() {
       </button>
       <AnimatePresence>
         {open ? (
-          <motion.ul initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
-            <li>Sample signature 4kQm…aa91, slot 210,441,002</li>
-            <li>Sample account read, token account 8pQe…11aa</li>
-            <li>These two lines are illustrations. A live finding links to Solscan.</li>
-          </motion.ul>
+          <motion.div className="evidence" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
+            <div className="evidence-head">
+              <p>Instances</p>
+              <span className="num">2</span>
+            </div>
+            <ol>
+              <li>
+                <span className="evidence-index num">1</span>
+                <div className="evidence-body">
+                  <div className="evidence-top">
+                    <strong>Transaction</strong>
+                    <span className="quiet num">4kQm…aa91</span>
+                  </div>
+                  <p className="quiet">Slot 210,441,002</p>
+                </div>
+              </li>
+              <li>
+                <span className="evidence-index num">2</span>
+                <div className="evidence-body">
+                  <div className="evidence-top">
+                    <strong>Account read</strong>
+                    <span className="quiet num">8pQe…11aa</span>
+                  </div>
+                  <p className="quiet">Token account</p>
+                </div>
+              </li>
+            </ol>
+            <p className="quiet">These two lines are illustrations. A live finding links to Solscan.</p>
+          </motion.div>
         ) : null}
       </AnimatePresence>
     </article>

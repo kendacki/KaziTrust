@@ -126,26 +126,37 @@ export function ReportView({
 export function EvidenceList({ finding }: { finding: Finding }) {
   return (
     <div className="evidence">
-      <p>{finding.explanation}</p>
-      <ul>
+      <div className="evidence-head">
+        <p>Instances</p>
+        <span className="num">{finding.evidence.length}</span>
+      </div>
+      <ol>
         {finding.evidence.map((item, index) => (
           <li key={`${item.label}-${index}`}>
-            <span>{item.label}</span>
-            {item.time ? <span className="quiet">{item.time}</span> : null}
-            {item.slot ? <span className="quiet num">Slot {item.slot}</span> : null}
-            {item.signature ? (
-              <a href={`https://solscan.io/tx/${item.signature}`} target="_blank" rel="noreferrer">
-                Solscan
-              </a>
-            ) : null}
-            {item.signature ? (
-              <button type="button" className="text-btn" onClick={() => navigator.clipboard.writeText(item.signature ?? "")}>
-                Copy
-              </button>
-            ) : null}
+            <span className="evidence-index num">{index + 1}</span>
+            <div className="evidence-body">
+              <div className="evidence-top">
+                <strong>{item.kind === "transaction" ? "Transaction" : "Account read"}</strong>
+                <span className="evidence-actions">
+                  {item.time ? <span className="quiet">{item.time}</span> : null}
+                  {item.slot ? <span className="quiet num">Slot {item.slot}</span> : null}
+                  {item.signature ? (
+                    <a href={`https://solscan.io/tx/${item.signature}`} target="_blank" rel="noreferrer">
+                      Solscan
+                    </a>
+                  ) : null}
+                  {item.signature ? (
+                    <button type="button" className="text-btn" onClick={() => navigator.clipboard.writeText(item.signature ?? "")}>
+                      Copy
+                    </button>
+                  ) : null}
+                </span>
+              </div>
+              <p className="num">{item.label}</p>
+            </div>
           </li>
         ))}
-      </ul>
+      </ol>
     </div>
   );
 }
