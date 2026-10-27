@@ -62,7 +62,11 @@ export async function narrateReport(question: string, report: Report, signal: Ab
     rules: report.rules.map((rule) => `${rule.points > 0 ? "+" : ""}${rule.points}: ${rule.detail}`),
     warnings: report.warnings,
     unscored: report.kind === "wallet" && report.riskScore === null,
-    balances: report.visuals.flatMap((visual) => (visual.type === "holdings" ? visual.rows.map((row) => `${row.label} ${row.amount}`) : [])),
+    balances: report.visuals.flatMap((visual) =>
+      visual.type === "holdings"
+        ? visual.rows.map((row) => (row.name && row.name !== row.label ? `${row.label} (${row.name}) ${row.amount}` : `${row.label} ${row.amount}`))
+        : [],
+    ),
   };
   try {
     const narration = await ask({ kind: "explain", question, facts }, signal);

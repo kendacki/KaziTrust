@@ -44,6 +44,8 @@ export type HoldingRow = {
   pct: number;
   flag?: string;
   mark?: "sol";
+  logo?: string;
+  name?: string;
 };
 
 export type FlowRow = {

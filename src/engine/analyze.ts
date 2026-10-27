@@ -8,6 +8,7 @@ import { sampleDeployerReport } from "./sample";
 import { readRugcheck, type RugcheckReport } from "./rugcheck";
 import { readSolscan, type SolscanBook } from "./solscan";
 import { readRestrictions, screenAddresses, type RestrictionFacts, type RestrictionIndex } from "./restrictions";
+import { readTokenFaces } from "./tokenmeta";
 import { bandFromScore, clamp, formatNow, formatNumber, formatRawUnits, formatSol, formatTime, severityWord, shortAddress } from "../format";
 import type { Answer, ApprovalRow, Evidence, Finding, FlowRow, HoldingRow, ProgramSlice, Report, ScoreRule, Severity, TimelineEvent, Visual } from "../types";
 
@@ -41,6 +42,9 @@ type TokenRow = {
   amountText: string;
   delegate?: string;
   frozen: boolean;
+  name?: string;
+  symbol?: string;
+  image?: string;
 };
 
 type Flow = {
@@ -274,6 +278,15 @@ async function loadFacts(
       tokenWarning = error instanceof RpcError ? error.message : "Token accounts could not be read.";
     }
     onStep(`${tag}Reading token accounts`, "done");
+    if (tokens.length) {
+      onStep(`${tag}Reading token names`, "active");
+      try {
+        await attachTokenFaces(tokens, signal);
+      } catch (error) {
+        if (signal.aborted) throw error;
+      }
+      onStep(`${tag}Reading token names`, "done");
+    }
   }
 
   const opened = spreadSignatures(signatures, plan.open);
@@ -491,6 +504,61 @@ async function loadTokens(address: string, signal: AbortSignal): Promise<TokenRo
   }
   rows.sort((a, b) => b.amount - a.amount);
   return rows;
+}
+
+async function attachTokenFaces(tokens: TokenRow[], signal: AbortSignal): Promise<void> {
+  const ranked = [...tokens].sort((a, b) => b.amount - a.amount);
+  const picked = ranked.slice(0, 8);
+  const smallest = ranked[ranked.length - 1];
+  if (smallest && !picked.includes(smallest)) picked.push(smallest);
+  for (const token of ranked) {
+    if (picked.length >= 12) break;
+    if ((token.frozen || token.delegate) && !picked.includes(token)) picked.push(token);
+  }
+  const faces = await readTokenFaces(picked.map((token) => token.mint), signal);
+  for (const token of tokens) {
+    const face = faces.get(token.mint);
+    if (!face) continue;
+    if (face.name) token.name = face.name;
+    if (face.symbol) token.symbol = face.symbol;
+    if (face.image) token.image = face.image;
+  }
+}
+
+function cleanFace(value?: string): string {
+  if (!value) return "";
+  const clean = value.replace(/[\u0000-\u001f\u007f]/g, "").replace(/\s+/g, " ").trim();
+  if (!clean || clean.length > 32) return "";
+  return clean;
+}
+
+function tokenLabel(token: TokenRow): string {
+  const known = lookupLabel(token.mint);
+  if (known?.category === "mint") return known.name;
+  return cleanFace(token.symbol) || cleanFace(token.name) || mintName(token.mint);
+}
+
+function labelForMint(facts: WalletFacts, mint: string): string {
+  const token = facts.tokens.find((item) => item.mint === mint);
+  return token ? tokenLabel(token) : mintName(mint);
+}
+
+function publishedName(token: TokenRow, label: string): string | undefined {
+  const name = cleanFace(token.name);
+  if (!name || name.toLowerCase() === label.toLowerCase()) return undefined;
+  return name;
+}
+
+function holdingBits(label: string, token?: TokenRow): Pick<HoldingRow, "mark" | "logo" | "name"> {
+  const name = token ? publishedName(token, label) : undefined;
+  if (label === "SOL") return { mark: "sol", ...(name ? { name } : {}) };
+  if (token?.image) return { logo: token.image, ...(name ? { name } : {}) };
+  if (label === "Wrapped SOL") return { mark: "sol", ...(name ? { name } : {}) };
+  return name ? { name } : {};
+}
+
+function matchToken(facts: WalletFacts, symbol: string): TokenRow | undefined {
+  return facts.tokens.find((token) => tokenLabel(token) === symbol || cleanFace(token.symbol) === symbol || cleanFace(token.name) === symbol);
 }
 
 async function loadFlows(address: string, signatures: SignatureInfo[], signal: AbortSignal): Promise<Flow[]> {
@@ -870,7 +938,7 @@ function walletFindings(
   if (delegates.length) {
     const first = delegates[0];
     findings.push(
-      makeFinding(facts, "delegate", `${delegates.length} token account${delegates.length === 1 ? "" : "s"} ha${delegates.length === 1 ? "s" : "ve"} a delegate set.`, "watch", 0.88, `The first is ${mintName(first.mint)} delegated to ${shortAddress(first.delegate ?? "")}. A delegate can move that token account up to the approved amount. KaziTrust does not build a revoke transaction.`, [], [first.delegate ?? "", first.mint, first.pubkey]),
+      makeFinding(facts, "delegate", `${delegates.length} token account${delegates.length === 1 ? "" : "s"} ha${delegates.length === 1 ? "s" : "ve"} a delegate set.`, "watch", 0.88, `The first is ${tokenLabel(first)} delegated to ${shortAddress(first.delegate ?? "")}. A delegate can move that token account up to the approved amount. KaziTrust does not build a revoke transaction.`, [], [first.delegate ?? "", first.mint, first.pubkey]),
     );
   } else if (!facts.tokenWarning) {
     findings.push(
@@ -880,7 +948,7 @@ function walletFindings(
 
   if (frozen.length) {
     findings.push(
-      makeFinding(facts, "frozen", `${frozen.length} token account${frozen.length === 1 ? " is" : "s are"} frozen, so that balance is restricted.`, "watch", 0.9, `Frozen: ${frozen.slice(0, 3).map((row) => mintName(row.mint)).join(", ")}. The freeze comes from the mint authority, not from this read.`, [], frozen.slice(0, 3).map((row) => row.mint)),
+      makeFinding(facts, "frozen", `${frozen.length} token account${frozen.length === 1 ? " is" : "s are"} frozen, so that balance is restricted.`, "watch", 0.9, `Frozen: ${frozen.slice(0, 3).map((row) => tokenLabel(row)).join(", ")}. The freeze comes from the mint authority, not from this read.`, [], frozen.slice(0, 3).map((row) => row.mint)),
     );
   }
 
@@ -1403,7 +1471,7 @@ function fundingVisual(facts: WalletFacts): Visual | null {
   const sourceLabel = solSource
     ? lookupLabel(solSource.address)?.name ?? shortAddress(solSource.address)
     : tokenSource
-      ? mintName(tokenSource.mint)
+      ? labelForMint(facts, tokenSource.mint)
       : "No counterparty";
   const head = facts.historyComplete ? "First transaction" : "Oldest in scan";
   const hops = [
@@ -1491,29 +1559,33 @@ function holdingsVisual(facts: WalletFacts): Visual | null {
     const pool = [...(priced.sol ? [priced.sol] : []), ...priced.tokens].sort((a, b) => b.value - a.value);
     const max = Math.max(...pool.map((row) => row.value), 0.0001);
     for (const token of pool.slice(0, 6)) {
+      const chain = token.symbol === "SOL" ? undefined : matchToken(facts, token.symbol);
       rows.push({
         label: token.symbol,
         amount: `$${formatNumber(token.value, token.value >= 1000 ? 0 : 2)}`,
         pct: Math.max(8, Math.round((token.value / max) * 100)),
-        ...(token.symbol === "SOL" || token.symbol === "Wrapped SOL" ? { mark: "sol" as const } : {}),
+        ...holdingBits(token.symbol, chain),
       });
     }
     const seen = new Set(rows.map((row) => row.label));
     if (facts.lamports > 0 && !seen.has("SOL")) {
       rows.push({ label: "SOL", amount: formatSol(facts.lamports), pct: 8, mark: "sol" });
     }
-    const extras = facts.tokens.filter((token) => !seen.has(mintName(token.mint)));
+    const extras = facts.tokens.filter((token) => {
+      const label = tokenLabel(token);
+      return !seen.has(label) && !seen.has(cleanFace(token.symbol)) && !seen.has(cleanFace(token.name));
+    });
     const pick = extras.slice(0, 5);
     const smallest = extras[extras.length - 1];
     if (smallest && !pick.includes(smallest)) pick.push(smallest);
     for (const token of pick) {
-      const label = mintName(token.mint);
+      const label = tokenLabel(token);
       seen.add(label);
       rows.push({
         label,
         amount: token.amountText,
         pct: 8,
-        ...(label === "SOL" || label === "Wrapped SOL" ? { mark: "sol" as const } : {}),
+        ...holdingBits(label, token),
       });
     }
     return {
@@ -1538,18 +1610,18 @@ function holdingsVisual(facts: WalletFacts): Visual | null {
   if (smallest && !top.includes(smallest)) top.push(smallest);
   const max = Math.max(...top.map((row) => row.amount), 0.0001);
   for (const token of top) {
-    const label = mintName(token.mint);
+    const label = tokenLabel(token);
     rows.push({
       label,
       amount: token.amountText,
       pct: Math.max(8, Math.round((token.amount / max) * 100)),
       flag: token.delegate ? "Delegate set" : token.frozen ? "Frozen" : undefined,
-      ...(label === "SOL" || label === "Wrapped SOL" ? { mark: "sol" as const } : {}),
+      ...holdingBits(label, token),
     });
   }
   return {
     type: "holdings",
-    caption: "The SOL row is the native balance on this address. Each token bar is sized against the other tokens here, so length is not a dollar value. A mint is named only when the method already knows that name.",
+    caption: "The SOL row is the native balance on this address. Other rows use the name and logo published with the token when that metadata is present. Each token bar is sized against the other tokens here, so length is not a dollar value.",
     rows,
   };
 }
@@ -1567,7 +1639,7 @@ function counterpartyVisual(facts: WalletFacts): Visual | null {
   const toRows = (map: Map<string, number>, sol: boolean): FlowRow[] =>
     [...map.entries()].slice(0, 4).map(([address, amount]) => ({
       address,
-      label: lookupLabel(address)?.name ?? shortAddress(address),
+      label: lookupLabel(address)?.name ?? (facts.tokens.some((token) => token.mint === address) ? labelForMint(facts, address) : shortAddress(address)),
       amount: sol && amount > 1000 ? formatSol(amount) : formatNumber(amount, 2),
     }));
   return {
@@ -1584,7 +1656,7 @@ function approvalsVisual(facts: WalletFacts): Visual | null {
     .filter((token) => token.delegate)
     .slice(0, 6)
     .map((token) => ({
-      mint: mintName(token.mint),
+      mint: tokenLabel(token),
       delegate: lookupLabel(token.delegate ?? "")?.name ?? shortAddress(token.delegate ?? ""),
       amount: token.amountText,
       address: token.delegate,

@@ -1161,6 +1161,7 @@ body:has(.page-app) { height: 100dvh; overflow: hidden; }
 .bars { display: grid; gap: 10px; }
 .sol-text { display: inline-flex; align-items: center; gap: 6px; }
 .sol-mark { display: block; flex: 0 0 auto; }
+.token-logo { border-radius: 999px; object-fit: cover; }
 .bar-track { height: 6px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
 .bar-track span { display: block; height: 100%; background: var(--ink); border-radius: inherit; }
 .bar-row em { font-style: normal; color: var(--mute); font-size: 12px; }

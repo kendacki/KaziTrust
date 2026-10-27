@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import type { Band, Visual } from "../types";
 import { shortAddress } from "../format";
@@ -225,13 +225,30 @@ function Timeline({ visual }: { visual: Extract<Visual, { type: "timeline" }> })
   );
 }
 
+function TokenMark({ label, logo, mark }: { label: string; logo?: string; mark?: "sol" }) {
+  if (mark === "sol" || (!logo && isSolName(label))) return <SolText>{label}</SolText>;
+  if (!logo) return <span>{label}</span>;
+  return (
+    <span className="sol-text">
+      <TokenLogo src={logo} />
+      {label}
+    </span>
+  );
+}
+
+function TokenLogo({ src }: { src: string }) {
+  const [hidden, setHidden] = useState(false);
+  if (hidden) return null;
+  return <img className="sol-mark token-logo" src={src} alt="" width={14} height={14} referrerPolicy="no-referrer" onError={() => setHidden(true)} />;
+}
+
 function Holdings({ visual }: { visual: Extract<Visual, { type: "holdings" }> }) {
   return (
     <div className="bars" role="list">
       {visual.rows.map((row) => (
-        <div className="bar-row" role="listitem" key={row.label}>
+        <div className="bar-row" role="listitem" key={`${row.label}-${row.amount}`}>
           <div className="bar-meta">
-            {row.mark === "sol" || isSolName(row.label) ? <SolText>{row.label}</SolText> : <span>{row.label}</span>}
+            <TokenMark label={row.label} logo={row.logo} mark={row.mark} />
             <span className="num">{row.amount}</span>
           </div>
           <div className="bar-track">
