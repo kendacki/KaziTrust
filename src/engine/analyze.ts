@@ -382,11 +382,17 @@ async function loadSignatures(address: string, limit: number, signal: AbortSigna
   let before = "";
   while (all.length < limit) {
     const pageLimit = Math.min(40, limit - all.length);
-    const page = await rpc<SignatureInfo[]>(
-      "getSignaturesForAddress",
-      [address, { limit: pageLimit, commitment: "confirmed", ...(before ? { before } : {}) }],
-      signal,
-    );
+    let page: SignatureInfo[];
+    try {
+      page = await rpc<SignatureInfo[]>(
+        "getSignaturesForAddress",
+        [address, { limit: pageLimit, commitment: "confirmed", ...(before ? { before } : {}) }],
+        signal,
+      );
+    } catch (error) {
+      if (!all.length || signal.aborted) throw error;
+      break;
+    }
     if (!page.length) break;
     all.push(...page);
     if (page.length < pageLimit) break;
@@ -459,20 +465,25 @@ async function loadTokens(address: string, signal: AbortSignal): Promise<TokenRo
 }
 
 async function loadFlows(address: string, signatures: SignatureInfo[], signal: AbortSignal): Promise<Flow[]> {
-  const transactions = await Promise.all(
-    signatures.map(async (item) => {
-      try {
-        const tx = await rpc<ParsedTransaction | null>(
-          "getTransaction",
-          [item.signature, { encoding: "jsonParsed", commitment: "confirmed", maxSupportedTransactionVersion: 1 }],
-          signal,
-        );
-        return { item, tx };
-      } catch {
-        return { item, tx: null as ParsedTransaction | null };
-      }
-    }),
-  );
+  const transactions: { item: SignatureInfo; tx: ParsedTransaction | null }[] = [];
+  for (let index = 0; index < signatures.length; index += 4) {
+    const batch = signatures.slice(index, index + 4);
+    const opened = await Promise.all(
+      batch.map(async (item) => {
+        try {
+          const tx = await rpc<ParsedTransaction | null>(
+            "getTransaction",
+            [item.signature, { encoding: "jsonParsed", commitment: "confirmed", maxSupportedTransactionVersion: 1 }],
+            signal,
+          );
+          return { item, tx };
+        } catch {
+          return { item, tx: null as ParsedTransaction | null };
+        }
+      }),
+    );
+    transactions.push(...opened);
+  }
   const flows = transactions.filter((entry) => entry.tx).map((entry) => parseFlow(address, entry.item, entry.tx as ParsedTransaction));
   if (!flows.length && signatures.length) throw new RpcError("The transactions could not be opened.");
   return flows;

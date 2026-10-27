@@ -56,14 +56,18 @@ async function handle(req: NodeRequest, res: NodeResponse, nodes: string[], next
         method: "POST",
         headers: { "content-type": "application/json" },
         body,
+        signal: AbortSignal.timeout(12000),
       });
-      let text = await response.text();
       if (!response.ok) continue;
+      let text = await response.text();
+      if (!text || text.length > 1_500_000) continue;
       const secret = new URL(url).searchParams.get("key");
       if (secret) text = text.split(secret).join("");
+      const parsed = JSON.parse(text) as { error?: { message?: string } };
+      if (parsed.error && /rate|limit|429|congested|too many/i.test(parsed.error.message ?? "")) continue;
       res.statusCode = 200;
       res.setHeader("content-type", "application/json");
-      res.end(text.slice(0, 2_000_000));
+      res.end(text);
       return;
     } catch {
       continue;
