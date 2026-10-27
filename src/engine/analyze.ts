@@ -1552,6 +1552,67 @@ function timelineVisual(facts: WalletFacts): Visual | null {
   return { type: "timeline", caption: "Events taken from the scanned signatures and the opened transactions.", events };
 }
 
+function joinList(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+}
+
+function isShortMint(label: string): boolean {
+  return /^.{4}….{4}$/.test(label);
+}
+
+function holdingName(row: HoldingRow): string {
+  if (row.name && row.name.toLowerCase() !== row.label.toLowerCase() && !isShortMint(row.label)) return `${row.label} (${row.name})`;
+  return row.label;
+}
+
+function tokenPhrase(row: HoldingRow): string {
+  if (isShortMint(row.label)) return `${row.amount} of ${row.label}`;
+  return `${row.amount} ${holdingName(row)}`;
+}
+
+function holdingsCaption(rows: HoldingRow[], tokenCount: number): string {
+  const native = rows.find((row) => row.label === "SOL");
+  const tokens = rows.filter((row) => row.label !== "SOL");
+  const priced = rows.filter((row) => row.amount.startsWith("$"));
+  if (priced.length) {
+    const units = rows.filter((row) => !row.amount.startsWith("$"));
+    const money = `This address holds ${joinList(priced.map((row) => `${row.amount} of ${holdingName(row)}`))}.`;
+    const biggest = priced.length > 1 ? ` ${holdingName(priced[0])} is the largest dollar value here.` : "";
+    const extra = units.length ? ` Also on the address, in token units: ${joinList(units.map(tokenPhrase))}.` : "";
+    return `${money}${biggest}${extra} The score still comes from the chain rules.`;
+  }
+  if (!tokens.length) return native ? `This address holds ${native.amount} and no token balance.` : "No balance was found on this address.";
+  const lead = tokens.slice(0, 3).map(tokenPhrase);
+  const other = tokenCount - lead.length;
+  const parts: string[] = [];
+  if (native) parts.push(native.amount);
+  else parts.push("no SOL");
+  parts.push(...lead);
+  if (other === 1 && tokens[3]) parts.push(tokenPhrase(tokens[3]));
+  else if (other > 0) parts.push(`${other} other token balance${other === 1 ? "" : "s"}`);
+  const opening = `This address holds ${joinList(parts)}.`;
+  const notes: string[] = [];
+  if (tokens.length === 1) notes.push(`${holdingName(tokens[0])} is the only token balance, so its bar runs the full width. That length is the amount, not a dollar price.`);
+  else {
+    const longest = holdingName(tokens[0]);
+    const shortest = holdingName(tokens[tokens.length - 1]);
+    notes.push(longest === shortest ? "The bars compare these token amounts. Length is not a dollar price." : `${longest} has the longest bar. ${shortest} has the shortest. Length compares the amounts, not a dollar price.`);
+  }
+  const unnamed = tokens.filter((row) => isShortMint(row.label));
+  if (unnamed.length === 1) notes.push(`${unnamed[0].label} has not published a name, so that row keeps the short mint.`);
+  else if (unnamed.length > 1) notes.push(`${joinList(unnamed.slice(0, 3).map((row) => row.label))} have not published a name, so those rows keep the short mint.`);
+  const frozen = tokens.filter((row) => row.flag === "Frozen");
+  const delegated = tokens.filter((row) => row.flag === "Delegate set");
+  if (frozen.length) notes.push(`${joinList(frozen.map((row) => holdingName(row)))} ${frozen.length === 1 ? "is" : "are"} frozen.`);
+  if (delegated.length) notes.push(`A delegate is set on ${joinList(delegated.map((row) => holdingName(row)))}.`);
+  const withLogo = tokens.filter((row) => row.logo);
+  const missingLogo = tokens.some((row) => !row.logo);
+  if (withLogo.length && missingLogo) notes.push(`${joinList(withLogo.slice(0, 3).map((row) => holdingName(row)))} ${withLogo.length === 1 ? "includes" : "include"} a published logo.`);
+  return `${opening} ${notes.slice(0, 3).join(" ")}`.trim();
+}
+
 function holdingsVisual(facts: WalletFacts): Visual | null {
   const priced = facts.solscan;
   if (priced && (priced.tokens.length || priced.sol)) {
@@ -1590,16 +1651,14 @@ function holdingsVisual(facts: WalletFacts): Visual | null {
     }
     return {
       type: "holdings",
-      caption: rows.length > pool.slice(0, 6).length
-        ? "The longer bars follow dollar value. Shorter bars are chain balances too small for that list, kept down to the last unit."
-        : "Bars follow Solscan dollar value. The score still comes from the chain rules.",
+      caption: holdingsCaption(rows, facts.tokens.length),
       rows,
     };
   }
   if (!facts.tokens.length && facts.lamports === 0) {
     return {
       type: "holdings",
-      caption: "The balance is 0 SOL. The score still uses the history and the interactions that were read.",
+      caption: "This address holds 0 SOL and no token balance. The score still uses the history that was read.",
       rows: [{ label: "SOL", amount: "0 SOL", pct: 8, mark: "sol" }],
     };
   }
@@ -1621,7 +1680,7 @@ function holdingsVisual(facts: WalletFacts): Visual | null {
   }
   return {
     type: "holdings",
-    caption: "The SOL row is the native balance on this address. Other rows use the name and logo published with the token when that metadata is present. Each token bar is sized against the other tokens here, so length is not a dollar value.",
+    caption: holdingsCaption(rows, facts.tokens.length),
     rows,
   };
 }
