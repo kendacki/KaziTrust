@@ -44,7 +44,8 @@ export function App() {
     }
   }, []);
 
-  const path = url.split("?")[0].split("#")[0] || "/";
+  const bare = url.split("?")[0].split("#")[0] || "/";
+  const path = bare.length > 1 ? bare.replace(/\/+$/, "") : bare;
   const online = useOnline();
   const missing = !KNOWN.has(path);
   useEffect(() => {
