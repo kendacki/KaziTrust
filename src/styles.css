@@ -1547,8 +1547,23 @@ body:has(.page-app) { height: 100dvh; overflow: hidden; }
   }
   .composer-bar .icon-btn { order: 1; width: 32px; height: 32px; }
   .composer-bar .icon-btn svg { width: 16px; height: 16px; }
-  .composer-bar .send { order: 2; width: 32px; height: 32px; margin-left: auto; }
-  .composer-bar .send svg { width: 14px; height: 14px; }
+  .composer-bar .send {
+    order: 2;
+    width: 32px;
+    height: 32px;
+    margin-left: auto;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    line-height: 0;
+    appearance: none;
+  }
+  .composer-bar .send svg {
+    display: block;
+    width: 16px;
+    height: 16px;
+    margin: 0;
+  }
   .composer-bar .mode { order: 3; flex: 1 0 100%; justify-content: center; }
   .mode button { padding: 6px 10px; font-size: 12px; }
   .mode-note { font-size: 11px; }
