@@ -924,11 +924,40 @@ body:has(.page-app) { height: 100dvh; overflow: hidden; }
   padding: 12px 14px;
   white-space: pre-wrap;
 }
+.msg.user.editing {
+  justify-self: stretch;
+  width: 100%;
+  max-width: none;
+  padding: 12px 12px 10px;
+}
+.edit-query { display: grid; gap: 10px; }
+.edit-query textarea {
+  width: 100%;
+  border: 0;
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+  border-radius: 0;
+  padding: 2px 4px;
+  resize: none;
+  min-height: 28px;
+  max-height: 320px;
+  line-height: 1.45;
+  overflow: auto;
+  scrollbar-width: none;
+}
+.edit-query textarea::-webkit-scrollbar { display: none; }
+.edit-query textarea:focus,
+.edit-query textarea:focus-visible { outline: none; box-shadow: none; }
+.edit-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
+.edit-actions .text-btn { padding: 8px 10px; color: var(--soft); }
+.edit-actions .btn { padding: 8px 14px; font-size: 14px; }
+.edit-actions .btn:hover { transform: none; }
 .msg.assistant { display: grid; gap: 12px; }
 .msg-actions { justify-content: flex-start; color: var(--mute); font-size: 13px; }
 .msg-actions button { background: none; border: 0; padding: 0; display: inline-flex; gap: 6px; align-items: center; color: var(--mute); }
 .msg-actions button.watching { color: var(--ink); font-weight: 500; }
-.msg textarea { min-height: 80px; }
+.msg textarea { min-height: 28px; border: 0; outline: none; box-shadow: none; background: transparent; }
 
 .trail { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; color: var(--soft); font-size: 13px; }
 .trail li { display: flex; align-items: center; gap: 8px; }

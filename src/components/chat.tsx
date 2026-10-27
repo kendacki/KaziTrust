@@ -682,28 +682,82 @@ function Message({
 }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(message.content);
+  const editBox = useRef<HTMLTextAreaElement>(null);
+  function grow(node: HTMLTextAreaElement | null) {
+    if (!node) return;
+    node.style.height = "0px";
+    node.style.height = `${Math.min(node.scrollHeight, 320)}px`;
+  }
+  useEffect(() => {
+    if (!editing) return;
+    grow(editBox.current);
+    editBox.current?.focus();
+    const length = editBox.current?.value.length ?? 0;
+    editBox.current?.setSelectionRange(length, length);
+  }, [editing]);
   if (message.role === "user") {
     return (
-      <motion.div className="msg user" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} layout>
+      <motion.div className={editing ? "msg user editing" : "msg user"} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} layout>
         {editing ? (
           <form
+            className="edit-query"
             onSubmit={(event) => {
               event.preventDefault();
+              const next = value.trim();
+              if (!next) return;
               setEditing(false);
-              onEdit(value);
+              onEdit(next);
             }}
           >
-            <textarea value={value} onChange={(event) => setValue(event.target.value)} aria-label="Edit question" />
-            <div className="msg-actions">
-              <button type="submit" className="btn ink">Save</button>
-              <button type="button" className="btn ghost" onClick={() => setEditing(false)}>Cancel</button>
+            <textarea
+              ref={editBox}
+              rows={1}
+              value={value}
+              aria-label="Edit question"
+              onChange={(event) => {
+                setValue(event.target.value);
+                grow(event.currentTarget);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  setValue(message.content);
+                  setEditing(false);
+                }
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  event.currentTarget.form?.requestSubmit();
+                }
+              }}
+            />
+            <div className="edit-actions">
+              <button
+                type="button"
+                className="text-btn"
+                onClick={() => {
+                  setValue(message.content);
+                  setEditing(false);
+                }}
+              >
+                Cancel
+              </button>
+              <button type="submit" className="btn ink" disabled={busy || !value.trim()}>
+                Send
+              </button>
             </div>
           </form>
         ) : (
           <>
             <p>{message.content}</p>
             <div className="msg-actions">
-              <button type="button" onClick={() => setEditing(true)} disabled={busy}>
+              <button
+                type="button"
+                onClick={() => {
+                  setValue(message.content);
+                  setEditing(true);
+                }}
+                disabled={busy}
+              >
                 <IconEdit size={14} /> Edit
               </button>
               {message.earlier?.map((earlier, index) => (
