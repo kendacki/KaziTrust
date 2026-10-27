@@ -633,20 +633,26 @@ body:has(.page-app) { height: 100dvh; overflow: hidden; }
 .history li { position: relative; display: flex; align-items: center; }
 .history li > button:first-child, .history form { flex: 1; min-width: 0; max-width: 100%; }
 .history li > button:first-child {
+  appearance: none;
   background: transparent;
   border: 0;
+  box-shadow: none;
   text-align: left;
-  padding: 8px;
+  padding: 6px 8px;
   border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.35;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.history input { font-size: 12px; line-height: 1.35; }
 .history li button:focus,
-.history li button:focus-visible { outline: none; }
-.history-group { margin: 10px 8px 2px; font-size: 12px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--mute); }
+.history li button:focus-visible { outline: none; box-shadow: none; }
+.history-group { margin: 10px 8px 2px; font-size: 11px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--mute); }
 .history li > button:first-child:hover,
-.history li > button.current { background: var(--surface-2); }
+.history li > button.current { background: transparent; }
+.history li > button.current { font-weight: 500; }
 .history li .tiny { opacity: 0; }
 .history li:hover .tiny,
 .history li:focus-within .tiny { opacity: 1; }
