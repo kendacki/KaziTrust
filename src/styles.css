@@ -1307,9 +1307,12 @@ body:has(.page-app) { height: 100dvh; overflow: hidden; }
   --privy-color-foreground-2: #34373c !important;
   --privy-color-foreground-4: #cfd2d6 !important;
 }
+#privy-dialog { z-index: 2147483000; }
 #privy-modal-content,
-#privy-modal-content > div {
+#privy-modal-content > div,
+#privy-modal-content > div > div {
   height: auto !important;
+  max-height: none !important;
   overflow: visible !important;
   background: #ffffff !important;
   font-family: Aeonik, Inter, system-ui, sans-serif;

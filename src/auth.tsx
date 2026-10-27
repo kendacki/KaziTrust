@@ -1,9 +1,13 @@
-import { useEffect, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, type ReactNode } from "react";
 import { PrivyProvider, useLogin, usePrivy } from "@privy-io/react-auth";
 import { Lockup } from "./components/mark";
 
 const appId = import.meta.env.VITE_PRIVY_APP_ID ?? "";
-let prompted = false;
+let signedInBefore = false;
+
+function modalVisible() {
+  return Boolean(document.getElementById("privy-modal-content") || document.getElementById("privy-dialog"));
+}
 
 export function AuthRoot({ children }: { children: ReactNode }) {
   if (!appId) return children;
@@ -72,17 +76,59 @@ export function RequireAuth({ go, children }: { go: (to: string) => void; childr
 function AuthGate({ go, children }: { go: (to: string) => void; children: ReactNode }) {
   const { ready, authenticated } = usePrivy();
   const { login } = useLogin();
+  const loginRef = useRef(login);
+  const readyRef = useRef(ready);
+  const authRef = useRef(authenticated);
+  const timers = useRef<number[]>([]);
+  loginRef.current = login;
+  readyRef.current = ready;
+  authRef.current = authenticated;
+
+  const clearTimers = useCallback(() => {
+    timers.current.forEach((id) => window.clearTimeout(id));
+    timers.current = [];
+  }, []);
+
+  const open = useCallback(() => {
+    clearTimers();
+    let seen = false;
+    let attempts = 0;
+    let waits = 0;
+    timers.current.push(
+      window.setInterval(() => {
+        if (modalVisible()) seen = true;
+      }, 40),
+    );
+    const tryOpen = () => {
+      if (authRef.current) return;
+      if (modalVisible()) {
+        seen = true;
+        return;
+      }
+      if (seen) return;
+      if (!readyRef.current) {
+        if (waits >= 20) return;
+        waits += 1;
+        timers.current.push(window.setTimeout(tryOpen, 150));
+        return;
+      }
+      loginRef.current();
+      attempts += 1;
+      if (attempts >= 4) return;
+      timers.current.push(window.setTimeout(tryOpen, 320));
+    };
+    timers.current.push(window.setTimeout(tryOpen, 0));
+  }, [clearTimers]);
 
   useEffect(() => {
-    if (!ready) return;
-    if (authenticated) {
-      prompted = true;
-      return;
-    }
-    if (prompted) return;
-    prompted = true;
-    login();
-  }, [ready, authenticated, login]);
+    if (authenticated) signedInBefore = true;
+  }, [authenticated]);
+
+  useEffect(() => {
+    if (!ready || authenticated || signedInBefore) return;
+    open();
+    return clearTimers;
+  }, [ready, authenticated, open, clearTimers]);
 
   if (!ready) {
     return <GateScreen go={go} lede="Checking your session." />;
@@ -95,7 +141,7 @@ function AuthGate({ go, children }: { go: (to: string) => void; children: ReactN
         title="Sign in to read a wallet."
         lede="Create an account or sign in before a Wallet assessment."
         action={
-          <button type="button" className="btn ink" onClick={() => login()}>
+          <button type="button" className="btn ink" onClick={open}>
             Sign in
           </button>
         }
