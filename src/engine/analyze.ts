@@ -69,6 +69,8 @@ type WalletFacts = {
   flows: Flow[];
   flowWarning?: string;
   historyComplete: boolean;
+  ageReached: boolean;
+  ageTargetDays: number;
   scanned: number;
   mode: "quick" | "deep";
   hop?: { address: string; lamports: number; signatures: number };
@@ -112,7 +114,7 @@ export async function investigate(options: {
   }
   if (/how is the score built|scoring method|how do you score/i.test(question) && extractAddresses(question).length === 0) {
     const fallback =
-      "Version 0.1 scores only what this browser read. An unlabelled address starts at 22. Thin history, bunched activity, failed transactions, open delegates, and a single counterparty push the number up. A long history and a spread of contracts pull it down. Labelled contracts and mints are held to a fixed low score, because they are not personal wallets. The method page lists every rule. A general chat model can invent a hop. This one cannot: if a signature is not in the tool output, it is dropped before you see it.";
+      "Version 0.3 scores only what this browser read. An unlabelled address starts at 22. A balance of 0 SOL does not remove the score. Thin history, bunched activity, failed transactions, a swept balance, open delegates, and a concentrated counterparty push the number up. Six months or a year of history, many active days, and a spread of contracts pull it down. Quick read aims at six months. Deep scan aims at one year. Neither walks the entire chain. Labelled contracts and mints are held to a fixed low score, because they are not personal wallets. The method page lists every rule. A general chat model can invent a hop. This one cannot: if a signature is not in the tool output, it is dropped before you see it.";
     return voiceText(question, fallback, ["Show the illustrative deployer read", "Read the Jupiter contract"], options.signal, onStep);
   }
 
@@ -203,9 +205,6 @@ async function voiceReport(
   const narrated = signal.aborted ? null : await narrateReport(modelQuestion(question), report, signal);
   onStep("Writing the read", "done");
   assertGrounded(report);
-  if (!report.tools.includes("Wording")) {
-    report.warnings.push("The language model did not answer, so this wording comes from the scoring rules.");
-  }
   return { kind: "report", report, followups: narrated ?? followups };
 }
 
@@ -246,7 +245,7 @@ async function loadFacts(
   prefix: string,
 ): Promise<WalletFacts> {
   const tag = prefix ? `${prefix}: ` : "";
-  const limit = mode === "deep" ? 80 : 25;
+  const plan = scanPlan(mode);
   onStep(`${tag}Reading balance and account type`, "active");
   const [balance, account] = await Promise.all([
     rpc<ContextResult<number>>("getBalance", [address, { commitment: "confirmed" }], signal),
@@ -254,7 +253,8 @@ async function loadFacts(
   ]);
   onStep(`${tag}Reading balance and account type`, "done");
   onStep(`${tag}${mode === "deep" ? "Walking a wider transaction history" : "Reading recent transactions"}`, "active");
-  const signatures = await loadSignatures(address, limit, signal);
+  const history = await loadSignatures(address, plan.cap, plan.days, signal);
+  const signatures = history.items;
   onStep(`${tag}${mode === "deep" ? "Walking a wider transaction history" : "Reading recent transactions"}`, "done");
 
   const value = account.value;
@@ -276,17 +276,17 @@ async function loadFacts(
     onStep(`${tag}Reading token accounts`, "done");
   }
 
-  const opened = mode === "deep" ? spreadSignatures(signatures, 16) : signatures.slice(0, 4);
+  const opened = spreadSignatures(signatures, plan.open);
   let flows: Flow[] = [];
   let flowWarning: string | undefined;
   if (opened.length) {
-    onStep(`${tag}${mode === "deep" ? "Opening transactions at both ends" : "Opening transactions for counterparties"}`, "active");
+    onStep(`${tag}Opening transactions across the window`, "active");
     try {
       flows = await loadFlows(address, opened, signal);
     } catch (error) {
       flowWarning = error instanceof RpcError ? error.message : "Some transactions could not be opened.";
     }
-    onStep(`${tag}${mode === "deep" ? "Opening transactions at both ends" : "Opening transactions for counterparties"}`, "done");
+    onStep(`${tag}Opening transactions across the window`, "done");
   }
 
   let hop: WalletFacts["hop"];
@@ -356,7 +356,9 @@ async function loadFacts(
     tokenWarning,
     flows,
     flowWarning,
-    historyComplete: signatures.length < limit,
+    historyComplete: history.complete,
+    ageReached: history.ageReached,
+    ageTargetDays: plan.days,
     scanned: signatures.length,
     mode,
     hop,
@@ -377,11 +379,23 @@ function readMint(info: Record<string, unknown>): WalletFacts["mintInfo"] {
   return { supply, decimals, mintAuthority, freezeAuthority };
 }
 
-async function loadSignatures(address: string, limit: number, signal: AbortSignal): Promise<SignatureInfo[]> {
+function scanPlan(mode: "quick" | "deep"): { days: number; cap: number; open: number } {
+  return mode === "deep" ? { days: 365, cap: 800, open: 16 } : { days: 183, cap: 300, open: 8 };
+}
+
+async function loadSignatures(
+  address: string,
+  cap: number,
+  days: number,
+  signal: AbortSignal,
+): Promise<{ items: SignatureInfo[]; complete: boolean; ageReached: boolean }> {
+  const cutoff = Math.floor(Date.now() / 1000) - days * 86400;
   const all: SignatureInfo[] = [];
   let before = "";
-  while (all.length < limit) {
-    const pageLimit = Math.min(40, limit - all.length);
+  let complete = false;
+  let ageReached = false;
+  while (all.length < cap) {
+    const pageLimit = Math.min(100, cap - all.length);
     let page: SignatureInfo[];
     try {
       page = await rpc<SignatureInfo[]>(
@@ -393,25 +407,40 @@ async function loadSignatures(address: string, limit: number, signal: AbortSigna
       if (!all.length || signal.aborted) throw error;
       break;
     }
-    if (!page.length) break;
+    if (!Array.isArray(page) || !page.length) {
+      complete = true;
+      ageReached = true;
+      break;
+    }
     all.push(...page);
-    if (page.length < pageLimit) break;
+    const oldest = page[page.length - 1]?.blockTime;
+    if (typeof oldest === "number" && oldest <= cutoff) {
+      ageReached = true;
+      break;
+    }
+    if (page.length < pageLimit) {
+      complete = true;
+      ageReached = true;
+      break;
+    }
     before = page[page.length - 1]?.signature ?? "";
     if (!before) break;
   }
-  return all.slice(0, limit);
+  return { items: all.slice(0, cap), complete, ageReached };
 }
 
 function spreadSignatures(signatures: SignatureInfo[], count: number): SignatureInfo[] {
   if (signatures.length <= count) return signatures;
-  const half = Math.floor(count / 2);
-  const picked = [...signatures.slice(0, half), ...signatures.slice(-half)];
+  const picked: SignatureInfo[] = [];
   const seen = new Set<string>();
-  return picked.filter((item) => {
-    if (seen.has(item.signature)) return false;
+  for (let index = 0; index < count; index += 1) {
+    const at = Math.round((index * (signatures.length - 1)) / Math.max(1, count - 1));
+    const item = signatures[at];
+    if (!item || seen.has(item.signature)) continue;
     seen.add(item.signature);
-    return true;
-  });
+    picked.push(item);
+  }
+  return picked;
 }
 
 async function readHop(address: string, flows: Flow[], signal: AbortSignal): Promise<WalletFacts["hop"] | null> {
@@ -595,7 +624,9 @@ function buildReport(facts: WalletFacts, intent: ReturnType<typeof detectIntent>
     `getSignaturesForAddress (${facts.scanned})`,
     facts.executable || facts.accountType === "mint" ? "token accounts skipped" : "getTokenAccountsByOwner",
     facts.flows.length ? `getTransaction (${facts.flows.length})` : "getTransaction not needed",
-    facts.mode === "deep" ? "Deep scan: wider history, both ends, one funding hop" : "Quick read: latest window",
+    facts.mode === "deep"
+      ? "Deep scan: signatures back toward one year, interactions sampled across the window, one funding hop"
+      : "Quick read: signatures back toward six months, interactions sampled across the window",
     facts.restrictions ? "OFAC SDN list" : "OFAC SDN list unavailable",
   ];
   if (facts.solscan) tools.push("Solscan portfolio, metadata, and recent DeFi activity");
@@ -604,8 +635,8 @@ function buildReport(facts: WalletFacts, intent: ReturnType<typeof detectIntent>
   if (facts.rugcheckWarning) warnings.push(facts.rugcheckWarning);
   if (facts.restrictionWarning) warnings.push(facts.restrictionWarning);
 
-  if (!facts.signatures.length && facts.lamports === 0 && !facts.executable && facts.accountType !== "mint" && !facts.restrictions?.self) {
-    return emptyReport(facts, tools);
+  if (!facts.signatures.length && !facts.executable && facts.accountType !== "mint") {
+    return emptyWalletReport(facts, intent, warnings, tools);
   }
 
   const rules: ScoreRule[] = [];
@@ -627,12 +658,28 @@ function buildReport(facts: WalletFacts, intent: ReturnType<typeof detectIntent>
     });
   }
 
+  const oldestTime = times.length ? Math.min(...times) : 0;
+  const age = oldestTime ? Math.floor(Date.now() / 1000) - oldestTime : 0;
+  const activeDays = activeDayCount(times);
   if (facts.scanned > 0 && facts.scanned < 5) {
     score += 12;
     rules.push({ id: "thin", points: 12, detail: "Fewer than five signatures in the scan" });
+  } else if (age >= 365 * 86400 && facts.scanned >= 20) {
+    score -= 10;
+    rules.push({ id: "year", points: -10, detail: "At least 20 signatures reaching back a year or more" });
+  } else if (age >= 183 * 86400 && facts.scanned >= 12) {
+    score -= 6;
+    rules.push({ id: "half-year", points: -6, detail: "At least 12 signatures reaching back six months or more" });
   } else if (facts.scanned >= 20 && span >= 30 * 86400) {
-    score -= 8;
-    rules.push({ id: "long", points: -8, detail: "At least 20 signatures across 30 days or more" });
+    score -= 4;
+    rules.push({ id: "long", points: -4, detail: "At least 20 signatures across 30 days, short of six months" });
+  }
+  if (age >= 183 * 86400 && activeDays > 0 && activeDays <= 3 && facts.scanned >= 8) {
+    score += 10;
+    rules.push({ id: "sleeper", points: 10, detail: "Six months or more of span, with activity on three days or fewer" });
+  } else if (activeDays >= 30) {
+    score -= 4;
+    rules.push({ id: "many-days", points: -4, detail: "Activity spread across 30 or more days" });
   }
   if (facts.scanned >= 15 && span > 0 && span < 6 * 3600) {
     score += 26;
@@ -641,9 +688,17 @@ function buildReport(facts: WalletFacts, intent: ReturnType<typeof detectIntent>
     score += 14;
     rules.push({ id: "recent-burst", points: 14, detail: "Fifteen or more signatures inside two days" });
   }
+  if (facts.lamports === 0 && facts.scanned >= 5) {
+    score += 8;
+    rules.push({ id: "swept", points: 8, detail: "Balance is 0 SOL after at least five signatures" });
+  }
 
+  const failedSigs = facts.signatures.filter((item) => item.err).length;
   const failed = facts.flows.filter((flow) => flow.failed).length;
-  if (facts.flows.length >= 4 && failed / facts.flows.length >= 0.5) {
+  if (facts.scanned >= 10 && failedSigs / facts.scanned >= 0.35) {
+    score += 8;
+    rules.push({ id: "fail-window", points: 8, detail: "At least 35 percent of the scanned signatures failed" });
+  } else if (facts.flows.length >= 4 && failed / facts.flows.length >= 0.5) {
     score += 12;
     rules.push({ id: "fail-high", points: 12, detail: "Half or more of the opened transactions failed" });
   } else if (facts.flows.length >= 4 && failed / facts.flows.length >= 0.25) {
@@ -670,9 +725,17 @@ function buildReport(facts: WalletFacts, intent: ReturnType<typeof detectIntent>
   }
 
   const counterparties = counterpartyCounts(facts);
+  const flowCount = [...counterparties.values()].reduce((sum, count) => sum + count, 0);
+  const dominant = counterparties.size ? ([...counterparties.values()][0] ?? 0) / Math.max(1, flowCount) : 0;
   if (facts.flows.length >= 3 && counterparties.size === 1) {
     score += 10;
     rules.push({ id: "single", points: 10, detail: "Scanned flows name a single counterparty" });
+  } else if (facts.flows.length >= 4 && counterparties.size > 1 && dominant >= 0.7) {
+    score += 8;
+    rules.push({ id: "dominant", points: 8, detail: "One counterparty is at least 70 percent of the opened flows" });
+  } else if (counterparties.size >= 8) {
+    score -= 4;
+    rules.push({ id: "broad", points: -4, detail: "Eight or more counterparties in the opened transactions" });
   }
   const programs = programCounts(facts);
   if (programs.size >= 6) {
@@ -769,13 +832,32 @@ function walletFindings(
   const findings: Finding[] = [];
   const newest = facts.signatures[0];
   const oldest = facts.signatures[facts.signatures.length - 1];
-  if (facts.historyComplete && oldest?.blockTime) {
+  if (newest) {
     findings.push(
-      makeFinding(facts, "history", `The full scanned history starts ${formatTime(oldest.blockTime)}.`, facts.scanned < 5 ? "watch" : "note", facts.scanned < 5 ? 0.7 : 0.86, `The scan asked for more signatures than this address has, so the oldest transaction in the response is the start of its visible history. ${facts.scanned} signature${facts.scanned === 1 ? "" : "s"} came back. Balance is ${formatSol(facts.lamports)}.`, oldest ? [oldest] : []),
+      makeFinding(
+        facts,
+        "history",
+        windowTitle(facts, oldest),
+        facts.scanned < 5 ? "watch" : "note",
+        facts.ageReached || facts.historyComplete ? 0.84 : 0.68,
+        windowDetail(facts, newest, oldest),
+        [newest, oldest].filter((item): item is SignatureInfo => Boolean(item)),
+      ),
     );
-  } else if (newest) {
+  }
+  if (facts.lamports === 0) {
     findings.push(
-      makeFinding(facts, "history", `The scan covers the latest ${facts.scanned} signatures, not the full history.`, "note", 0.64, `${newest.blockTime ? `The newest is ${formatTime(newest.blockTime)}.` : ""} ${oldest?.blockTime ? `The oldest in this window is ${formatTime(oldest.blockTime)}.` : ""} Balance is ${formatSol(facts.lamports)}. ${facts.mode === "deep" ? "This is the deep scan window. It still may not reach the first funding transaction." : "A deep scan widens the window and checks the oldest funding address."}`, [newest, oldest].filter((item): item is SignatureInfo => Boolean(item))),
+      makeFinding(
+        facts,
+        "balance",
+        facts.scanned ? "The balance is 0 SOL, and the score still uses the history." : "The balance is 0 SOL. The score does not wait for a balance.",
+        facts.scanned >= 5 ? "watch" : "note",
+        0.9,
+        facts.scanned
+          ? `${facts.scanned} signature${facts.scanned === 1 ? "" : "s"} were read. An empty balance can mean the wallet was swept. It is not a reason to withhold a number.`
+          : "getBalance returned 0 lamports and the signature list was empty. The score is 46 until there is behaviour to judge.",
+        [],
+      ),
     );
   }
 
@@ -805,6 +887,22 @@ function walletFindings(
   if (facts.flows.length >= 4 && failed > 0) {
     findings.push(
       makeFinding(facts, "failed", `${failed} of ${facts.flows.length} opened transactions failed.`, failed / facts.flows.length >= 0.5 ? "elevated" : "watch", 0.77, "Failures are counted only in the transactions this read opened, not across the whole history.", facts.flows.filter((flow) => flow.failed).slice(0, 3).map((flow) => ({ signature: flow.signature, slot: flow.slot, err: true, blockTime: flow.time }))),
+    );
+  }
+
+  if (counterparties.size > 1) {
+    const top = [...counterparties.entries()][0];
+    findings.push(
+      makeFinding(
+        facts,
+        "interactions",
+        `Opened transactions name ${counterparties.size} counterparties.`,
+        "note",
+        0.74,
+        top ? `The most repeated is ${shortAddress(top[0])}, in ${top[1]} of the opened flows. The sample is spread across the signature window, not only the newest transactions.` : "The opened transactions did not name a counterparty.",
+        facts.flows.slice(0, 2).map((flow) => ({ signature: flow.signature, slot: flow.slot, err: null, blockTime: flow.time })),
+        top ? [top[0]] : [],
+      ),
     );
   }
 
@@ -852,10 +950,10 @@ function activityFinding(facts: WalletFacts): Finding {
     "note",
     0.8,
     facts.historyComplete
-      ? "Fewer signatures came back than the scan requested, so this is the visible history."
+      ? "Fewer signatures came back than the scan could request, so this is the visible history."
       : facts.mode === "deep"
-        ? "Deep scan walked more than one page when the history was long enough, and it still may not reach the first transaction."
-        : "The window is the most recent signatures. A deep scan walks further and checks the oldest funding address.",
+        ? "Deep scan walks toward one year of signatures and samples interactions across that window. It still does not walk the entire chain."
+        : "Quick read walks toward six months of signatures and samples interactions across that window.",
     facts.signatures.slice(0, 2),
   );
 }
@@ -901,36 +999,59 @@ function makeFinding(
   };
 }
 
-function emptyReport(facts: WalletFacts, tools: string[]): Report {
-  return {
-    kind: "wallet",
-    wallet: facts.address,
-    displayAddress: shortAddress(facts.address),
-    typeGuess: "Empty address",
-    riskScore: null,
-    band: null,
-    confidence: "low",
-    confidenceLabel: "Confidence low",
-    scoringVersion: SCORING_VERSION,
-    dataAsOf: `Slot ${facts.slot || "unknown"}, read ${formatNow()}`,
-    summary: "This wallet has no score. Treat it with caution. There is no balance and no transaction history, so the method will not invent a number.",
-    meaning: "No score is not a clean result. Caution means there is nothing on this address to measure yet.",
-    nextStep: "Do not treat this address as safe. Read it again after the first transaction.",
-    findings: leadFindings(facts, [
-      {
-        ...makeFinding(facts, "empty", "No score. Treat this wallet with caution.", "watch", 0.95, "getBalance returned 0 lamports and getSignaturesForAddress returned an empty list. A missing score is caution, not a clean result.", []),
-        severityWord: "Caution",
-      },
-    ]),
-    visuals: [],
-    rules: [],
+function emptyWalletReport(
+  facts: WalletFacts,
+  intent: ReturnType<typeof detectIntent>,
+  warnings: string[],
+  tools: string[],
+): Report {
+  return finish({
+    facts,
+    score: 46,
+    rules: [
+      { id: "base", points: 22, detail: "Starting point for an unlabelled address" },
+      { id: "no-history", points: 24, detail: "No signatures came back, so there is no behaviour to lower the score" },
+    ],
+    findings: [
+      makeFinding(
+        facts,
+        "empty",
+        "No transaction history in this scan. The score is 46.",
+        "watch",
+        0.9,
+        `Balance is ${formatSol(facts.lamports)}. An empty balance does not remove the score. There are no signatures yet, so the number stays at 46 until there is behaviour to judge.`,
+        [],
+      ),
+    ],
+    intent,
+    warnings,
     tools,
-    txCount: 0,
-    warnings: [facts.solscanWarning, facts.restrictionWarning, "No score. Treat this wallet with caution."].filter((item): item is string => Boolean(item)),
-    illustrative: false,
-    watchAddress: facts.address,
-    cited: citedFrom(facts),
-  };
+    span: 0,
+  });
+}
+
+function windowTitle(facts: WalletFacts, oldest?: SignatureInfo): string {
+  const aim = facts.mode === "deep" ? "one year" : "six months";
+  if (facts.historyComplete && oldest?.blockTime) return `The visible history starts ${formatTime(oldest.blockTime)}.`;
+  if (facts.ageReached && oldest?.blockTime) return `The oldest signature in this window is ${formatTime(oldest.blockTime)}, at least ${aim} back.`;
+  return `This ${facts.mode === "deep" ? "deep scan" : "quick read"} covers ${facts.scanned} signatures and does not yet reach ${aim}.`;
+}
+
+function windowDetail(facts: WalletFacts, newest: SignatureInfo, oldest?: SignatureInfo): string {
+  const aim = facts.mode === "deep" ? "one year" : "six months";
+  const newestText = newest.blockTime ? `The newest is ${formatTime(newest.blockTime)}.` : "";
+  const oldestText = oldest?.blockTime ? `The oldest in this window is ${formatTime(oldest.blockTime)}.` : "";
+  const reach = facts.ageReached || facts.historyComplete
+    ? `The scan reached its ${aim} aim, or the start of the visible history.`
+    : `Activity is denser than this scan, so it stopped at ${facts.scanned} signatures. This is not the entire chain.`;
+  const opened = facts.flows.length ? `${facts.flows.length} transactions were opened across the window to read interactions.` : "No transactions were opened.";
+  return `${newestText} ${oldestText} Balance is ${formatSol(facts.lamports)}. ${reach} ${opened}`.replace(/\s+/g, " ").trim();
+}
+
+function activeDayCount(times: number[]): number {
+  const days = new Set<string>();
+  for (const time of times) days.add(new Date(time * 1000).toISOString().slice(0, 10));
+  return days.size;
 }
 
 function finish(input: {
@@ -950,7 +1071,7 @@ function finish(input: {
   const band = bandFromScore(applied.score);
   const confidence = confidenceFor(facts, input.warnings.length > 0);
   const typeGuess = guessType(facts, input.labelName, input.span);
-  const summary = `${typeGuess}. Score ${applied.score}, ${band}. ${findings[0]?.title ?? "The read completed."} ${confidenceWord(confidence)}.`;
+  const summary = writtenSummary(facts, typeGuess, applied.score, band, findings[0]?.title);
   const meaning = meaningFrom(findings, band, facts);
   const visuals = pickVisuals(facts, input.intent);
   return {
@@ -1119,7 +1240,7 @@ function confidenceFor(facts: WalletFacts, degraded: boolean): Report["confidenc
   if (degraded || facts.scanned < 8) return "low";
   const times = facts.signatures.map((item) => item.blockTime).filter((time): time is number => typeof time === "number");
   const span = times.length ? Math.max(...times) - Math.min(...times) : 0;
-  if ((facts.historyComplete || facts.scanned >= 40) && span > 7 * 86400 && facts.flows.length >= 4) return "high";
+  if ((facts.historyComplete || facts.ageReached || facts.scanned >= 40) && span > 30 * 86400 && facts.flows.length >= 4) return "high";
   if (facts.executable && lookupLabel(facts.address)) return "high";
   return "medium";
 }
@@ -1132,24 +1253,41 @@ function guessType(facts: WalletFacts, labelName: string | undefined, span: numb
   if (labelName) return labelName;
   if (facts.scanned >= 15 && span > 0 && span < 6 * 3600) return "High-frequency address";
   if (facts.tokens.length >= 8) return "Active holder";
+  if (!facts.scanned) return "Quiet address";
   if (facts.scanned < 5) return "New or quiet wallet";
+  if (facts.ageReached && facts.ageTargetDays >= 365) return "Established wallet";
+  if (facts.ageReached) return "Seasoned wallet";
   return "Active wallet";
+}
+
+function writtenSummary(facts: WalletFacts, typeGuess: string, score: number, band: Report["band"], lead?: string): string {
+  const aim = facts.mode === "deep" ? "one year" : "six months";
+  const reach = facts.historyComplete
+    ? "The scan reached the start of the visible history."
+    : facts.ageReached
+      ? `The window reaches back at least ${aim}.`
+      : facts.scanned
+        ? `The window is ${facts.scanned} signatures, short of ${aim}, because activity is denser than the scan.`
+        : "No signatures came back.";
+  const balance = `Balance is ${formatSol(facts.lamports)}, and that does not cancel the score.`;
+  return `${typeGuess}. Score ${score}, ${band}. ${reach} ${balance} ${lead ?? ""}`.replace(/\s+/g, " ").trim();
 }
 
 function meaningFrom(findings: Finding[], band: Report["band"], facts: WalletFacts): string {
   const lead = findings[0]?.explanation ?? "";
-  const second = findings[1]?.title ?? "";
-  if (!facts.signatures.length) return lead;
-  return `The band is ${band}. ${lead} ${second ? `Alongside that: ${second}` : ""}`.trim();
+  const opened = facts.flows.length
+    ? `${facts.flows.length} opened transactions show who this address dealt with across the window.`
+    : "No transaction was opened, so the interactions are not in this read.";
+  return `The band is ${band}. ${lead} ${opened}`.replace(/\s+/g, " ").trim();
 }
 
 function nextStep(facts: WalletFacts, intent: ReturnType<typeof detectIntent>): string {
   if (facts.restrictions?.self) return "Treat the OFAC listing as the fact to act on. The behaviour score does not override it.";
   if (facts.rugcheck && facts.rugcheck.band !== "Good") return "Read the RugCheck risks before treating this mint as safe. That score is separate from the KaziTrust number.";
   if (facts.restrictions?.counterparties.length) return "Open the matched address on its own before treating this wallet as unrelated to the listing.";
-  if (facts.mode === "quick" && !facts.historyComplete) return "Run a deep scan for a wider history, transactions at both ends, and one read of the oldest funding address.";
-  if (facts.mode === "deep" && facts.hop) return "The deep scan checked one funding address. A full index is still required to walk further back.";
-  if (facts.mode === "deep" && !facts.historyComplete) return "This deep scan widened the window. A full index is still required to reach the first funding transaction.";
+  if (facts.mode === "quick" && !facts.ageReached && !facts.historyComplete) return "Run a deep scan to push the window toward one year and read the oldest funding address.";
+  if (facts.mode === "deep" && facts.hop) return "The deep scan checked one funding address. That hop is reported and does not add points by itself. A full index is still required to walk further back.";
+  if (facts.mode === "deep" && !facts.historyComplete) return "This deep scan walked toward one year of signatures. It still does not walk the entire chain.";
   if (facts.tokens.some((token) => token.delegate)) return "Open the approvals panel and match each delegate to a contract you recognise.";
   if (intent === "funding") return "Ask about the approvals or the contracts if you want the next layer of this read.";
   return "Ask a follow-up about funding, approvals, or the contracts it uses.";
@@ -1275,9 +1413,9 @@ function fundingVisual(facts: WalletFacts): Visual | null {
   return {
     type: "funding",
     caption: facts.hop
-      ? "Deep scan opened transactions at both ends and read the oldest funding address. One hop only."
+      ? "Deep scan sampled transactions across the window and read the oldest funding address. One hop only. The hop does not add points."
       : facts.historyComplete
-        ? "The signature list was shorter than the request, so this is the start of the visible history. One hop only."
+        ? "The signature list ended before the cap, so this is the start of the visible history. One hop only."
         : "This is the oldest transaction inside the scanned window, not proof of the wallet's first funding.",
     hops,
   };
@@ -1382,7 +1520,13 @@ function holdingsVisual(facts: WalletFacts): Visual | null {
       rows,
     };
   }
-  if (!facts.tokens.length && facts.lamports === 0) return null;
+  if (!facts.tokens.length && facts.lamports === 0) {
+    return {
+      type: "holdings",
+      caption: "The balance is 0 SOL. The score still uses the history and the interactions that were read.",
+      rows: [{ label: "SOL", amount: "0 SOL", pct: 8, mark: "sol" }],
+    };
+  }
   const rows: HoldingRow[] = [];
   if (facts.lamports > 0) rows.push({ label: "SOL", amount: formatSol(facts.lamports), pct: 100, mark: "sol" });
   const top = facts.tokens.slice(0, 6);

@@ -108,7 +108,7 @@ export const TOKEN_2022 = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
 export const EXAMPLE_PROGRAM = "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4";
 export const EXAMPLE_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
-export const SCORING_VERSION = "0.2.0";
+export const SCORING_VERSION = "0.3.0";
 
 export const RULE_CATALOG: { title: string; detail: string }[] = [
   {
@@ -121,7 +121,19 @@ export const RULE_CATALOG: { title: string; detail: string }[] = [
   },
   {
     title: "Long history",
-    detail: "Twenty or more signatures spanning at least 30 days subtracts 8.",
+    detail: "Twelve or more signatures reaching back at least six months subtracts 6. Twenty or more reaching back at least a year subtracts 10. A shorter span of 30 days, with twenty signatures, subtracts 4.",
+  },
+  {
+    title: "Empty balance",
+    detail: "A balance of 0 SOL never removes the score. After five or more signatures it adds 8. With no signatures, the score is 46.",
+  },
+  {
+    title: "Active days",
+    detail: "Activity on 30 or more days subtracts 4. A span of at least six months that falls on three days or fewer adds 10.",
+  },
+  {
+    title: "Failed signatures",
+    detail: "If 10 or more signatures were scanned and at least 35 percent failed, add 8. Opened transactions still add 12 at half failed, or 6 at a quarter, when the wider rate did not fire.",
   },
   {
     title: "Bunched activity",
@@ -141,7 +153,11 @@ export const RULE_CATALOG: { title: string; detail: string }[] = [
   },
   {
     title: "Single counterparty",
-    detail: "Three or more scanned flows with one counterparty adds 10.",
+    detail: "Three or more scanned flows with one counterparty adds 10. If one address is at least 70 percent of a wider set, add 8.",
+  },
+  {
+    title: "Broad counterparties",
+    detail: "Eight or more counterparties in the opened transactions subtracts 4.",
   },
   {
     title: "Contract spread",

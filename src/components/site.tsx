@@ -506,7 +506,7 @@ function AppPreview() {
                     <IconSend size={16} />
                   </button>
                 </div>
-                <p className="mode-note">Quick read stays on the latest signatures and four opened transactions.</p>
+                <p className="mode-note">Quick read walks toward six months of signatures and samples interactions across that window.</p>
               </div>
             </form>
           </div>
@@ -667,7 +667,7 @@ export function Docs({ go }: { go: (to: string) => void }) {
         <h1>How to read a wallet</h1>
         <p className="lede">Paste an address in the app, or call the same services with one API key.</p>
       </header>
-      <p>Paste any Solana address into the app. A quick read uses the latest 25 signatures, the balance, the token accounts, and 4 opened transactions. A deep scan walks up to 80 signatures, opens 16 transactions from both ends of that window, and reads the oldest funding address. It still does not walk the entire chain.</p>
+      <p>Paste any Solana address into the app. A quick read walks signatures back toward six months, up to 300, and opens 8 transactions spread across that window. A deep scan walks toward one year, up to 800, opens 16 transactions across that window, and reads the oldest funding address. Neither walks the entire chain. A balance of 0 SOL still receives a score.</p>
       <h2 id="comes-back">What comes back</h2>
       <p>A score from 0 to 100, a band, a confidence word, three to five findings, and the pictures that match the question. Each finding has an evidence control when the tools returned a signature or an address. A signature opens on Solscan. An address opens on Solscan. A line with neither is left out. Daily live reads in this browser are capped at 30.</p>
       <h2 id="limits">What it will not do</h2>
@@ -752,7 +752,7 @@ export function Method({ go }: { go: (to: string) => void }) {
       </header>
       <p>The investigator plans the question, calls chain tools, and writes only from what those tools return. An automated check removes any address that was not in the tool output. That is the difference from a general chat model, which can describe a funding path it never fetched.</p>
       <h2 id="tools">Tools</h2>
-      <p>getBalance, getAccountInfo, getSignaturesForAddress, getTokenAccountsByOwner, and getTransaction. Quick read asks for 25 signatures and opens 4 of the newest transactions. Deep scan walks up to 80 signatures, opens 8 of the newest and 8 of the oldest, and then reads the balance and recent signatures of the oldest funding address. Token accounts are skipped for contracts and mints. A mint read also asks RugCheck for its published token report. That score is shown on its own and does not move the KaziTrust number.</p>
+      <p>getBalance, getAccountInfo, getSignaturesForAddress, getTokenAccountsByOwner, and getTransaction. Quick read walks signatures toward six months, capped at 300, and opens 8 transactions sampled across that window. Deep scan walks toward one year, capped at 800, opens 16 sampled transactions, and then reads the balance and recent signatures of the oldest funding address. That hop is shown and does not add points by itself. Token accounts are skipped for contracts and mints. A mint read also asks RugCheck for its published token report. That score is shown on its own and does not move the KaziTrust number. A balance of 0 SOL does not remove the KaziTrust number.</p>
       <h2 id="rules">Rules in this version</h2>
       <ul>
         {RULE_CATALOG.map((rule) => (
@@ -767,7 +767,7 @@ export function Method({ go }: { go: (to: string) => void }) {
       <h2 id="confidence">Confidence</h2>
       <p>Low means a short window or a failed token read. High means a long span, a full visible history or a wide window, and several opened transactions. A labelled program can also be high confidence, because the identity is the finding.</p>
       <h2 id="not-scored">What this version does not score</h2>
-      <p>Distance to a mixer, sanctions matches, dollar prices, and clusters beyond the transactions that were opened. Those stay out of the number until the index can cite them. The label list is a short public set of programs and major mints, versioned with the method.</p>
+      <p>An empty SOL balance still receives a score from the history and the interactions in the opened transactions. Distance to a mixer, dollar prices, and a full funding graph stay out of the number. The deep scan reports one funding address and does not add points for that hop by itself. The label list is a short public set of contracts and major mints, versioned with the method.</p>
       <PageFoot go={go} links={[["/app", "Open app"], ["/docs", "Docs"], ["/", "Home"]]} />
     </DocFrame>
   );
