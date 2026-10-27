@@ -1379,7 +1379,11 @@ function restrictionVisual(facts: WalletFacts): Visual {
       {
         label: "Opened activity",
         state: screen ? (other ? "Blocked" : "Clear") : "Not checked",
-        detail: other ? `${other.name} appears in the scanned flows, a delegate, or the funding address.` : "No listed counterparty in the opened window.",
+        detail: other
+          ? `${other.name} appears in the scanned flows, a delegate, or the funding address.`
+          : screen
+            ? "No listed counterparty in the opened window."
+            : "Opened activity was not screened because the list could not be read.",
       },
       {
         label: "Token accounts",
