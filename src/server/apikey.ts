@@ -1,10 +1,19 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { keyActive, keyExpiry, keyLifetime } from "../engine/keylife";
 import { signedIn } from "./session";
 
 export type SavedKey = {
   hash: string;
   prefix: string;
   createdAt: string;
+  expiresAt?: string;
+};
+
+export type KeyView = {
+  prefix: string;
+  createdAt: string;
+  expiresAt: string | null;
+  active: boolean;
 };
 
 let root = "";
@@ -15,23 +24,32 @@ export function bindKeyStore(nextRoot: string) {
   saved = read();
 }
 
-export function keyRecord(): { prefix: string; createdAt: string } | null {
+export function keyRecord(now = Date.now()): KeyView | null {
   if (!saved) return null;
-  return { prefix: saved.prefix, createdAt: saved.createdAt };
+  return {
+    prefix: saved.prefix,
+    createdAt: saved.createdAt,
+    expiresAt: saved.expiresAt ?? null,
+    active: keyActive(saved.expiresAt, now),
+  };
 }
 
-export async function issueKey(): Promise<{ key: string; prefix: string; createdAt: string }> {
+export async function issueKey(hours: number): Promise<{ key: string; prefix: string; createdAt: string; expiresAt: string }> {
+  const life = keyLifetime(hours);
+  if (!life) throw new Error("Choose how long the key stays active.");
   const bytes = crypto.getRandomValues(new Uint8Array(24));
   const key = `kt_${[...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
   const createdAt = new Date().toISOString();
+  const expiresAt = keyExpiry(createdAt, life.hours);
+  if (!expiresAt) throw new Error("Choose how long the key stays active.");
   const prefix = key.slice(0, 7);
-  saved = { hash: await sha(key), prefix, createdAt };
+  saved = { hash: await sha(key), prefix, createdAt, expiresAt };
   write(saved);
-  return { key, prefix, createdAt };
+  return { key, prefix, createdAt, expiresAt };
 }
 
-export async function keyMatches(token: string): Promise<boolean> {
-  if (!saved || !token.startsWith("kt_") || token.length > 80) return false;
+export async function keyMatches(token: string, now = Date.now()): Promise<boolean> {
+  if (!saved || !keyActive(saved.expiresAt, now) || !token.startsWith("kt_") || token.length > 80) return false;
   return (await sha(token)) === saved.hash;
 }
 
@@ -71,7 +89,8 @@ function read(): SavedKey | null {
   try {
     const body = JSON.parse(readFileSync(path, "utf8")) as Partial<SavedKey>;
     if (!body.hash || !body.prefix || !body.createdAt) return null;
-    return { hash: body.hash, prefix: body.prefix, createdAt: body.createdAt };
+    const expiresAt = typeof body.expiresAt === "string" && Number.isFinite(Date.parse(body.expiresAt)) ? body.expiresAt : undefined;
+    return { hash: body.hash, prefix: body.prefix, createdAt: body.createdAt, ...(expiresAt ? { expiresAt } : {}) };
   } catch {
     return null;
   }

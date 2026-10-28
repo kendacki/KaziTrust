@@ -135,11 +135,31 @@ async function keys(
     return;
   }
   if (req.method === "POST") {
-    const issued = await issueKey();
-    send(res, 200, issued);
+    const hours = await chosenHours(req);
+    if (hours == null) {
+      send(res, 400, { error: "Choose how long the key stays active." });
+      return;
+    }
+    try {
+      const issued = await issueKey(hours);
+      send(res, 200, issued);
+    } catch {
+      send(res, 400, { error: "Choose how long the key stays active." });
+    }
     return;
   }
   send(res, 405, { error: "Use GET or POST." });
+}
+
+async function chosenHours(req: NodeRequest): Promise<number | null> {
+  try {
+    const text = await readBody(req);
+    if (!text) return null;
+    const body = JSON.parse(text) as { hours?: unknown };
+    return typeof body.hours === "number" ? body.hours : null;
+  } catch {
+    return null;
+  }
 }
 
 function readBody(req: NodeRequest): Promise<string> {

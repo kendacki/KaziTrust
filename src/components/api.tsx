@@ -1,5 +1,6 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { useEffect, useRef, useState } from "react";
+import { formatKeyRemaining, KEY_LIFETIMES, keyActive, keyLifetime } from "../engine/keylife";
 import { clearApiKey, loadApiKey, saveApiKey } from "../storage";
 import { Chrome } from "./site";
 
@@ -21,6 +22,8 @@ type Service = {
 type KeyRecord = {
   prefix: string;
   createdAt: string;
+  expiresAt: string | null;
+  active: boolean;
 };
 
 const SERVICES: Service[] = [
@@ -293,7 +296,26 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
   const [confirm, setConfirm] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [hours, setHours] = useState(24);
+  const [now, setNow] = useState(() => Date.now());
   const bearer = secret || "kt_your_key";
+  const life = keyLifetime(hours) ?? KEY_LIFETIMES[2];
+  const ends = record?.expiresAt ? Date.parse(record.expiresAt) : NaN;
+  const remaining = Number.isFinite(ends) ? ends - now : null;
+  const expired = Boolean(record) && (remaining !== null ? remaining <= 0 : !record?.active);
+  const liveKey = Boolean(record) && !expired;
+
+  useEffect(() => {
+    if (!record?.expiresAt || expired) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [record?.expiresAt, expired]);
+
+  useEffect(() => {
+    if (!expired || !secret) return;
+    setSecret("");
+    clearApiKey();
+  }, [expired, secret]);
 
   useEffect(() => {
     let live = true;
@@ -304,22 +326,26 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
         const saved = loadApiKey();
         if (next && saved?.prefix === next.prefix) {
           setRecord(next);
-          setSecret(saved.key);
+          if (next.active && keyActive(saved.expiresAt)) setSecret(saved.key);
+          else clearApiKey();
         } else if (next) {
           if (saved) clearApiKey();
           setRecord(next);
-        } else if (saved) {
-          setRecord({ prefix: saved.prefix, createdAt: saved.createdAt });
+        } else if (saved && keyActive(saved.expiresAt)) {
+          setRecord({ prefix: saved.prefix, createdAt: saved.createdAt, expiresAt: saved.expiresAt ?? null, active: true });
           setSecret(saved.key);
+        } else if (saved) {
+          clearApiKey();
         }
       } catch (caught) {
         if (!live) return;
         const saved = loadApiKey();
-        if (saved) {
-          setRecord({ prefix: saved.prefix, createdAt: saved.createdAt });
+        if (saved && keyActive(saved.expiresAt)) {
+          setRecord({ prefix: saved.prefix, createdAt: saved.createdAt, expiresAt: saved.expiresAt ?? null, active: true });
           setSecret(saved.key);
           return;
         }
+        if (saved) clearApiKey();
         setError(caught instanceof Error ? caught.message : "The key service did not answer.");
       } finally {
         if (live) setLoading(false);
@@ -335,17 +361,24 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
     setError("");
     setNotice("");
     try {
-      const response = await fetch("/api/keys", { method: "POST", headers: await sessionHeaders(tokenRef.current), credentials: "include" });
-      const body = (await response.json().catch(() => null)) as { key?: string; prefix?: string; createdAt?: string; error?: string } | null;
-      if (!response.ok || !body?.key?.startsWith("kt_") || !body.prefix || !body.createdAt) {
+      const headers = await sessionHeaders(tokenRef.current);
+      const response = await fetch("/api/keys", {
+        method: "POST",
+        headers: { ...headers, "content-type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ hours: life.hours }),
+      });
+      const body = (await response.json().catch(() => null)) as { key?: string; prefix?: string; createdAt?: string; expiresAt?: string; error?: string } | null;
+      if (!response.ok || !body?.key?.startsWith("kt_") || !body.prefix || !body.createdAt || !body.expiresAt) {
         throw new Error(keyFailure(response.status, body?.error));
       }
-      const issued = { key: body.key, prefix: body.prefix, createdAt: body.createdAt };
+      const issued = { key: body.key, prefix: body.prefix, createdAt: body.createdAt, expiresAt: body.expiresAt };
       saveApiKey(issued);
-      setRecord({ prefix: issued.prefix, createdAt: issued.createdAt });
+      setRecord({ prefix: issued.prefix, createdAt: issued.createdAt, expiresAt: issued.expiresAt, active: true });
       setSecret(issued.key);
+      setNow(Date.now());
       setConfirm(false);
-      setNotice("Key created. Copy it now.");
+      setNotice(`Key created. It stops after ${life.label}. Copy it now.`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "The key service did not answer.");
     } finally {
@@ -368,14 +401,14 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
     <div className="api-page api-keys wrap">
       <header className="page-head">
         <h1>Your key</h1>
-        <p className="lede">Create the key for every service. It is shown in full once. A new key replaces the one before it.</p>
+        <p className="lede">Create the key for every service. Choose how long it stays active. It is shown in full once, and it stops when that time ends.</p>
       </header>
 
       <section className="api-key" aria-label="Your key">
         <dl className="api-key-facts">
           <div>
             <dt>Status</dt>
-            <dd>{loading ? "Checking" : record ? "Issued" : "Not issued"}</dd>
+            <dd>{loading ? "Checking" : expired ? "Expired" : liveKey ? "Active" : "Not issued"}</dd>
           </div>
           <div>
             <dt>Prefix</dt>
@@ -385,20 +418,44 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
             <dt>Created</dt>
             <dd className="num">{record ? issuedOn(record.createdAt) : "None"}</dd>
           </div>
+          <div>
+            <dt>Time left</dt>
+            <dd className="num">{loading ? "Checking" : !record ? life.label : remaining === null ? "No end time" : formatKeyRemaining(remaining)}</dd>
+          </div>
         </dl>
         <div className="api-key-body">
           <p className="api-key-value num">{loading ? "Checking your key." : secret || (record ? `${record.prefix}…` : "No key yet.")}</p>
           <p className="quiet">
-            {secret
-              ? "This browser holds the full key. Leave it here, or copy it into the client that will call the API."
-              : record
-                ? "The full key stays in the browser that created it. Create a new key to see a full value again."
-                : "Create a key, then send it as Authorization: Bearer on each call."}
+            {expired
+              ? "This key has stopped. Calls with it are refused. Create a new key and choose a new lifetime."
+              : secret
+                ? "This browser holds the full key. Leave it here, or copy it into the client that will call the API. The countdown above is the time left before it stops."
+                : liveKey
+                  ? "The full key stays in the browser that created it. Create a new key to see a full value again."
+                  : "Choose a lifetime, then create a key. Send it as Authorization: Bearer on each call."}
           </p>
+          <fieldset className="api-key-life">
+            <legend>{liveKey ? "Next key stays active for" : "This key stays active for"}</legend>
+            <div className="api-key-life-options" role="radiogroup" aria-label="Key lifetime">
+              {KEY_LIFETIMES.map((option) => (
+                <label key={option.hours}>
+                  <input
+                    type="radio"
+                    name="key-lifetime"
+                    value={option.hours}
+                    checked={hours === option.hours}
+                    onChange={() => setHours(option.hours)}
+                    disabled={working || loading}
+                  />
+                  {option.label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
           <div className="api-key-actions">
-            <p className="quiet">{confirm ? "The current key stops working." : record ? "A new key retires the previous one." : "The full key is shown once."}</p>
+            <p className="quiet">{confirm ? `The current key stops working. The new key stays active for ${life.label}.` : liveKey ? "A new key retires the previous one." : `The key stops after ${life.label}.`}</p>
             <div className="api-key-buttons">
-              {secret ? (
+              {secret && !expired ? (
                 <button type="button" className="btn ink" onClick={() => void copy(secret, "Key copied.")} disabled={working}>
                   Copy key
                 </button>
@@ -416,10 +473,10 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
                 <button
                   type="button"
                   className={secret ? "btn ghost" : "btn ink"}
-                  onClick={() => (record ? setConfirm(true) : void issue())}
+                  onClick={() => (liveKey ? setConfirm(true) : void issue())}
                   disabled={working || loading}
                 >
-                  {working ? "Creating" : record ? "Replace key" : "Create a key"}
+                  {working ? "Creating" : liveKey ? "Replace key" : "Create a key"}
                 </button>
               )}
             </div>
@@ -490,11 +547,14 @@ async function readRecord(headers: HeadersInit): Promise<KeyRecord | null> {
   if (!response.ok) throw new Error(keyFailure(response.status, body?.error));
   const key = body?.key;
   if (!key?.prefix || !key.createdAt) return null;
-  return { prefix: key.prefix, createdAt: key.createdAt };
+  const expiresAt = typeof key.expiresAt === "string" && Number.isFinite(Date.parse(key.expiresAt)) ? key.expiresAt : null;
+  const active = typeof key.active === "boolean" ? key.active : keyActive(expiresAt);
+  return { prefix: key.prefix, createdAt: key.createdAt, expiresAt, active };
 }
 
 function keyFailure(status: number, error?: string): string {
   if (status === 401 || error === "Sign in before creating a key.") return "Sign in again, then create the key.";
+  if (status === 400 || error === "Choose how long the key stays active.") return "Choose how long the key stays active.";
   if (error === "Sign-in is not configured.") return "Sign-in is not configured on this server.";
   return "The key service did not answer.";
 }

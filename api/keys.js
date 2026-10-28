@@ -1,11 +1,13 @@
 const COOKIE = "kazitrust_key";
+const LIFETIMES = [1, 6, 24, 168, 720];
 let current = null;
 let cachedKey = "";
 
 export default async function handler(req, res) {
   try {
     const request = asRequest(req);
-    const result = await run(request);
+    const raw = request.method === "POST" ? await nodeBody(req) : "";
+    const result = await run(request, raw);
     if (res && typeof res.end === "function") {
       writeNode(res, result);
       return;
@@ -26,7 +28,7 @@ export default async function handler(req, res) {
   }
 }
 
-async function run(request) {
+async function run(request, raw) {
   const appId = env("PRIVY_APP_ID") || env("VITE_PRIVY_APP_ID");
   const secret = env("PRIVY_APP_SECRET");
   if (!appId || !secret) return { status: 503, body: { error: "Sign-in is not configured." } };
@@ -41,13 +43,56 @@ async function run(request) {
   }
   if (!allowed) return { status: 401, body: { error: "Sign in before creating a key." } };
   if (request.method === "GET") {
-    return { status: 200, body: { key: current ? { prefix: current.prefix, createdAt: current.createdAt } : null } };
+    return { status: 200, body: { key: viewOf(current) } };
   }
   if (request.method !== "POST") return { status: 405, body: { error: "Use GET or POST." } };
-  const issued = mint();
-  current = { hash: await sha(issued.key), prefix: issued.prefix, createdAt: issued.createdAt };
+  const hours = readHours(raw);
+  if (!LIFETIMES.includes(hours)) return { status: 400, body: { error: "Choose how long the key stays active." } };
+  const issued = mint(hours);
+  current = { hash: await sha(issued.key), prefix: issued.prefix, createdAt: issued.createdAt, expiresAt: issued.expiresAt };
   const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
-  return { status: 200, body: issued, cookie: await seal(current, secret, host) };
+  const maxAge = Math.max(1, Math.ceil((Date.parse(issued.expiresAt) - Date.now()) / 1000));
+  return { status: 200, body: issued, cookie: await seal(current, secret, host, maxAge) };
+}
+
+function viewOf(record) {
+  if (!record) return null;
+  const expiresAt = typeof record.expiresAt === "string" ? record.expiresAt : null;
+  const ends = expiresAt ? Date.parse(expiresAt) : NaN;
+  const active = !expiresAt || (Number.isFinite(ends) && ends > Date.now());
+  return { prefix: record.prefix, createdAt: record.createdAt, expiresAt, active };
+}
+
+function readHours(raw) {
+  if (!raw || raw.length > 200) return null;
+  try {
+    const body = JSON.parse(raw);
+    return typeof body?.hours === "number" ? body.hours : null;
+  } catch {
+    return null;
+  }
+}
+
+function nodeBody(req) {
+  if (req && typeof req.text === "function" && typeof req.on !== "function") return req.text();
+  return new Promise((resolve, reject) => {
+    if (!req || typeof req.on !== "function") {
+      resolve("");
+      return;
+    }
+    const chunks = [];
+    let size = 0;
+    req.on("data", (chunk) => {
+      size += chunk.byteLength || chunk.length || 0;
+      if (size > 2000) {
+        reject(new Error("too large"));
+        return;
+      }
+      chunks.push(Buffer.from(chunk));
+    });
+    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    req.on("error", reject);
+  });
 }
 
 function writeNode(res, result) {
@@ -74,10 +119,16 @@ function env(name) {
   return globalThis.process?.env?.[name] || "";
 }
 
-function mint() {
+function mint(hours) {
+  const created = new Date();
   const bytes = crypto.getRandomValues(new Uint8Array(24));
   const key = `kt_${[...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
-  return { key, prefix: key.slice(0, 7), createdAt: new Date().toISOString() };
+  return {
+    key,
+    prefix: key.slice(0, 7),
+    createdAt: created.toISOString(),
+    expiresAt: new Date(created.getTime() + hours * 60 * 60 * 1000).toISOString(),
+  };
 }
 
 async function sha(value) {
@@ -136,12 +187,13 @@ function base64Url(value) {
   return Uint8Array.from(atob(padded), (char) => char.charCodeAt(0));
 }
 
-async function seal(record, secret, host) {
+async function seal(record, secret, host, maxAge) {
   const payload = b64(JSON.stringify(record));
   const sig = await mac(secret, payload);
   const name = host.split(":")[0];
   const domain = name === "kazitrustai.fun" || name.endsWith(".kazitrustai.fun") ? "; Domain=.kazitrustai.fun" : "";
-  return `${COOKIE}=${payload}.${sig}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=31536000${domain}`;
+  const age = Number.isFinite(maxAge) ? Math.max(1, Math.floor(maxAge)) : 3600;
+  return `${COOKIE}=${payload}.${sig}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${age}${domain}`;
 }
 
 async function readCookie(cookie, secret) {
@@ -155,6 +207,7 @@ async function readCookie(cookie, secret) {
     if ((await mac(secret, payload)) !== value.slice(dot + 1)) return null;
     const body = JSON.parse(unb64(payload));
     if (!body.hash || !body.prefix || !body.createdAt) return null;
+    if (body.expiresAt && !Number.isFinite(Date.parse(body.expiresAt))) return null;
     return body;
   } catch {
     return null;

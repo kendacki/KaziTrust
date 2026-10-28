@@ -87,13 +87,15 @@ export type SavedApiKey = {
   key: string;
   prefix: string;
   createdAt: string;
+  expiresAt?: string;
 };
 
 export function loadApiKey(): SavedApiKey | null {
   const saved = read<Partial<SavedApiKey> | null>(API_KEY, null);
   if (!saved?.key?.startsWith("kt_") || !saved.prefix || !saved.createdAt) return null;
   if (saved.key.length > 80 || saved.prefix.length > 12) return null;
-  return { key: saved.key, prefix: saved.prefix, createdAt: saved.createdAt };
+  const expiresAt = typeof saved.expiresAt === "string" && Number.isFinite(Date.parse(saved.expiresAt)) ? saved.expiresAt : undefined;
+  return { key: saved.key, prefix: saved.prefix, createdAt: saved.createdAt, ...(expiresAt ? { expiresAt } : {}) };
 }
 
 export function saveApiKey(value: SavedApiKey) {
