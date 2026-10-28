@@ -12,6 +12,8 @@ const PAGE_H = 841.89;
 const LEFT = 40;
 const WIDTH = PAGE_W - LEFT * 2;
 const BOTTOM = 40;
+const COL = 108;
+const PAD = 8;
 
 const ADDRESS = /[1-9A-HJ-NP-Za-km-z]{32,44}/g;
 const SHORT = /[1-9A-HJ-NP-Za-km-z]{2,8}(?:…|\.{3})[1-9A-HJ-NP-Za-km-z]{2,8}/g;
@@ -205,12 +207,13 @@ class Sheet {
 
   turn(turn: Turn, index: number) {
     if (turn.question) {
-      this.label(String(index).padStart(2, "0"));
-      this.paragraph(turn.question, 10.5, "normal", INK, 14);
+      this.heading("Question", String(index).padStart(2, "0"));
+      this.body(turn.question, "italic");
       this.gap(4);
     }
     if (turn.stopped && !turn.report) {
-      this.paragraph(turn.answer || "Stopped before a score was saved.", 9, "normal", MUTE, 12);
+      this.heading("Stopped");
+      this.subtext(turn.answer || "Stopped before a score was saved.");
       return;
     }
     if (turn.report) {
@@ -218,8 +221,8 @@ class Sheet {
       return;
     }
     if (turn.answer) {
-      this.label("Answer");
-      this.paragraph(turn.answer, 9.5, "normal", INK, 12.5);
+      this.heading("Answer");
+      this.body(turn.answer);
     }
   }
 
@@ -314,29 +317,29 @@ class Sheet {
     ]);
     this.account(report);
     if (report.summary) {
-      this.label("The read");
-      this.paragraph(report.summary, 9.5, "normal", INK, 12.5);
+      this.heading("The read");
+      this.body(report.summary);
     }
     if (report.findings.length) {
-      this.label("Findings");
+      this.heading("Findings");
       for (const finding of report.findings) this.finding(finding.severity === "clean", finding.severityWord, finding.title, finding.explanation);
     }
     for (const visual of report.visuals) this.visual(visual);
     if (report.rules.length) {
-      this.label("Score");
-      for (const rule of report.rules) this.pair(rule.points > 0 ? `+${rule.points}` : String(rule.points), rule.detail);
+      this.heading("How this number was built");
+      for (const rule of report.rules) this.metric(rule.points > 0 ? `+${rule.points}` : String(rule.points), rule.detail);
     }
     if (report.meaning) {
-      this.label("Meaning");
-      this.paragraph(report.meaning, 9.5, "normal", INK, 12.5);
+      this.heading("What this means");
+      this.body(report.meaning);
     }
     if (report.nextStep) {
-      this.label("Next");
-      this.paragraph(report.nextStep, 9.5, "normal", INK, 12.5);
+      this.heading("Next step");
+      this.body(report.nextStep);
     }
     if (report.warnings.length) {
-      this.gap(2);
-      for (const warning of report.warnings) this.paragraph(warning, 8, "normal", MUTE, 11);
+      this.heading("Notes");
+      for (const warning of report.warnings) this.subtext(warning);
     }
   }
 
@@ -344,77 +347,68 @@ class Sheet {
     const full = pdfText(report.wallet);
     const shown = full.length >= 32 ? full : pdfText(report.displayAddress);
     if (!shown) return;
-    this.ensure(16);
-    this.doc.setFont("helvetica", "bold");
-    this.doc.setFontSize(8);
-    this.doc.setTextColor(...MUTE);
-    this.doc.text("ACCOUNT", LEFT, this.y);
-    this.doc.setFont("helvetica", "normal");
-    this.doc.setFontSize(8.5);
-    this.doc.setTextColor(...INK);
-    this.doc.text(shown, LEFT + 58, this.y);
-    this.y += 14;
+    this.heading("Account");
+    this.body(shown);
   }
 
   private meta(cells: [string, string][]) {
     const column = WIDTH / cells.length;
-    this.doc.setFont("helvetica", "bold");
-    this.doc.setFontSize(9);
-    const wrapped = cells.map((cell) => (this.doc.splitTextToSize(pdfText(cell[1]), column - 16) as string[]).slice(0, 2));
+    const wrapped = cells.map((cell) => this.lines(cell[1], 9.5, column - PAD * 2, "bold").slice(0, 2));
     const lines = Math.max(...wrapped.map((item) => item.length), 1);
-    const height = 24 + lines * 11;
+    const height = 28 + lines * 12;
     this.ensure(height + 8);
     this.doc.setFillColor(...SURFACE);
     this.doc.rect(LEFT, this.y, WIDTH, height, "F");
     cells.forEach((cell, index) => {
-      const x = LEFT + index * column + 8;
+      const x = LEFT + index * column + PAD;
       this.doc.setFont("helvetica", "bold");
-      this.doc.setFontSize(7);
+      this.doc.setFontSize(7.5);
       this.doc.setTextColor(...MUTE);
-      this.doc.text(cell[0].toUpperCase(), x, this.y + 13);
-      this.doc.setFontSize(9);
+      this.doc.text(pdfText(cell[0]).toUpperCase(), x, this.y + 14);
+      this.doc.setFontSize(9.5);
       this.doc.setTextColor(...INK);
-      this.doc.text(wrapped[index], x, this.y + 26);
+      this.doc.text(wrapped[index], x, this.y + 28);
     });
-    this.y += height + 10;
+    this.y += height + 12;
   }
 
   private finding(clean: boolean, severity: string, title: string, explanation: string) {
-    const titleLines = this.lines(title, 9.5, WIDTH - 78);
-    const body = this.lines(explanation, 8.5, WIDTH - 78);
-    this.ensure(12 + titleLines.length * 12 + body.length * 11);
+    const titleLines = this.lines(title, 9.5, WIDTH - COL, "bold");
+    const body = this.lines(explanation, 8.5, WIDTH - COL);
+    this.ensure(4 + titleLines.length * 12 + body.length * 11);
+    const word = pdfText(severity).toUpperCase();
     this.doc.setFont("helvetica", "bold");
-    this.doc.setFontSize(8);
+    this.doc.setFontSize(7.5);
     this.doc.setTextColor(...(clean ? GREEN : MUTE));
-    this.doc.text(pdfText(severity).toUpperCase(), LEFT, this.y);
-    this.doc.setFont("helvetica", "bold");
+    const wordWidth = this.doc.getTextWidth(word);
+    this.doc.text(word, wordWidth > COL - 16 ? LEFT : LEFT + COL - 12 - wordWidth, this.y);
     this.doc.setFontSize(9.5);
     this.doc.setTextColor(...INK);
-    this.doc.text(titleLines, LEFT + 78, this.y);
+    this.doc.text(titleLines, LEFT + COL, this.y);
     this.y += titleLines.length * 12;
     if (body.length) {
       this.doc.setFont("helvetica", "normal");
       this.doc.setFontSize(8.5);
       this.doc.setTextColor(...MUTE);
-      this.doc.text(body, LEFT + 78, this.y);
+      this.doc.text(body, LEFT + COL, this.y);
       this.y += body.length * 11;
     }
-    this.y += 6;
+    this.y += 7;
   }
 
   private visual(visual: Visual) {
     if (visual.type === "holdings") {
-      this.label("Holdings");
+      this.heading("Holdings");
       this.table(
         ["Token", "Amount"],
         visual.rows.map((row) => [row.flag ? `${row.label} (${row.flag})` : row.label, row.amount]),
         [WIDTH * 0.68, WIDTH * 0.32],
       );
-      if (visual.caption) this.paragraph(visual.caption, 8, "normal", MUTE, 11);
+      if (visual.caption) this.subtext(visual.caption);
       return;
     }
     if (visual.type === "restrictions") {
-      this.label("Restrictions");
+      this.heading("Restrictions");
       this.table(
         ["Check", "State"],
         visual.rows.map((row) => [row.label, row.state]),
@@ -423,9 +417,9 @@ class Sheet {
       return;
     }
     if (visual.type === "approvals") {
-      this.label("Approvals");
+      this.heading("Approvals");
       if (!visual.rows.length) {
-        this.paragraph(visual.caption, 8.5, "normal", MUTE, 11);
+        this.subtext(visual.caption);
         return;
       }
       this.table(
@@ -436,12 +430,12 @@ class Sheet {
       return;
     }
     if (visual.type === "funding") {
-      this.label("Funding");
+      this.heading("Funding");
       for (const hop of visual.hops) this.pair(hop.label, hop.detail);
       return;
     }
     if (visual.type === "programs") {
-      this.label("Contracts");
+      this.heading("Contracts");
       this.table(
         ["Contract", "Count"],
         visual.slices.map((slice) => [slice.label, String(slice.value)]),
@@ -450,7 +444,7 @@ class Sheet {
       return;
     }
     if (visual.type === "rugcheck") {
-      this.label("RugCheck");
+      this.heading("RugCheck");
       this.table(
         ["Check", "State"],
         visual.rows.map((row) => [row.label, row.state]),
@@ -459,7 +453,7 @@ class Sheet {
       return;
     }
     if (visual.type === "compare") {
-      this.label("Comparison");
+      this.heading("Comparison");
       this.table(
         ["", visual.left.title, visual.right.title],
         [
@@ -472,17 +466,17 @@ class Sheet {
       return;
     }
     if (visual.type === "timeline") {
-      this.label("Timeline");
+      this.heading("Timeline");
       for (const event of visual.events) this.pair(event.time, `${event.title}. ${event.detail}`);
       return;
     }
     if (visual.type === "heatmap") {
-      this.label("Timing");
-      this.paragraph(`Busiest hour in this scan: ${visual.peak}.`, 9, "normal", INK, 12);
+      this.heading("Timing");
+      this.body(`Busiest hour in this scan: ${visual.peak}.`);
       return;
     }
     if (visual.type === "counterparties") {
-      this.label("Counterparties");
+      this.heading("Counterparties");
       const rows = [
         ...visual.inbound.map((row) => ["In", row.label, row.amount]),
         ...visual.outbound.map((row) => ["Out", row.label, row.amount]),
@@ -491,7 +485,7 @@ class Sheet {
       return;
     }
     if (visual.type === "batch") {
-      this.label("Batch");
+      this.heading("Batch");
       this.table(
         ["Account", "Score", "Band"],
         visual.rows.map((row) => [shortAccount(row.address), row.score === null ? "None" : String(row.score), row.band]),
@@ -500,8 +494,8 @@ class Sheet {
       return;
     }
     if (visual.type === "cluster") {
-      this.label("Opened accounts");
-      this.paragraph(visual.nodes.map((node) => node.label).join(", "), 9, "normal", INK, 12);
+      this.heading("Opened accounts");
+      this.body(visual.nodes.map((node) => node.label).join(", "));
     }
   }
 
@@ -512,71 +506,104 @@ class Sheet {
   }
 
   private headerRow(headers: string[], widths: number[]) {
-    this.ensure(16);
+    this.ensure(18);
     this.doc.setFillColor(...SURFACE);
-    this.doc.rect(LEFT, this.y - 9, WIDTH, 16, "F");
+    this.doc.rect(LEFT, this.y, WIDTH, 16, "F");
     this.doc.setFont("helvetica", "bold");
-    this.doc.setFontSize(7);
+    this.doc.setFontSize(7.5);
     this.doc.setTextColor(...MUTE);
     let x = LEFT;
     headers.forEach((header, index) => {
-      const alignRight = index === headers.length - 1 && headers.length > 1;
       const text = pdfText(header).toUpperCase();
-      const left = alignRight ? x + widths[index] - this.doc.getTextWidth(text) - 6 : x + 6;
-      this.doc.text(text, left, this.y);
+      const alignRight = index === headers.length - 1 && headers.length > 1;
+      const left = alignRight ? x + widths[index] - this.doc.getTextWidth(text) - PAD : x + PAD;
+      this.doc.text(text, left, this.y + 11);
       x += widths[index];
     });
-    this.y += 12;
+    this.y += 16;
   }
 
   private bodyRow(cells: string[], widths: number[]) {
-    const wrapped = cells.map((cell, index) => this.lines(cell, 8.5, widths[index] - 12));
-    const lines = Math.max(...wrapped.map((item) => item.length), 1);
-    const height = lines * 11 + 5;
+    const wrapped = cells.map((cell, index) => this.lines(cell, 8.5, widths[index] - PAD * 2));
+    const count = Math.max(...wrapped.map((item) => item.length), 1);
+    const height = count * 11 + 8;
     this.ensure(height);
     let x = LEFT;
     wrapped.forEach((text, index) => {
+      const alignRight = index === cells.length - 1 && cells.length > 1;
       this.doc.setFont("helvetica", "normal");
       this.doc.setFontSize(8.5);
       this.doc.setTextColor(...INK);
-      const alignRight = index === cells.length - 1 && cells.length > 1 && text.length === 1;
-      const left = alignRight ? x + widths[index] - this.doc.getTextWidth(text[0] ?? "") - 6 : x + 6;
-      this.doc.text(text, left, this.y);
+      text.forEach((line, lineIndex) => {
+        const left = alignRight ? x + widths[index] - this.doc.getTextWidth(line) - PAD : x + PAD;
+        this.doc.text(line, left, this.y + 11 + lineIndex * 11);
+      });
       x += widths[index];
     });
-    this.y += lines * 11;
+    this.y += height;
     this.doc.setDrawColor(...LINE);
     this.doc.setLineWidth(0.4);
-    this.doc.line(LEFT, this.y - 3, LEFT + WIDTH, this.y - 3);
-    this.y += 5;
+    this.doc.line(LEFT, this.y, LEFT + WIDTH, this.y);
   }
 
   private pair(left: string, right: string) {
-    const rightLines = this.lines(right, 8.5, WIDTH - 150);
-    this.ensure(rightLines.length * 11 + 4);
+    const leftLines = this.lines(left, 8.5, COL - 12, "bold");
+    const rightLines = this.lines(right, 8.5, WIDTH - COL);
+    const count = Math.max(leftLines.length, rightLines.length, 1);
+    this.ensure(count * 11 + 6);
     this.doc.setFont("helvetica", "bold");
     this.doc.setFontSize(8.5);
     this.doc.setTextColor(...INK);
-    const name = this.lines(left, 8.5, 140)[0] ?? "";
-    this.doc.text(name, LEFT, this.y);
+    this.doc.text(leftLines, LEFT, this.y);
     this.doc.setFont("helvetica", "normal");
     this.doc.setTextColor(...MUTE);
-    this.doc.text(rightLines, LEFT + 150, this.y);
-    this.y += rightLines.length * 11 + 3;
+    this.doc.text(rightLines, LEFT + COL, this.y);
+    this.y += count * 11 + 4;
   }
 
-  private label(text: string) {
-    this.ensure(18);
-    this.gap(2);
+  private metric(points: string, detail: string) {
+    const lines = this.lines(detail, 9, WIDTH - COL);
+    this.ensure(lines.length * 12 + 4);
+    const mark = pdfText(points);
+    this.doc.setFont("helvetica", "bold");
+    this.doc.setFontSize(9);
+    this.doc.setTextColor(...INK);
+    this.doc.text(mark, LEFT + COL - 12 - this.doc.getTextWidth(mark), this.y);
+    this.doc.setFont("helvetica", "normal");
+    this.doc.setTextColor(...INK);
+    this.doc.text(lines, LEFT + COL, this.y);
+    this.y += Math.max(lines.length, 1) * 12 + 2;
+  }
+
+  private heading(text: string, aside = "") {
+    this.ensure(32);
+    this.gap(8);
     this.doc.setFont("helvetica", "bold");
     this.doc.setFontSize(7.5);
     this.doc.setTextColor(...MUTE);
     this.doc.text(pdfText(text).toUpperCase(), LEFT, this.y);
-    this.y += 12;
+    if (aside) {
+      this.doc.setFont("helvetica", "normal");
+      const mark = pdfText(aside);
+      this.doc.text(mark, LEFT + WIDTH - this.doc.getTextWidth(mark), this.y);
+    }
+    this.y += 5;
+    this.doc.setDrawColor(...LINE);
+    this.doc.setLineWidth(0.4);
+    this.doc.line(LEFT, this.y, LEFT + WIDTH, this.y);
+    this.y += 13;
   }
 
-  private paragraph(text: string, size: number, style: "normal" | "bold", color: [number, number, number], leading: number) {
-    const lines = this.lines(text, size, WIDTH);
+  private body(text: string, style: "normal" | "italic" = "normal") {
+    this.paragraph(text, 10, style, INK, 14);
+  }
+
+  private subtext(text: string) {
+    this.paragraph(text, 8.5, "normal", MUTE, 12);
+  }
+
+  private paragraph(text: string, size: number, style: "normal" | "bold" | "italic", color: [number, number, number], leading: number) {
+    const lines = this.lines(text, size, WIDTH, style);
     for (const line of lines) {
       this.ensure(leading);
       this.doc.setFont("helvetica", style);
@@ -587,8 +614,8 @@ class Sheet {
     }
   }
 
-  private lines(text: string, size: number, width: number): string[] {
-    this.doc.setFont("helvetica", "normal");
+  private lines(text: string, size: number, width: number, style: "normal" | "bold" | "italic" = "normal"): string[] {
+    this.doc.setFont("helvetica", style);
     this.doc.setFontSize(size);
     const clean = pdfText(text);
     if (!clean) return [];
