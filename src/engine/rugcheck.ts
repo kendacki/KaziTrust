@@ -41,6 +41,7 @@ export async function readRugcheck(mint: string, signal: AbortSignal): Promise<R
     const response = await fetch(`/api/rugcheck?mint=${encodeURIComponent(mint)}`, { signal, headers });
     if (!response.ok) return null;
     const body = (await response.json()) as Partial<RugcheckReport>;
+    if (typeof body.mint === "string" && body.mint !== mint) return null;
     if (typeof body.score !== "number" || typeof body.scoreNormalised !== "number") return null;
     if (body.band !== "Good" && body.band !== "Warning" && body.band !== "Danger") return null;
     return {

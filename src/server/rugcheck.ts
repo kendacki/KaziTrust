@@ -127,6 +127,8 @@ async function pull(mint: string, apiKey: string): Promise<unknown | null> {
 function trimReport(mint: string, body: unknown): RugcheckReport | null {
   const record = asRecord(body);
   if (!record) return null;
+  const reported = asText(record.mint);
+  if (reported && reported !== mint) return null;
   const score = asNumber(record.score);
   const scoreNormalised = asNumber(record.score_normalised);
   if (score == null || scoreNormalised == null) return null;

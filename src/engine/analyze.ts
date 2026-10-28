@@ -53,6 +53,8 @@ type Flow = {
   time: number | null;
   failed: boolean;
   programs: string[];
+  signers: string[];
+  burnClose: boolean;
   inboundSol: { address: string; lamports: number }[];
   outboundSol: { address: string; lamports: number }[];
   tokenIn: { owner: string; mint: string; amount: number }[];
@@ -67,6 +69,9 @@ type WalletFacts = {
   accountType: string;
   ownerProgram: string;
   mintInfo?: { decimals: number; supply: string; mintAuthority: string | null; freezeAuthority: string | null };
+  mintSymbol?: string;
+  mintTitle?: string;
+  freezeWatch?: { address: string; lamports: number; signatures: number };
   signatures: SignatureInfo[];
   tokens: TokenRow[];
   tokenWarning?: string;
@@ -289,21 +294,34 @@ async function loadFacts(
     }
   }
 
-  const opened = spreadSignatures(signatures, plan.open);
+  const opened = spreadSignatures(signatures, accountType === "mint" && mode === "deep" ? 24 : plan.open);
   let flows: Flow[] = [];
   let flowWarning: string | undefined;
   if (opened.length) {
-    onStep(`${tag}Opening transactions across the window`, "active");
+    onStep(`${tag}${accountType === "mint" ? "Opening transactions that touch this mint" : "Opening transactions across the window"}`, "active");
     try {
       flows = await loadFlows(address, opened, signal);
     } catch (error) {
       flowWarning = error instanceof RpcError ? error.message : "Some transactions could not be opened.";
     }
-    onStep(`${tag}Opening transactions across the window`, "done");
+    onStep(`${tag}${accountType === "mint" ? "Opening transactions that touch this mint" : "Opening transactions across the window"}`, "done");
   }
 
   let hop: WalletFacts["hop"];
-  if (mode === "deep" && signatures.length) {
+  let freezeWatch: WalletFacts["freezeWatch"];
+  if (mode === "deep" && accountType === "mint" && mintInfo?.freezeAuthority) {
+    onStep(`${tag}Reading the freeze authority`, "active");
+    try {
+      const [freezeBalance, freezePage] = await Promise.all([
+        rpc<ContextResult<number>>("getBalance", [mintInfo.freezeAuthority, { commitment: "confirmed" }], signal),
+        rpc<SignatureInfo[]>("getSignaturesForAddress", [mintInfo.freezeAuthority, { limit: 20, commitment: "confirmed" }], signal),
+      ]);
+      freezeWatch = { address: mintInfo.freezeAuthority, lamports: freezeBalance.value ?? 0, signatures: freezePage.length };
+    } catch (error) {
+      if (signal.aborted) throw error;
+    }
+    onStep(`${tag}Reading the freeze authority`, "done");
+  } else if (mode === "deep" && signatures.length) {
     onStep(`${tag}Reading the oldest funding address`, "active");
     try {
       hop = (await readHop(address, flows, signal)) ?? undefined;
@@ -311,6 +329,21 @@ async function loadFacts(
       hop = undefined;
     }
     onStep(`${tag}Reading the oldest funding address`, "done");
+  }
+
+  let mintSymbol: string | undefined;
+  let mintTitle: string | undefined;
+  if (accountType === "mint") {
+    onStep(`${tag}Reading the published token name`, "active");
+    try {
+      const faces = await readTokenFaces([address], signal);
+      const face = faces.get(address);
+      if (face?.symbol) mintSymbol = face.symbol;
+      if (face?.name) mintTitle = face.name;
+    } catch (error) {
+      if (signal.aborted) throw error;
+    }
+    onStep(`${tag}Reading the published token name`, "done");
   }
 
   const scanMint = accountType === "mint";
@@ -346,6 +379,9 @@ async function loadFacts(
   }
   if (solscan?.fundedBy) watched.push(solscan.fundedBy);
   if (hop) watched.push(hop.address);
+  if (mintInfo?.freezeAuthority) watched.push(mintInfo.freezeAuthority);
+  if (mintInfo?.mintAuthority) watched.push(mintInfo.mintAuthority);
+  if (freezeWatch) watched.push(freezeWatch.address);
   const hits = restrictionIndex ? screenAddresses(restrictionIndex, watched) : [];
   const restrictions: RestrictionFacts | undefined = restrictionIndex
     ? {
@@ -364,6 +400,8 @@ async function loadFacts(
     accountType,
     ownerProgram: value?.owner ?? "",
     mintInfo,
+    mintSymbol,
+    mintTitle,
     signatures,
     tokens,
     tokenWarning,
@@ -375,6 +413,7 @@ async function loadFacts(
     scanned: signatures.length,
     mode,
     hop,
+    freezeWatch,
     solscan: solscan ?? undefined,
     solscanWarning: solscanWarning || undefined,
     rugcheck: rugcheck ?? undefined,
@@ -385,7 +424,11 @@ async function loadFacts(
 }
 
 function readMint(info: Record<string, unknown>): WalletFacts["mintInfo"] {
-  const supply = typeof info.supply === "string" ? info.supply : "0";
+  const supply = typeof info.supply === "string" && /^\d+$/.test(info.supply)
+    ? info.supply
+    : typeof info.supply === "number" && Number.isFinite(info.supply)
+      ? String(Math.round(info.supply))
+      : "0";
   const decimals = typeof info.decimals === "number" ? info.decimals : 0;
   const mintAuthority = typeof info.mintAuthority === "string" ? info.mintAuthority : null;
   const freezeAuthority = typeof info.freezeAuthority === "string" ? info.freezeAuthority : null;
@@ -586,21 +629,29 @@ async function loadFlows(address: string, signatures: SignatureInfo[], signal: A
   return flows;
 }
 
+type ParsedInstruction = {
+  programId?: string;
+  program?: string;
+  parsed?: { type?: string; info?: { mint?: string } };
+};
+
 type ParsedTransaction = {
   slot?: number;
   blockTime?: number | null;
   meta?: {
     err?: unknown;
     fee?: number;
+    logMessages?: string[];
     preBalances?: number[];
     postBalances?: number[];
     preTokenBalances?: TokenBalance[];
     postTokenBalances?: TokenBalance[];
+    innerInstructions?: { instructions?: ParsedInstruction[] }[];
   } | null;
   transaction?: {
     message?: {
-      accountKeys?: (string | { pubkey: string })[];
-      instructions?: { programId?: string; program?: string }[];
+      accountKeys?: (string | { pubkey: string; signer?: boolean })[];
+      instructions?: ParsedInstruction[];
     };
   };
 };
@@ -664,9 +715,12 @@ function parseFlow(address: string, item: SignatureInfo, tx: ParsedTransaction):
     if (change < 0) tokenOut.push({ owner: address, mint: row.mint, amount: Math.abs(change) });
   }
 
-  const programs = (tx.transaction?.message?.instructions ?? [])
-    .map((instruction) => instruction.programId || "")
-    .filter(Boolean);
+  const inner = (tx.meta?.innerInstructions ?? []).flatMap((group) => group.instructions ?? []);
+  const instructions = [...(tx.transaction?.message?.instructions ?? []), ...inner];
+  const programs = [...new Set(instructions.map((instruction) => instruction.programId || "").filter(Boolean))];
+  const signers = (tx.transaction?.message?.accountKeys ?? [])
+    .filter((key): key is { pubkey: string; signer?: boolean } => typeof key !== "string" && Boolean(key.signer && key.pubkey))
+    .map((key) => key.pubkey);
 
   return {
     signature: item.signature,
@@ -674,11 +728,24 @@ function parseFlow(address: string, item: SignatureInfo, tx: ParsedTransaction):
     time: tx.blockTime ?? item.blockTime,
     failed: Boolean(tx.meta?.err ?? item.err),
     programs,
+    signers,
+    burnClose: burnClose(address, tx, instructions),
     inboundSol,
     outboundSol,
     tokenIn,
     tokenOut,
   };
+}
+
+function burnClose(address: string, tx: ParsedTransaction, instructions: ParsedInstruction[]): boolean {
+  const logs = tx.meta?.logMessages ?? [];
+  if (logs.some((line) => /burnall|burn\s*all|begin_burn_close|burn_close|BurnAll/i.test(line))) return true;
+  const burned = instructions.some((instruction) => {
+    const type = instruction.parsed?.type;
+    return (type === "burn" || type === "burnChecked") && instruction.parsed?.info?.mint === address;
+  });
+  const closed = instructions.some((instruction) => instruction.parsed?.type === "closeAccount");
+  return burned && closed;
 }
 
 function buildReport(facts: WalletFacts, intent: ReturnType<typeof detectIntent>): Report {
@@ -693,7 +760,9 @@ function buildReport(facts: WalletFacts, intent: ReturnType<typeof detectIntent>
     facts.executable || facts.accountType === "mint" ? "token accounts skipped" : "getTokenAccountsByOwner",
     facts.flows.length ? `getTransaction (${facts.flows.length})` : "getTransaction not needed",
     facts.mode === "deep"
-      ? "Deep scan: signatures back toward one year, interactions sampled across the window, one funding hop"
+      ? facts.accountType === "mint"
+        ? "Deep scan: signatures back toward one year, mint transactions opened, freeze authority read"
+        : "Deep scan: signatures back toward one year, interactions sampled across the window, one funding hop"
       : "Quick read: signatures back toward six months, interactions sampled across the window",
     facts.restrictions ? "OFAC SDN list" : "OFAC SDN list unavailable",
   ];
@@ -855,38 +924,133 @@ function specialScore(
       ],
     };
   }
-  if (facts.accountType === "mint" && facts.mintInfo) {
-    const name = lookupLabel(facts.address)?.name;
-    const freeze = facts.mintInfo.freezeAuthority;
-    const mintAuth = facts.mintInfo.mintAuthority;
-    const findings = [
-      makeFinding(
-        facts,
-        "mint",
-        name ? `This is the ${name} mint, not a spending wallet.` : "This is a token mint, not a spending wallet.",
-        "note",
-        name ? 0.95 : 0.84,
-        `Supply is ${facts.mintInfo.supply} base units, with ${facts.mintInfo.decimals} decimals. ${mintAuth ? `Mint authority is ${shortAddress(mintAuth)}.` : "Mint authority is cleared."} ${freeze ? `Freeze authority is ${shortAddress(freeze)}.` : "Freeze authority is cleared."}`,
-        [],
-        freeze ? [freeze] : [],
-      ),
-    ];
-    if (freeze) {
-      findings.push(
-        makeFinding(facts, "freeze", `Freeze authority is still set to ${shortAddress(freeze)}.`, "watch", 0.9, "A live freeze authority can freeze holder accounts for this mint. That is a property of the token, read from the mint account.", [], [freeze]),
-      );
-    } else {
-      findings.push(
-        makeFinding(facts, "freeze-clear", "Freeze authority is cleared.", "clean", 0.9, "The mint account reports no freeze authority. That check is only about this mint, not about every wallet that holds it.", []),
-      );
-    }
-    return {
-      score: name ? 10 : 16,
-      rules: [{ id: "mint", points: name ? 10 : 16, detail: name ? `${name} is a labelled mint` : "Unlabelled mint account" }],
-      findings,
-    };
-  }
+  if (facts.accountType === "mint" && facts.mintInfo) return scoreMint(facts);
   return null;
+}
+
+function scoreMint(facts: WalletFacts): { score: number; rules: ScoreRule[]; findings: Finding[] } {
+  const info = facts.mintInfo;
+  if (!info) return { score: 16, rules: [], findings: [] };
+  const name = lookupLabel(facts.address)?.name;
+  const labelled = Boolean(name);
+  const freeze = info.freezeAuthority;
+  const mintAuth = info.mintAuthority;
+  const supply = formatRawUnits(info.supply, info.decimals);
+  const published = facts.mintTitle && facts.mintSymbol && facts.mintTitle !== facts.mintSymbol
+    ? `${facts.mintTitle} (${facts.mintSymbol})`
+    : facts.mintSymbol || facts.mintTitle || "";
+  let score = labelled ? 10 : 16;
+  const rules: ScoreRule[] = [{
+    id: "mint",
+    points: score,
+    detail: labelled ? `${name} is a labelled mint` : "Unlabelled mint account",
+  }];
+  const findings: Finding[] = [];
+  const burns = facts.flows.filter((flow) => flow.burnClose);
+  if (burns.length) {
+    const points = burns.length >= 2 ? 24 : 12;
+    score += points;
+    const signers = [...new Set(burns.flatMap((flow) => flow.signers).filter((item) => item && item !== facts.address))];
+    const programs = [...new Set(burns.flatMap((flow) => flow.programs))].filter((program) => !quietProgram(program));
+    const named = programs.slice(0, 2).map((program) => programName(program));
+    const programLine = named.length ? ` The calls include ${named.join(" and ")}.` : "";
+    const signerLine = signers.length ? ` They were signed by ${signers.length} different account${signers.length === 1 ? "" : "s"}.` : "";
+    rules.push({
+      id: "mint-burn-close",
+      points,
+      detail: burns.length >= 2
+        ? `${burns.length} opened transactions burn the mint and close a holder account`
+        : "One opened transaction burns the mint and closes a holder account",
+    });
+    findings.push(makeFinding(
+      facts,
+      "burn-close",
+      `${burns.length} opened transaction${burns.length === 1 ? "" : "s"} burn this mint and close a holder account.`,
+      "elevated",
+      0.86,
+      `That is a public pattern of people interacting with a contract that removes the token balance.${signerLine}${programLine} It is not, by itself, proof of who received the value.`,
+      burns.slice(0, 3).map((flow) => ({ signature: flow.signature, slot: flow.slot, blockTime: flow.time })),
+      signers.slice(0, 3),
+    ));
+  }
+  if (freeze) {
+    const watch = !labelled ? facts.freezeWatch : undefined;
+    const watchLine = watch
+      ? ` A read of ${shortAddress(freeze)} shows ${formatSol(watch.lamports)} and ${watch.signatures} recent signature${watch.signatures === 1 ? "" : "s"}. That read does not add points by itself.`
+      : "";
+    if (!labelled) {
+      score += 16;
+      rules.push({ id: "mint-freeze", points: 16, detail: `Freeze authority is still ${shortAddress(freeze)}` });
+    }
+    findings.push(makeFinding(
+      facts,
+      "freeze",
+      `Freeze authority is still set to ${shortAddress(freeze)}.`,
+      "watch",
+      0.9,
+      `A live freeze authority can freeze holder accounts for this mint. That is a property of the token, read from the mint account.${watchLine}`,
+      [],
+      [freeze],
+    ));
+  } else {
+    findings.push(makeFinding(
+      facts,
+      "freeze-clear",
+      "Freeze authority is cleared.",
+      "clean",
+      0.9,
+      "The mint account reports no freeze authority. That check is only about this mint, not about every wallet that holds it.",
+    ));
+  }
+  const times = facts.signatures.map((item) => item.blockTime).filter((time): time is number => typeof time === "number");
+  const span = times.length ? Math.max(...times) - Math.min(...times) : 0;
+  if (!labelled && facts.scanned >= 8 && span > 0 && span < 2 * 86400) {
+    const hours = Math.max(1, Math.round(span / 3600));
+    score += 10;
+    rules.push({ id: "mint-burst", points: 10, detail: `${facts.scanned} signatures span about ${hours} hours` });
+    findings.push(makeFinding(
+      facts,
+      "mint-burst",
+      `${facts.scanned} signatures span about ${hours} hours.`,
+      "watch",
+      0.84,
+      "A new mint with a short public history has less behaviour to judge. The span is measured from the signatures in this scan.",
+      facts.signatures.slice(0, 2),
+    ));
+  }
+  const failed = facts.signatures.filter((item) => item.err).length;
+  if (!labelled && facts.signatures.length >= 8 && failed / facts.signatures.length >= 0.35) {
+    score += 8;
+    rules.push({ id: "mint-failed", points: 8, detail: `${failed} of ${facts.signatures.length} signatures failed` });
+    findings.push(makeFinding(
+      facts,
+      "mint-failed",
+      `${failed} of ${facts.signatures.length} signatures failed.`,
+      "watch",
+      0.82,
+      "A high failure rate on a mint means many attempts to interact did not complete. The count comes from the signature list in this scan.",
+    ));
+  }
+  const who = published ? `Published metadata names it ${published}.` : name ? `The label list names it ${name}.` : "No published name was read for this mint.";
+  findings.push(makeFinding(
+    facts,
+    "mint",
+    name ? `This is the ${name} mint, not a spending wallet.` : published ? `This is the ${published} mint, not a spending wallet.` : "This is a token mint, not a spending wallet.",
+    "note",
+    name || published ? 0.9 : 0.84,
+    `Supply is ${supply} tokens, with ${info.decimals} decimals. ${who} ${mintAuth ? `Mint authority is ${shortAddress(mintAuth)}.` : "Mint authority is cleared."} ${freeze ? `Freeze authority is ${shortAddress(freeze)}.` : "Freeze authority is cleared."}`,
+    [],
+    [freeze, mintAuth].filter((item): item is string => Boolean(item)),
+  ));
+  return { score: clamp(score, 0, 100), rules, findings };
+}
+
+function quietProgram(program: string): boolean {
+  return program === TOKEN_PROGRAM
+    || program === TOKEN_2022
+    || program === "11111111111111111111111111111111"
+    || program === "ComputeBudget111111111111111111111111111111"
+    || program === "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
 }
 
 function walletFindings(
@@ -1137,7 +1301,7 @@ function finish(input: {
   const applied = applyRestrictions(facts, input.score, input.rules);
   const findings = leadFindings(facts, input.findings);
   const band = bandFromScore(applied.score);
-  const confidence = confidenceFor(facts, input.warnings.length > 0);
+  const confidence = confidenceFor(facts, input.warnings.some((item) => item !== facts.rugcheckWarning));
   const typeGuess = guessType(facts, input.labelName, input.span);
   const summary = writtenSummary(facts, typeGuess, applied.score, band, findings[0]?.title);
   const meaning = meaningFrom(findings, band, facts);
@@ -1199,7 +1363,8 @@ function citedFrom(facts: WalletFacts): string[] {
 
 function leadFindings(facts: WalletFacts, findings: Finding[]): Finding[] {
   const lead = [restrictionFinding(facts), rugcheckFinding(facts), solscanFinding(facts)].filter((item): item is Finding => Boolean(item));
-  return [...lead, ...findings].slice(0, 6);
+  const rank: Record<Severity, number> = { high: 0, elevated: 1, watch: 2, note: 3, clean: 4 };
+  return [...lead, ...findings].sort((a, b) => rank[a.severity] - rank[b.severity]).slice(0, 8);
 }
 
 function applyRestrictions(facts: WalletFacts, score: number, rules: ScoreRule[]): { score: number; rules: ScoreRule[] } {
@@ -1317,7 +1482,12 @@ function guessType(facts: WalletFacts, labelName: string | undefined, span: numb
   if (facts.restrictions?.self) return "Blocked address";
   if (labelName && facts.executable) return labelName;
   if (facts.executable) return "On-chain contract";
-  if (facts.accountType === "mint") return labelName ? `${labelName} mint` : "Token mint";
+  if (facts.accountType === "mint") {
+    const symbol = facts.mintSymbol || labelName;
+    if (facts.mintTitle && symbol && facts.mintTitle !== symbol) return `${facts.mintTitle} (${symbol}) mint`;
+    if (symbol) return `${symbol} mint`;
+    return "Token mint";
+  }
   if (labelName) return labelName;
   if (facts.scanned >= 15 && span > 0 && span < 6 * 3600) return "High-frequency address";
   if (facts.tokens.length >= 8) return "Active holder";
@@ -1329,6 +1499,14 @@ function guessType(facts: WalletFacts, labelName: string | undefined, span: numb
 }
 
 function writtenSummary(facts: WalletFacts, typeGuess: string, score: number, band: Report["band"], lead?: string): string {
+  if (facts.accountType === "mint" && facts.mintInfo) {
+    const supply = formatRawUnits(facts.mintInfo.supply, facts.mintInfo.decimals);
+    const burns = facts.flows.filter((flow) => flow.burnClose).length;
+    const burnLine = burns
+      ? `${burns} opened transaction${burns === 1 ? "" : "s"} burn the mint and close a holder account.`
+      : "None of the opened transactions burn the mint and close a holder account.";
+    return `${typeGuess}. Score ${score}, ${band}. Supply is ${supply} tokens. ${burnLine} ${lead ?? ""}`.replace(/\s+/g, " ").trim();
+  }
   const aim = facts.mode === "deep" ? "one year" : "six months";
   const reach = facts.historyComplete
     ? "The scan reached the start of the visible history."
@@ -1343,14 +1521,20 @@ function writtenSummary(facts: WalletFacts, typeGuess: string, score: number, ba
 
 function meaningFrom(findings: Finding[], band: Report["band"], facts: WalletFacts): string {
   const lead = findings[0]?.explanation ?? "";
-  const opened = facts.flows.length
-    ? `${facts.flows.length} opened transactions show who this address dealt with across the window.`
-    : "No transaction was opened, so the interactions are not in this read.";
+  const opened = facts.accountType === "mint"
+    ? facts.flows.length
+      ? `${facts.flows.length} opened transactions are this mint's own history in the window.`
+      : "No transaction was opened, so the mint's interactions are not in this read."
+    : facts.flows.length
+      ? `${facts.flows.length} opened transactions show who this address dealt with across the window.`
+      : "No transaction was opened, so the interactions are not in this read.";
   return `The band is ${band}. ${lead} ${opened}`.replace(/\s+/g, " ").trim();
 }
 
 function nextStep(facts: WalletFacts, intent: ReturnType<typeof detectIntent>): string {
   if (facts.restrictions?.self) return "Treat the OFAC listing as the fact to act on. The behaviour score does not override it.";
+  if (facts.flows.some((flow) => flow.burnClose)) return "Read the burn-and-close transactions before sending value to this mint. The pattern is in the opened history.";
+  if (facts.accountType === "mint" && facts.mintInfo?.freezeAuthority) return "The freeze authority is still set. A later change to that field is a change in what holders can do.";
   if (facts.rugcheck && facts.rugcheck.band !== "Good") return "Read the RugCheck risks before treating this mint as safe. That score is separate from the KaziTrust number.";
   if (facts.restrictions?.counterparties.length) return "Open the matched address on its own before treating this wallet as unrelated to the listing.";
   if (facts.mode === "quick" && !facts.ageReached && !facts.historyComplete) return "Run a deep scan to push the window toward one year and read the oldest funding address.";

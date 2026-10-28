@@ -108,7 +108,7 @@ export const TOKEN_2022 = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
 export const EXAMPLE_PROGRAM = "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4";
 export const EXAMPLE_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
-export const SCORING_VERSION = "0.3.0";
+export const SCORING_VERSION = "0.4.0";
 
 export const RULE_CATALOG: { title: string; detail: string }[] = [
   {
@@ -165,7 +165,23 @@ export const RULE_CATALOG: { title: string; detail: string }[] = [
   },
   {
     title: "Known contract or mint",
-    detail: "A labelled contract is held at 8. A labelled mint is held at 10. An unlabelled executable contract is held at 18.",
+    detail: "A labelled contract is held at 8. A labelled mint starts at 10. An unlabelled mint starts at 16. An unlabelled executable contract is held at 18.",
+  },
+  {
+    title: "Mint freeze authority",
+    detail: "An unlabelled mint with a live freeze authority adds 16. A labelled mint records the freeze without that add.",
+  },
+  {
+    title: "Mint burn and close",
+    detail: "Two or more opened transactions that burn the mint and close a holder account add 24. One such transaction adds 12. The pattern is public behaviour. It is not proof of who received the value.",
+  },
+  {
+    title: "Mint burst",
+    detail: "An unlabelled mint with at least 8 signatures inside two days adds 10.",
+  },
+  {
+    title: "Mint failed signatures",
+    detail: "An unlabelled mint with at least 8 signatures, and a failure rate of 35 percent or more, adds 8.",
   },
   {
     title: "Unread token accounts",
