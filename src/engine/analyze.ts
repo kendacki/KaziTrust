@@ -42,6 +42,8 @@ type TokenRow = {
   amountText: string;
   delegate?: string;
   frozen: boolean;
+  mintAuthority?: string | null;
+  freezeAuthority?: string | null;
   name?: string;
   symbol?: string;
   image?: string;
@@ -72,6 +74,7 @@ type WalletFacts = {
   mintSymbol?: string;
   mintTitle?: string;
   freezeWatch?: { address: string; lamports: number; signatures: number };
+  mintWatch?: { address: string; lamports: number; signatures: number };
   signatures: SignatureInfo[];
   tokens: TokenRow[];
   tokenWarning?: string;
@@ -292,6 +295,16 @@ async function loadFacts(
       }
       onStep(`${tag}Reading token names`, "done");
     }
+    const unlabelled = tokens.some((token) => token.mint && lookupLabel(token.mint)?.category !== "mint");
+    if (unlabelled) {
+      onStep(`${tag}Reading authorities on held tokens`, "active");
+      try {
+        await attachHeldAuthorities(tokens, signal);
+      } catch (error) {
+        if (signal.aborted) throw error;
+      }
+      onStep(`${tag}Reading authorities on held tokens`, "done");
+    }
   }
 
   const opened = spreadSignatures(signatures, accountType === "mint" && mode === "deep" ? 24 : plan.open);
@@ -309,18 +322,17 @@ async function loadFacts(
 
   let hop: WalletFacts["hop"];
   let freezeWatch: WalletFacts["freezeWatch"];
-  if (mode === "deep" && accountType === "mint" && mintInfo?.freezeAuthority) {
-    onStep(`${tag}Reading the freeze authority`, "active");
+  let mintWatch: WalletFacts["mintWatch"];
+  if (mode === "deep" && accountType === "mint" && (mintInfo?.freezeAuthority || mintInfo?.mintAuthority)) {
+    onStep(`${tag}Reading the token authorities`, "active");
     try {
-      const [freezeBalance, freezePage] = await Promise.all([
-        rpc<ContextResult<number>>("getBalance", [mintInfo.freezeAuthority, { commitment: "confirmed" }], signal),
-        rpc<SignatureInfo[]>("getSignaturesForAddress", [mintInfo.freezeAuthority, { limit: 20, commitment: "confirmed" }], signal),
-      ]);
-      freezeWatch = { address: mintInfo.freezeAuthority, lamports: freezeBalance.value ?? 0, signatures: freezePage.length };
+      if (mintInfo?.freezeAuthority) freezeWatch = await readAuthorityWatch(mintInfo.freezeAuthority, signal);
+      if (mintInfo?.mintAuthority && mintInfo.mintAuthority !== mintInfo.freezeAuthority) mintWatch = await readAuthorityWatch(mintInfo.mintAuthority, signal);
+      else if (mintInfo?.mintAuthority) mintWatch = freezeWatch;
     } catch (error) {
       if (signal.aborted) throw error;
     }
-    onStep(`${tag}Reading the freeze authority`, "done");
+    onStep(`${tag}Reading the token authorities`, "done");
   } else if (mode === "deep" && signatures.length) {
     onStep(`${tag}Reading the oldest funding address`, "active");
     try {
@@ -382,6 +394,11 @@ async function loadFacts(
   if (mintInfo?.freezeAuthority) watched.push(mintInfo.freezeAuthority);
   if (mintInfo?.mintAuthority) watched.push(mintInfo.mintAuthority);
   if (freezeWatch) watched.push(freezeWatch.address);
+  if (mintWatch) watched.push(mintWatch.address);
+  for (const token of tokens) {
+    if (token.mintAuthority) watched.push(token.mintAuthority);
+    if (token.freezeAuthority) watched.push(token.freezeAuthority);
+  }
   const hits = restrictionIndex ? screenAddresses(restrictionIndex, watched) : [];
   const restrictions: RestrictionFacts | undefined = restrictionIndex
     ? {
@@ -414,6 +431,7 @@ async function loadFacts(
     mode,
     hop,
     freezeWatch,
+    mintWatch,
     solscan: solscan ?? undefined,
     solscanWarning: solscanWarning || undefined,
     rugcheck: rugcheck ?? undefined,
@@ -497,6 +515,54 @@ function spreadSignatures(signatures: SignatureInfo[], count: number): Signature
     picked.push(item);
   }
   return picked;
+}
+
+async function readAuthorityWatch(address: string, signal: AbortSignal): Promise<{ address: string; lamports: number; signatures: number }> {
+  const [balance, page] = await Promise.all([
+    rpc<ContextResult<number>>("getBalance", [address, { commitment: "confirmed" }], signal),
+    rpc<SignatureInfo[]>("getSignaturesForAddress", [address, { limit: 20, commitment: "confirmed" }], signal),
+  ]);
+  return { address, lamports: balance.value ?? 0, signatures: page.length };
+}
+
+async function attachHeldAuthorities(tokens: TokenRow[], signal: AbortSignal): Promise<void> {
+  const seen = new Set<string>();
+  const picked: TokenRow[] = [];
+  for (const token of tokens) {
+    if (!token.mint || seen.has(token.mint) || lookupLabel(token.mint)?.category === "mint") continue;
+    seen.add(token.mint);
+    picked.push(token);
+    if (picked.length === 6) break;
+  }
+  const reads = await Promise.all(picked.map(async (token) => {
+    try {
+      const account = await rpc<ContextResult<AccountValue>>("getAccountInfo", [token.mint, { encoding: "jsonParsed", commitment: "confirmed" }], signal);
+      const info = account.value && typeof account.value.data === "object" ? account.value.data.parsed?.info : undefined;
+      return { mint: token.mint, info: info ? readMint(info) : undefined };
+    } catch (error) {
+      if (signal.aborted) throw error;
+      return { mint: token.mint, info: undefined };
+    }
+  }));
+  const byMint = new Map(reads.map((row) => [row.mint, row.info]));
+  for (const token of tokens) {
+    const info = byMint.get(token.mint);
+    if (!info) continue;
+    token.mintAuthority = info.mintAuthority;
+    token.freezeAuthority = info.freezeAuthority;
+  }
+}
+
+function heldAuthorityMints(facts: WalletFacts): TokenRow[] {
+  const seen = new Set<string>();
+  const rows: TokenRow[] = [];
+  for (const token of facts.tokens) {
+    if (!token.mint || seen.has(token.mint) || lookupLabel(token.mint)?.category === "mint") continue;
+    if (!token.mintAuthority && !token.freezeAuthority) continue;
+    seen.add(token.mint);
+    rows.push(token);
+  }
+  return rows;
 }
 
 async function readHop(address: string, flows: Flow[], signal: AbortSignal): Promise<WalletFacts["hop"] | null> {
@@ -761,7 +827,7 @@ function buildReport(facts: WalletFacts, intent: ReturnType<typeof detectIntent>
     facts.flows.length ? `getTransaction (${facts.flows.length})` : "getTransaction not needed",
     facts.mode === "deep"
       ? facts.accountType === "mint"
-        ? "Deep scan: signatures back toward one year, mint transactions opened, freeze authority read"
+        ? "Deep scan: signatures back toward one year, mint transactions opened, mint and freeze authorities read"
         : "Deep scan: signatures back toward one year, interactions sampled across the window, one funding hop"
       : "Quick read: signatures back toward six months, interactions sampled across the window",
     facts.restrictions ? "OFAC SDN list" : "OFAC SDN list unavailable",
@@ -855,6 +921,17 @@ function buildReport(facts: WalletFacts, intent: ReturnType<typeof detectIntent>
   if (frozen.length) {
     score += 10;
     rules.push({ id: "frozen", points: 10, detail: "At least one token account is frozen" });
+  }
+  const heldMints = heldAuthorityMints(facts);
+  const mintable = heldMints.filter((token) => token.mintAuthority);
+  const freezable = heldMints.filter((token) => token.freezeAuthority);
+  if (mintable.length) {
+    score += 12;
+    rules.push({ id: "held-mint-authority", points: 12, detail: `${mintable.length} unlabelled held token${mintable.length === 1 ? "" : "s"} still ha${mintable.length === 1 ? "s" : "ve"} a mint authority` });
+  }
+  if (freezable.length) {
+    score += 8;
+    rules.push({ id: "held-freeze-authority", points: 8, detail: `${freezable.length} unlabelled held token${freezable.length === 1 ? "" : "s"} still ha${freezable.length === 1 ? "s" : "ve"} a freeze authority` });
   }
   if (facts.tokenWarning) {
     score += 4;
@@ -968,9 +1045,40 @@ function scoreMint(facts: WalletFacts): { score: number; rules: ScoreRule[]; fin
       `${burns.length} opened transaction${burns.length === 1 ? "" : "s"} burn this mint and close a holder account.`,
       "elevated",
       0.86,
-      `That is a public pattern of people interacting with a contract that removes the token balance.${signerLine}${programLine} It is not, by itself, proof of who received the value.`,
+      `If you hold this token or interact with it, a transaction in this pattern can burn the balance and close the holder account. That removes the tokens from the holder.${signerLine}${programLine} It is not, by itself, proof of who received the value.`,
       burns.slice(0, 3).map((flow) => ({ signature: flow.signature, slot: flow.slot, blockTime: flow.time })),
       signers.slice(0, 3),
+    ));
+  }
+  if (mintAuth) {
+    const watch = !labelled ? facts.mintWatch : undefined;
+    const watchLine = watch
+      ? ` A read of ${shortAddress(mintAuth)} shows ${formatSol(watch.lamports)} and ${watch.signatures} recent signature${watch.signatures === 1 ? "" : "s"}. That read does not add points by itself.`
+      : "";
+    if (!labelled) {
+      score += 16;
+      rules.push({ id: "mint-authority", points: 16, detail: `Mint authority is still ${shortAddress(mintAuth)}` });
+    }
+    findings.push(makeFinding(
+      facts,
+      "mint-authority",
+      `Mint authority is still set to ${shortAddress(mintAuth)}.`,
+      labelled ? "watch" : "elevated",
+      0.92,
+      `This address can create more of this token. New supply can dilute anyone who holds it.${watchLine}`,
+      [],
+      [mintAuth],
+    ));
+  } else {
+    findings.push(makeFinding(
+      facts,
+      "mint-authority-clear",
+      "Mint authority is cleared.",
+      freeze ? "note" : "clean",
+      0.9,
+      freeze
+        ? "No address can mint more of this token from the mint authority field. That does not protect a holder. Freeze authority is still set, so a holder account can still be frozen."
+        : "No address can mint more of this token from the mint authority field. This check is only about that field.",
     ));
   }
   if (freeze) {
@@ -986,9 +1094,9 @@ function scoreMint(facts: WalletFacts): { score: number; rules: ScoreRule[]; fin
       facts,
       "freeze",
       `Freeze authority is still set to ${shortAddress(freeze)}.`,
-      "watch",
+      labelled ? "watch" : "elevated",
       0.9,
-      `A live freeze authority can freeze holder accounts for this mint. That is a property of the token, read from the mint account.${watchLine}`,
+      `If you hold this token, this address can freeze your token account. A frozen balance cannot be moved or sold.${watchLine}`,
       [],
       [freeze],
     ));
@@ -1086,7 +1194,7 @@ function walletFindings(
         facts.scanned >= 5 ? "watch" : "note",
         0.9,
         facts.scanned
-          ? `${facts.scanned} signature${facts.scanned === 1 ? "" : "s"} were read. An empty balance can mean the wallet was swept. It is not a reason to withhold a number.`
+          ? `${facts.scanned} signature${facts.scanned === 1 ? "" : "s"} were read. An empty balance can mean the wallet was swept. A delegate, or a token that can still be frozen or minted, can still affect what is left.`
           : "getBalance returned 0 lamports and the signature list was empty. The score is 46 until there is behaviour to judge.",
         [],
       ),
@@ -1095,14 +1203,14 @@ function walletFindings(
 
   if (facts.scanned >= 15 && span > 0 && span < 6 * 3600) {
     findings.push(
-      makeFinding(facts, "burst", "Activity is bunched into less than six hours.", "elevated", 0.8, "A tight burst is common for a script, a bot, or a one-off operational run. It is a pattern, not proof of intent.", facts.signatures.slice(0, 3)),
+      makeFinding(facts, "burst", "Activity is bunched into less than six hours.", "elevated", 0.8, "Value can move through an address this quickly before you have time to react. The burst is a pattern in the signature list. It is not proof of intent.", facts.signatures.slice(0, 3)),
     );
   }
 
   if (delegates.length) {
     const first = delegates[0];
     findings.push(
-      makeFinding(facts, "delegate", `${delegates.length} token account${delegates.length === 1 ? "" : "s"} ha${delegates.length === 1 ? "s" : "ve"} a delegate set.`, "watch", 0.88, `The first is ${tokenLabel(first)} delegated to ${shortAddress(first.delegate ?? "")}. A delegate can move that token account up to the approved amount. KaziTrust does not build a revoke transaction.`, [], [first.delegate ?? "", first.mint, first.pubkey]),
+      makeFinding(facts, "delegate", `${delegates.length} token account${delegates.length === 1 ? "" : "s"} ha${delegates.length === 1 ? "s" : "ve"} a delegate set.`, "elevated", 0.88, `The first is ${tokenLabel(first)} delegated to ${shortAddress(first.delegate ?? "")}. That address can move the tokens out of this wallet up to the approved amount, without a new signature from this wallet. KaziTrust does not build a revoke transaction.`, [], [first.delegate ?? "", first.mint, first.pubkey]),
     );
   } else if (!facts.tokenWarning) {
     findings.push(
@@ -1112,7 +1220,7 @@ function walletFindings(
 
   if (frozen.length) {
     findings.push(
-      makeFinding(facts, "frozen", `${frozen.length} token account${frozen.length === 1 ? " is" : "s are"} frozen, so that balance is restricted.`, "watch", 0.9, `Frozen: ${frozen.slice(0, 3).map((row) => tokenLabel(row)).join(", ")}. The freeze comes from the mint authority, not from this read.`, [], frozen.slice(0, 3).map((row) => row.mint)),
+      makeFinding(facts, "frozen", `${frozen.length} token account${frozen.length === 1 ? " is" : "s are"} frozen, so that balance is restricted.`, "elevated", 0.9, `Frozen: ${frozen.slice(0, 3).map((row) => tokenLabel(row)).join(", ")}. The freeze authority on that mint already froze this wallet. You cannot move or sell that balance while it stays frozen. Mint authority is a different field, and clearing it does not unfreeze the account.`, [], frozen.slice(0, 3).map((row) => row.mint)),
     );
   }
 
@@ -1141,7 +1249,7 @@ function walletFindings(
   if (counterparties.size === 1 && facts.flows.length >= 3) {
     const only = [...counterparties.keys()][0];
     findings.push(
-      makeFinding(facts, "single", `Scanned flows point at one counterparty, ${shortAddress(only)}.`, "watch", 0.6, "This is estimated from balance changes in the opened transactions. A token counterparty is often a token account or a pool, not a person.", facts.flows.slice(0, 2).map((flow) => ({ signature: flow.signature, slot: flow.slot, err: null, blockTime: flow.time })), [only]),
+      makeFinding(facts, "single", `Scanned flows point at one counterparty, ${shortAddress(only)}.`, "watch", 0.6, "Sending more to this address concentrates value with that one counterparty. The count is estimated from balance changes in the opened transactions. A token counterparty is often a token account or a pool, not a person.", facts.flows.slice(0, 2).map((flow) => ({ signature: flow.signature, slot: flow.slot, err: null, blockTime: flow.time })), [only]),
     );
   }
 
@@ -1151,8 +1259,35 @@ function walletFindings(
     );
   }
 
+  const held = heldAuthorityMints(facts);
+  if (held.length) findings.unshift(heldAuthorityFinding(facts, held));
   if (facts.hop) findings.unshift(hopFinding(facts));
-  return findings.slice(0, facts.mode === "deep" ? 6 : 5);
+  return findings.slice(0, facts.mode === "deep" ? 7 : 6);
+}
+
+function heldAuthorityFinding(facts: WalletFacts, held: TokenRow[]): Finding {
+  const mintable = held.filter((token) => token.mintAuthority);
+  const names = held.slice(0, 3).map((token) => tokenLabel(token));
+  const listed = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  const extra = held.length > 3 ? ` ${held.length - 3} more unlabelled token${held.length - 3 === 1 ? "" : "s"} in this wallet ${held.length - 3 === 1 ? "was" : "were"} not listed here.` : "";
+  const effects = held.slice(0, 3).map((token) => {
+    const name = tokenLabel(token);
+    if (token.mintAuthority && token.freezeAuthority) return `${name}: mint authority ${shortAddress(token.mintAuthority)} can create more supply, and freeze authority ${shortAddress(token.freezeAuthority)} can freeze this wallet's balance.`;
+    if (token.mintAuthority) return `${name}: mint authority ${shortAddress(token.mintAuthority)} can create more supply, which can dilute this holding.`;
+    return `${name}: freeze authority ${shortAddress(token.freezeAuthority ?? "")} can freeze this wallet's balance so it cannot be moved or sold. A cleared mint authority would not remove that freeze.`;
+  });
+  return makeFinding(
+    facts,
+    "held-mint",
+    mintable.length
+      ? `${held.length} held token${held.length === 1 ? "" : "s"} still ha${held.length === 1 ? "s" : "ve"} a mint authority that can affect this wallet.`
+      : `${held.length} held token${held.length === 1 ? "" : "s"} still ha${held.length === 1 ? "s" : "ve"} a freeze authority that can affect this wallet.`,
+    mintable.length ? "elevated" : "watch",
+    0.86,
+    `${listed} ${held.length === 1 ? "is" : "are"} in this wallet. ${effects.join(" ")}${extra} Labelled mints such as USDC are not part of this check.`.replace(/\s+/g, " ").trim(),
+    [],
+    held.slice(0, 3).flatMap((token) => [token.mint, token.mintAuthority ?? "", token.freezeAuthority ?? ""]).filter(Boolean),
+  );
 }
 
 function hopFinding(facts: WalletFacts): Finding {
@@ -1364,7 +1499,7 @@ function citedFrom(facts: WalletFacts): string[] {
 function leadFindings(facts: WalletFacts, findings: Finding[]): Finding[] {
   const lead = [restrictionFinding(facts), rugcheckFinding(facts), solscanFinding(facts)].filter((item): item is Finding => Boolean(item));
   const rank: Record<Severity, number> = { high: 0, elevated: 1, watch: 2, note: 3, clean: 4 };
-  return [...lead, ...findings].sort((a, b) => rank[a.severity] - rank[b.severity]).slice(0, 8);
+  return [...lead, ...findings].sort((a, b) => rank[a.severity] - rank[b.severity]).slice(0, 9);
 }
 
 function applyRestrictions(facts: WalletFacts, score: number, rules: ScoreRule[]): { score: number; rules: ScoreRule[] } {
@@ -1503,9 +1638,30 @@ function writtenSummary(facts: WalletFacts, typeGuess: string, score: number, ba
     const supply = formatRawUnits(facts.mintInfo.supply, facts.mintInfo.decimals);
     const burns = facts.flows.filter((flow) => flow.burnClose).length;
     const burnLine = burns
-      ? `${burns} opened transaction${burns === 1 ? "" : "s"} burn the mint and close a holder account.`
+      ? `${burns} opened transaction${burns === 1 ? "" : "s"} can burn a holder balance and close the account.`
       : "None of the opened transactions burn the mint and close a holder account.";
-    return `${typeGuess}. Score ${score}, ${band}. Supply is ${supply} tokens. ${burnLine} ${lead ?? ""}`.replace(/\s+/g, " ").trim();
+    const authLine = facts.mintInfo.mintAuthority
+      ? `Mint authority ${shortAddress(facts.mintInfo.mintAuthority)} can still create supply and dilute holders.`
+      : facts.mintInfo.freezeAuthority
+        ? "Mint authority is cleared, and that does not stop the freeze authority from freezing a holder."
+        : "Mint authority and freeze authority are cleared.";
+    return `${typeGuess}. Score ${score}, ${band}. Supply is ${supply} tokens. ${authLine} ${burnLine} ${lead ?? ""}`.replace(/\s+/g, " ").trim();
+  }
+  const held = heldAuthorityMints(facts);
+  if (held.length) {
+    const aim = facts.mode === "deep" ? "one year" : "six months";
+    const reach = facts.historyComplete
+      ? "The scan reached the start of the visible history."
+      : facts.ageReached
+        ? `The window reaches back at least ${aim}.`
+        : facts.scanned
+          ? `The window is ${facts.scanned} signatures, short of ${aim}, because activity is denser than the scan.`
+          : "No signatures came back.";
+    const names = held.slice(0, 2).map((token) => tokenLabel(token)).join(" and ");
+    const effect = held.some((token) => token.mintAuthority)
+      ? "A mint authority can still create more of that token and dilute the holding."
+      : "A freeze authority can still freeze that balance so this wallet cannot move it.";
+    return `${typeGuess}. Score ${score}, ${band}. ${reach} Balance is ${formatSol(facts.lamports)}. ${names} still ha${held.length === 1 ? "s" : "ve"} an authority that can affect this wallet. ${effect} ${lead ?? ""}`.replace(/\s+/g, " ").trim();
   }
   const aim = facts.mode === "deep" ? "one year" : "six months";
   const reach = facts.historyComplete
@@ -1533,14 +1689,20 @@ function meaningFrom(findings: Finding[], band: Report["band"], facts: WalletFac
 
 function nextStep(facts: WalletFacts, intent: ReturnType<typeof detectIntent>): string {
   if (facts.restrictions?.self) return "Treat the OFAC listing as the fact to act on. The behaviour score does not override it.";
-  if (facts.flows.some((flow) => flow.burnClose)) return "Read the burn-and-close transactions before sending value to this mint. The pattern is in the opened history.";
-  if (facts.accountType === "mint" && facts.mintInfo?.freezeAuthority) return "The freeze authority is still set. A later change to that field is a change in what holders can do.";
+  if (facts.accountType === "mint" && facts.mintInfo?.mintAuthority) return "The mint authority can still create supply. Do not add to this mint while that address can dilute holders.";
+  if (facts.flows.some((flow) => flow.burnClose)) return facts.mintInfo?.freezeAuthority
+    ? "Do not send value into this mint until you have read the burn-and-close transactions. Mint authority is cleared, and the freeze authority can still freeze a holder."
+    : "Do not send value into this mint until you have read the burn-and-close transactions. Those transactions can remove a holder balance.";
+  if (facts.accountType === "mint" && facts.mintInfo?.freezeAuthority) return "Mint authority is cleared. The freeze authority can still freeze a holder, so a cleared mint authority is not protection.";
   if (facts.rugcheck && facts.rugcheck.band !== "Good") return "Read the RugCheck risks before treating this mint as safe. That score is separate from the KaziTrust number.";
+  if (heldAuthorityMints(facts).some((token) => token.mintAuthority)) return "A token in this wallet can still be minted. New supply can dilute that balance. Read that mint before you add to it.";
+  if (heldAuthorityMints(facts).some((token) => token.freezeAuthority)) return "A token in this wallet can still be frozen. A freeze can stop this wallet from moving that balance, even if mint authority is cleared.";
+  if (facts.tokens.some((token) => token.frozen)) return "A frozen token balance in this wallet cannot be moved until the freeze authority clears it.";
+  if (facts.tokens.some((token) => token.delegate)) return "A delegate can move tokens out of this wallet without a new signature from this address. Match each delegate before you leave value there.";
   if (facts.restrictions?.counterparties.length) return "Open the matched address on its own before treating this wallet as unrelated to the listing.";
   if (facts.mode === "quick" && !facts.ageReached && !facts.historyComplete) return "Run a deep scan to push the window toward one year and read the oldest funding address.";
   if (facts.mode === "deep" && facts.hop) return "The deep scan checked one funding address. That hop is reported and does not add points by itself. A full index is still required to walk further back.";
   if (facts.mode === "deep" && !facts.historyComplete) return "This deep scan walked toward one year of signatures. It still does not walk the entire chain.";
-  if (facts.tokens.some((token) => token.delegate)) return "Open the approvals panel and match each delegate to a contract you recognise.";
   if (intent === "funding") return "Ask about the approvals or the contracts if you want the next layer of this read.";
   return "Ask a follow-up about funding, approvals, or the contracts it uses.";
 }
@@ -1585,9 +1747,9 @@ function rugcheckVisual(facts: WalletFacts): Visual | null {
       detail: `Normalised ${Math.round(report.scoreNormalised)} of 100. Raw score ${formatNumber(report.score, 0)}. Lower is safer on this scale.`,
     },
   ];
-  if (report.mintAuthority) rows.push({ label: "Mint authority", state: "Set", detail: shortAddress(report.mintAuthority) });
-  else rows.push({ label: "Mint authority", state: "Cleared", detail: "RugCheck reports no mint authority." });
-  if (report.freezeAuthority) rows.push({ label: "Freeze authority", state: "Set", detail: shortAddress(report.freezeAuthority) });
+  if (report.mintAuthority) rows.push({ label: "Mint authority", state: "Set", detail: `${shortAddress(report.mintAuthority)} can create more supply. New tokens can dilute holders.` });
+  else rows.push({ label: "Mint authority", state: "Cleared", detail: report.freezeAuthority ? "No mint authority is listed. That does not clear a freeze authority, and a holder can still be frozen." : "RugCheck reports no mint authority." });
+  if (report.freezeAuthority) rows.push({ label: "Freeze authority", state: "Set", detail: `${shortAddress(report.freezeAuthority)} can freeze holder accounts. A frozen balance cannot be moved or sold.` });
   else rows.push({ label: "Freeze authority", state: "Cleared", detail: "RugCheck reports no freeze authority." });
   if (typeof report.lpLockedPct === "number") {
     rows.push({ label: "Pool lock", state: `${formatNumber(report.lpLockedPct, 1)}%`, detail: "Highest LP lock RugCheck lists for a pool of this mint." });

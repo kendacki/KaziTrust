@@ -108,7 +108,7 @@ export const TOKEN_2022 = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
 export const EXAMPLE_PROGRAM = "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4";
 export const EXAMPLE_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
-export const SCORING_VERSION = "0.4.0";
+export const SCORING_VERSION = "0.4.1";
 
 export const RULE_CATALOG: { title: string; detail: string }[] = [
   {
@@ -168,8 +168,16 @@ export const RULE_CATALOG: { title: string; detail: string }[] = [
     detail: "A labelled contract is held at 8. A labelled mint starts at 10. An unlabelled mint starts at 16. An unlabelled executable contract is held at 18.",
   },
   {
+    title: "Mint authority",
+    detail: "An unlabelled mint with a live mint authority adds 16. That address can create more supply and dilute holders. A cleared mint authority adds nothing, and it does not cancel a live freeze authority.",
+  },
+  {
     title: "Mint freeze authority",
-    detail: "An unlabelled mint with a live freeze authority adds 16. A labelled mint records the freeze without that add.",
+    detail: "An unlabelled mint with a live freeze authority adds 16. That address can freeze a holder so the balance cannot be moved or sold. A labelled mint records the freeze without that add.",
+  },
+  {
+    title: "Held token authority",
+    detail: "If a wallet holds an unlabelled mint with a live mint authority, add 12. If it holds one with a live freeze authority, add 8. The add is once per kind, not once per token. Labelled mints such as USDC are not included.",
   },
   {
     title: "Mint burn and close",
