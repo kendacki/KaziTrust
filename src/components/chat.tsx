@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { readAttachment } from "../engine/attach";
 import { extractAddresses } from "../engine/address";
 import { investigate } from "../engine/analyze";
+import { downloadChatPdf } from "../engine/chat-pdf";
 import { walletQuestionAllowed } from "../engine/scope";
 import { readQuota } from "../engine/quota";
 import { cautionLabel, shortAddress } from "../format";
@@ -477,16 +478,8 @@ export function Chat({ go, api = false }: { go: (to: string) => void; api?: bool
               <button
                 type="button"
                 className="icon-btn"
-                aria-label="Download JSON"
-                onClick={() => {
-                  const blob = new Blob([JSON.stringify(active, null, 2)], { type: "application/json" });
-                  const url = URL.createObjectURL(blob);
-                  const link = document.createElement("a");
-                  link.href = url;
-                  link.download = "kazitrust-chat.json";
-                  link.click();
-                  URL.revokeObjectURL(url);
-                }}
+                aria-label="Download PDF"
+                onClick={() => void downloadChatPdf(active)}
               >
                 <IconExport size={16} />
               </button>
