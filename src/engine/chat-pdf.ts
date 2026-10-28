@@ -1,4 +1,4 @@
-import { jsPDF } from "jspdf";
+import { GState, jsPDF } from "jspdf";
 import type { Thread } from "../storage";
 import type { Report, Visual } from "../types";
 
@@ -7,6 +7,7 @@ const MUTE: [number, number, number] = [95, 99, 106];
 const LINE: [number, number, number] = [228, 230, 233];
 const GREEN: [number, number, number] = [46, 125, 83];
 const SURFACE: [number, number, number] = [243, 244, 245];
+const WASH: [number, number, number] = [150, 154, 160];
 const PAGE_W = 595.28;
 const PAGE_H = 841.89;
 const LEFT = 40;
@@ -249,6 +250,7 @@ class Sheet {
   }
 
   private mast(when: Date) {
+    this.watermark();
     this.brand(22);
     const date = new Intl.DateTimeFormat("en-GB", {
       day: "numeric",
@@ -295,6 +297,7 @@ class Sheet {
   }
 
   private drawRunningHeader() {
+    this.watermark();
     this.brand(16);
     this.doc.setFont("helvetica", "normal");
     this.doc.setFontSize(8);
@@ -620,6 +623,17 @@ class Sheet {
     const clean = pdfText(text);
     if (!clean) return [];
     return this.doc.splitTextToSize(clean, Math.max(20, width)) as string[];
+  }
+
+  private watermark() {
+    const word = "certified";
+    this.doc.saveGraphicsState();
+    this.doc.setGState(new GState({ opacity: 0.72 }));
+    this.doc.setFont("helvetica", "bold");
+    this.doc.setFontSize(78);
+    this.doc.setTextColor(...WASH);
+    this.doc.text(word, PAGE_W / 2, PAGE_H / 2 + 12, { align: "center", baseline: "middle", angle: 32 });
+    this.doc.restoreGraphicsState();
   }
 
   private rule(y: number) {
