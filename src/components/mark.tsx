@@ -1,8 +1,12 @@
+const MARK_RATIO = 540 / 448;
+
 export function Mark({ size = 28 }: { size?: number }) {
+  const height = size;
+  const width = Math.round(size * MARK_RATIO);
   return (
     <span
       className="mark"
-      style={{ width: size, height: size }}
+      style={{ width, height }}
       role="img"
       aria-label="KaziTrust"
     />

@@ -313,7 +313,7 @@ export function Chat({ go, api = false }: { go: (to: string) => void; api?: bool
       <aside className="sidebar" hidden={!sidebar}>
         <header className="side-top">
           <button type="button" className="lockup-btn" onClick={() => go("/")}>
-            <Lockup size={24} />
+            <Lockup size={28} />
           </button>
           <button type="button" className="icon-btn" aria-label="Hide history" onClick={toggleHistory}>
             <IconSidebar />
@@ -465,7 +465,7 @@ export function Chat({ go, api = false }: { go: (to: string) => void; api?: bool
             )}
             {sidebar ? null : (
               <button type="button" className="lockup-btn" onClick={() => go("/")}>
-                <Lockup size={22} />
+                <Lockup size={28} />
               </button>
             )}
             {active?.title ? <h1>{active.title}</h1> : null}

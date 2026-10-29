@@ -7,5 +7,8 @@ Allow: /
 User-agent: Googlebot-Image
 Allow: /favicon.ico
 Allow: /favicon.png
+Allow: /apple-touch-icon.png
 Allow: /avatar.png
 Allow: /
+
+Sitemap: https://www.kazitrustai.fun/sitemap.xml
