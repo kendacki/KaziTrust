@@ -1,6 +1,7 @@
 import { inflateRawSync } from "node:zlib";
 import { loadEnv, type Connect, type Plugin } from "vite";
 import { permit } from "./apikey";
+import kelsier from "../engine/lists/kelsier.json";
 
 const SDN_ZIP = "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/SDN_ADVANCED.ZIP";
 const TTL = 6 * 60 * 60 * 1000;
@@ -9,7 +10,17 @@ type BlockedEntry = {
   address: string;
   name: string;
   programs: string[];
+  list?: "ofac" | "meteora-kelsier";
+  detail?: string;
 };
+
+const KELSIER_ENTRIES: BlockedEntry[] = kelsier.addresses.map((address) => ({
+  address,
+  name: "Meteora Kelsier blacklist",
+  programs: [],
+  list: "meteora-kelsier",
+  detail: `Published by Meteora Operations as associated with Kelsier Ventures. Source: ${kelsier.url}. As of ${kelsier.asOf}.`,
+}));
 
 type Cache = {
   fetchedAt: number;
@@ -76,10 +87,20 @@ async function handle(
   }
   try {
     const list = await loadList();
+    const ofac = list.entries.map((entry) => ({ ...entry, list: entry.list ?? ("ofac" as const) }));
     send(res, 200, {
-      source: "OFAC SDN list",
+      source: `OFAC SDN list and ${kelsier.source}`,
       fetchedAt: new Date(list.fetchedAt).toISOString(),
-      entries: list.entries,
+      entries: [...ofac, ...KELSIER_ENTRIES],
+      lists: {
+        ofac: { source: "OFAC SDN list", count: ofac.length },
+        "meteora-kelsier": {
+          source: kelsier.source,
+          url: kelsier.url,
+          asOf: kelsier.asOf,
+          count: KELSIER_ENTRIES.length,
+        },
+      },
     });
   } catch {
     send(res, 503, { error: "The OFAC SDN list could not be read." });
@@ -115,7 +136,7 @@ function parseAdvanced(zip: Uint8Array): BlockedEntry[] {
     if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address) || seen.has(address)) continue;
     const identity = body.match(/IdentityID="(\d+)"/)?.[1] ?? "";
     seen.add(address);
-    entries.push({ address, name: names.get(identity) || "SDN entry", programs: [] });
+    entries.push({ address, name: names.get(identity) || "SDN entry", programs: [], list: "ofac" });
   }
   return entries;
 }

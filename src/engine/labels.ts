@@ -108,7 +108,7 @@ export const TOKEN_2022 = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
 export const EXAMPLE_PROGRAM = "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4";
 export const EXAMPLE_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
-export const SCORING_VERSION = "0.4.1";
+export const SCORING_VERSION = "0.4.2";
 
 export const RULE_CATALOG: { title: string; detail: string }[] = [
   {
@@ -202,5 +202,13 @@ export const RULE_CATALOG: { title: string; detail: string }[] = [
   {
     title: "Blocked counterparty",
     detail: "If an opened transaction or a token delegate names a different SDN address, add 30. The wallet itself is not treated as listed.",
+  },
+  {
+    title: "Meteora Kelsier list",
+    detail: "If the address is on the public Meteora Kelsier Ventures blacklist, the score is set to at least 85. That list is not an OFAC sanctions listing.",
+  },
+  {
+    title: "Meteora Kelsier counterparty",
+    detail: "If an opened transaction, a token delegate, a funding address, or an authority names a different address on that Meteora list, add 16.",
   },
 ];

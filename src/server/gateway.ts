@@ -5,7 +5,7 @@ import { signedIn } from "./session";
 const SERVICES = [
   { method: "POST", path: "/api/v1/rpc", about: "Solana JSON-RPC through KaziTrust." },
   { method: "GET", path: "/api/v1/rugcheck", about: "Token risk report for a mint. Pass mint." },
-  { method: "GET", path: "/api/v1/restrictions", about: "OFAC SDN Solana addresses." },
+  { method: "GET", path: "/api/v1/restrictions", about: "OFAC SDN Solana addresses and the Meteora Kelsier blacklist." },
   { method: "GET", path: "/api/v1/solscan", about: "Label, portfolio, and recent DeFi activity. Pass path and address." },
   { method: "POST", path: "/api/v1/wording", about: "Sentences for a read. The key does not change a score." },
 ];

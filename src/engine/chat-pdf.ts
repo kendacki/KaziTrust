@@ -30,6 +30,7 @@ const PLAIN_TYPE: Record<string, string> = {
   "seasoned wallet": "Seasoned wallet",
   "active wallet": "Active wallet",
   "blocked address": "Blocked wallet",
+  "listed address": "Listed wallet",
 };
 
 type Turn = {

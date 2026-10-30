@@ -1,14 +1,22 @@
 import { inflateRawSync } from "node:zlib";
+import kelsier from "./kelsier.json" with { type: "json" };
 
 const SDN_ZIP = "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/SDN_ADVANCED.ZIP";
 const TTL = 6 * 60 * 60 * 1000;
 const SNAPSHOT_AT = "2026-10-27T05:53:00.000Z";
 const SNAPSHOT = [
-  { address: "42RLPACwZPx3vYYmxSueqsogfynBDqXK298EDsNoyoHi", name: "Sokolovski Rolan", programs: [] },
-  { address: "Fc1EwQUZyTEagaDvA1utHXCcZNyG1x2PLt2DfNu1cJdH", name: "Rashevskyi Dmytro", programs: [] },
-  { address: "FuCC7GoYwt5TsNTjWL23Xx9UKCvC18chjMEFPL3vJDCC", name: "Rashevskyi Dmytro", programs: [] },
-  { address: "6wjqWWra8ombzaw6VHrG5xpQ972jCYF6bbHiFCbWmr4U", name: "SHPS Shelbit", programs: [] },
+  { address: "42RLPACwZPx3vYYmxSueqsogfynBDqXK298EDsNoyoHi", name: "Sokolovski Rolan", programs: [], list: "ofac" },
+  { address: "Fc1EwQUZyTEagaDvA1utHXCcZNyG1x2PLt2DfNu1cJdH", name: "Rashevskyi Dmytro", programs: [], list: "ofac" },
+  { address: "FuCC7GoYwt5TsNTjWL23Xx9UKCvC18chjMEFPL3vJDCC", name: "Rashevskyi Dmytro", programs: [], list: "ofac" },
+  { address: "6wjqWWra8ombzaw6VHrG5xpQ972jCYF6bbHiFCbWmr4U", name: "SHPS Shelbit", programs: [], list: "ofac" },
 ];
+const KELSIER_ENTRIES = (kelsier.addresses || []).map((address) => ({
+  address,
+  name: "Meteora Kelsier blacklist",
+  programs: [],
+  list: "meteora-kelsier",
+  detail: `Published by Meteora Operations as associated with Kelsier Ventures. Source: ${kelsier.url}. As of ${kelsier.asOf}.`,
+}));
 
 let cache = null;
 let refreshing = false;
@@ -44,10 +52,23 @@ async function run(req) {
 }
 
 function bodyFor(list) {
+  const ofac = (list.entries || []).map((entry) => ({
+    ...entry,
+    list: entry.list || "ofac",
+  }));
   return {
-    source: "OFAC SDN list",
+    source: `OFAC SDN list and ${kelsier.source || "Meteora blacklist-ops"}`,
     fetchedAt: new Date(list.fetchedAt).toISOString(),
-    entries: list.entries,
+    entries: [...ofac, ...KELSIER_ENTRIES],
+    lists: {
+      ofac: { source: "OFAC SDN list", count: ofac.length },
+      "meteora-kelsier": {
+        source: kelsier.source || "Meteora blacklist-ops",
+        url: kelsier.url,
+        asOf: kelsier.asOf,
+        count: KELSIER_ENTRIES.length,
+      },
+    },
   };
 }
 

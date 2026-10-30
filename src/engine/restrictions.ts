@@ -1,9 +1,13 @@
 import { getAccessToken } from "@privy-io/react-auth";
 
+import type { WatchListId } from "./lists";
+
 export type BlockedEntry = {
   address: string;
   name: string;
   programs: string[];
+  list?: WatchListId;
+  detail?: string;
 };
 
 export type RestrictionIndex = {
@@ -42,6 +46,8 @@ export async function readRestrictions(signal: AbortSignal): Promise<Restriction
         address: entry.address,
         name: entry.name,
         programs: Array.isArray(entry.programs) ? entry.programs.filter((item): item is string => typeof item === "string").slice(0, 4) : [],
+        list: entry.list === "meteora-kelsier" ? "meteora-kelsier" : "ofac",
+        detail: typeof entry.detail === "string" ? entry.detail : undefined,
       });
     }
     if (!byAddress.size) return cached?.index ?? null;

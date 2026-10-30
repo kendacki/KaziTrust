@@ -69,7 +69,7 @@ const SERVICES: Service[] = [
     returns: "Published Solana SDN addresses",
     send: "The Authorization header only.",
     back: "A source name, the fetch time, and entries of address and name.",
-    limit: "This is the OFAC SDN list currently published. It is not a finding about a person.",
+    limit: "This returns the OFAC SDN Solana addresses and the public Meteora Kelsier blacklist. It is not a finding about a person.",
     sample: (origin) => `curl ${origin}/api/v1/restrictions \\\n  -H "Authorization: Bearer kt_your_key"`,
   },
   {

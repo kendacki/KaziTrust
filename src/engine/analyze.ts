@@ -7,7 +7,8 @@ import { modelQuestion, OUT_OF_SCOPE, walletQuestionAllowed } from "./scope";
 import { sampleDeployerReport } from "./sample";
 import { readRugcheck, type RugcheckReport } from "./rugcheck";
 import { readSolscan, type SolscanBook } from "./solscan";
-import { readRestrictions, screenAddresses, type RestrictionFacts, type RestrictionIndex } from "./restrictions";
+import { readRestrictions, screenAddresses, type RestrictionFacts, type RestrictionIndex, type BlockedEntry } from "./restrictions";
+import { kelsierMeta, screenKelsier } from "./lists";
 import { readTokenFaces } from "./tokenmeta";
 import { bandFromScore, clamp, formatNow, formatNumber, formatRawUnits, formatSol, formatTime, severityWord, shortAddress } from "../format";
 import type { Answer, ApprovalRow, Evidence, Finding, FlowRow, HoldingRow, ProgramSlice, Report, ScoreRule, Severity, TimelineEvent, Visual } from "../types";
@@ -360,7 +361,7 @@ async function loadFacts(
 
   const scanMint = accountType === "mint";
   onStep(`${tag}Reading the Solscan portfolio and label`, "active");
-  onStep(`${tag}Checking the OFAC blocked list`, "active");
+  onStep(`${tag}Checking blocked and watch lists`, "active");
   if (scanMint) onStep(`${tag}Reading the RugCheck token report`, "active");
   let solscan: SolscanBook | null = null;
   let solscanWarning = "";
@@ -380,7 +381,7 @@ async function loadFacts(
     solscan = null;
   }
   onStep(`${tag}Reading the Solscan portfolio and label`, "done");
-  onStep(`${tag}Checking the OFAC blocked list`, "done");
+  onStep(`${tag}Checking blocked and watch lists`, "done");
   if (scanMint) onStep(`${tag}Reading the RugCheck token report`, "done");
   const watched = [address];
   for (const flow of flows) {
@@ -399,15 +400,33 @@ async function loadFacts(
     if (token.mintAuthority) watched.push(token.mintAuthority);
     if (token.freezeAuthority) watched.push(token.freezeAuthority);
   }
-  const hits = restrictionIndex ? screenAddresses(restrictionIndex, watched) : [];
-  const restrictions: RestrictionFacts | undefined = restrictionIndex
-    ? {
-        source: restrictionIndex.source,
-        fetchedAt: restrictionIndex.fetchedAt,
-        self: hits.find((hit) => hit.address === address),
-        counterparties: hits.filter((hit) => hit.address !== address),
-      }
-    : undefined;
+  const ofacHits = restrictionIndex
+    ? screenAddresses(restrictionIndex, watched)
+        .filter((hit) => hit.list !== "meteora-kelsier")
+        .map((hit) => ({ ...hit, list: "ofac" as const }))
+    : [];
+  const kelsierHits: BlockedEntry[] = screenKelsier(watched).map((hit) => ({
+    address: hit.address,
+    name: hit.name,
+    programs: hit.programs,
+    list: hit.list,
+    detail: hit.detail,
+  }));
+  const ofacSelf = ofacHits.find((hit) => hit.address === address);
+  const kelsierSelf = kelsierHits.find((hit) => hit.address === address);
+  const self = ofacSelf ?? kelsierSelf;
+  const counterparties = mergeListHits(
+    [...ofacHits, ...kelsierHits].filter((hit) => hit.address !== address),
+  );
+  const kel = kelsierMeta();
+  const restrictions: RestrictionFacts = {
+    source: restrictionIndex
+      ? `${restrictionIndex.source} and ${kel.source}`
+      : kel.source,
+    fetchedAt: restrictionIndex?.fetchedAt || kel.asOf,
+    self,
+    counterparties,
+  };
 
   return {
     address,
@@ -437,8 +456,24 @@ async function loadFacts(
     rugcheck: rugcheck ?? undefined,
     rugcheckWarning: scanMint && !rugcheck ? "RugCheck did not return a token report for this mint." : undefined,
     restrictions,
-    restrictionWarning: restrictions ? undefined : "The OFAC SDN list could not be checked, so this read does not claim the address is clear.",
+    restrictionWarning: restrictionIndex
+      ? undefined
+      : "The OFAC SDN list could not be checked. The Meteora Kelsier blacklist was still checked.",
   };
+}
+
+function mergeListHits(hits: BlockedEntry[]): BlockedEntry[] {
+  const byAddress = new Map<string, BlockedEntry>();
+  for (const hit of hits) {
+    const prior = byAddress.get(hit.address);
+    if (!prior) {
+      byAddress.set(hit.address, hit);
+      continue;
+    }
+    if (prior.list === "ofac") continue;
+    if (hit.list === "ofac") byAddress.set(hit.address, hit);
+  }
+  return [...byAddress.values()];
 }
 
 function readMint(info: Record<string, unknown>): WalletFacts["mintInfo"] {
@@ -830,7 +865,9 @@ function buildReport(facts: WalletFacts, intent: ReturnType<typeof detectIntent>
         ? "Deep scan: signatures back toward one year, mint transactions opened, mint and freeze authorities read"
         : "Deep scan: signatures back toward one year, interactions sampled across the window, one funding hop"
       : "Quick read: signatures back toward six months, interactions sampled across the window",
-    facts.restrictions ? "OFAC SDN list" : "OFAC SDN list unavailable",
+    facts.restrictionWarning
+      ? "Meteora Kelsier blacklist (OFAC SDN list unavailable)"
+      : "OFAC SDN list and Meteora Kelsier blacklist",
   ];
   if (facts.solscan) tools.push("Solscan portfolio, metadata, and recent DeFi activity");
   if (facts.rugcheck) tools.push("RugCheck token report");
@@ -1505,18 +1542,47 @@ function leadFindings(facts: WalletFacts, findings: Finding[]): Finding[] {
 function applyRestrictions(facts: WalletFacts, score: number, rules: ScoreRule[]): { score: number; rules: ScoreRule[] } {
   const screen = facts.restrictions;
   if (!screen) return { score, rules };
-  if (screen.self) {
+  if (screen.self?.list === "ofac" || (screen.self && screen.self.list !== "meteora-kelsier")) {
     const name = screen.self.name || "an SDN entry";
     return {
       score: 96,
       rules: [{ id: "blocked", points: 96, detail: `${name} is on the OFAC SDN list, so the score is set to 96` }],
     };
   }
-  if (screen.counterparties.length) {
+  if (screen.self?.list === "meteora-kelsier") {
+    const next = Math.max(score, 85);
+    return {
+      score: next,
+      rules: [
+        ...rules,
+        {
+          id: "kelsier-listed",
+          points: next - score,
+          detail: "This address is on the public Meteora Kelsier blacklist, so the score is at least 85",
+        },
+      ],
+    };
+  }
+  const ofacOther = screen.counterparties.some((hit) => hit.list !== "meteora-kelsier");
+  if (ofacOther) {
     const next = clamp(score + 30, 0, 100);
     return {
       score: next,
       rules: [...rules, { id: "blocked-counterparty", points: next - score, detail: "An opened flow or a delegate names an OFAC SDN address" }],
+    };
+  }
+  if (screen.counterparties.some((hit) => hit.list === "meteora-kelsier")) {
+    const next = clamp(score + 16, 0, 100);
+    return {
+      score: next,
+      rules: [
+        ...rules,
+        {
+          id: "kelsier-counterparty",
+          points: next - score,
+          detail: "An opened flow or a delegate names an address on the Meteora Kelsier blacklist",
+        },
+      ],
     };
   }
   return { score, rules };
@@ -1525,6 +1591,18 @@ function applyRestrictions(facts: WalletFacts, score: number, rules: ScoreRule[]
 function restrictionFinding(facts: WalletFacts): Finding | null {
   const screen = facts.restrictions;
   if (!screen) return null;
+  if (screen.self?.list === "meteora-kelsier") {
+    return makeFinding(
+      facts,
+      "kelsier-listed",
+      "This address is on the public Meteora Kelsier blacklist.",
+      "high",
+      0.94,
+      `${screen.self.detail ?? "Meteora Operations publishes this wallet as associated with Kelsier Ventures."} That list is used to exclude addresses from MET allocation. It is not an OFAC sanctions listing.`,
+      [],
+      [screen.self.address],
+    );
+  }
   if (screen.self) {
     const programs = screen.self.programs.length ? ` Sanctions codes: ${screen.self.programs.join(", ")}.` : "";
     return makeFinding(
@@ -1538,17 +1616,30 @@ function restrictionFinding(facts: WalletFacts): Finding | null {
       [screen.self.address],
     );
   }
-  const other = screen.counterparties[0];
-  if (other) {
+  const ofacOther = screen.counterparties.find((hit) => hit.list !== "meteora-kelsier");
+  if (ofacOther) {
     return makeFinding(
       facts,
       "blocked-counterparty",
-      `A scanned flow names ${other.name}, which is on the OFAC SDN blocked list.`,
+      `A scanned flow names ${ofacOther.name}, which is on the OFAC SDN blocked list.`,
       "high",
       0.9,
       "The wallet itself is not on the list. The match comes from an opened transaction, a token delegate, or the Solscan funding address. Addresses outside this window are not covered.",
       [],
-      [other.address],
+      [ofacOther.address],
+    );
+  }
+  const kelsierOther = screen.counterparties.find((hit) => hit.list === "meteora-kelsier");
+  if (kelsierOther) {
+    return makeFinding(
+      facts,
+      "kelsier-counterparty",
+      "A scanned flow names an address on the public Meteora Kelsier blacklist.",
+      "elevated",
+      0.88,
+      "The wallet itself is not on that list. The match comes from an opened transaction, a token delegate, a funding address, or an authority in this window. Meteora's list is not an OFAC sanctions listing.",
+      [],
+      [kelsierOther.address],
     );
   }
   const frozen = facts.tokens.some((token) => token.frozen);
@@ -1556,10 +1647,10 @@ function restrictionFinding(facts: WalletFacts): Finding | null {
   return makeFinding(
     facts,
     "blocked-clear",
-    "This address is not on the OFAC SDN blocked list.",
+    "This address is not on the OFAC SDN list or the Meteora Kelsier blacklist.",
     "clean",
     0.9,
-    "The check is an exact match against the Solana addresses in the current SDN file. It does not cover every sanctions list, and it does not read a private blacklist.",
+    "The check is an exact match against the Solana addresses in the current OFAC SDN file and against the public Meteora Kelsier list. It does not cover every sanctions list or every community watchlist.",
   );
 }
 
@@ -1614,6 +1705,7 @@ function confidenceFor(facts: WalletFacts, degraded: boolean): Report["confidenc
 }
 
 function guessType(facts: WalletFacts, labelName: string | undefined, span: number): string {
+  if (facts.restrictions?.self?.list === "meteora-kelsier") return "Listed address";
   if (facts.restrictions?.self) return "Blocked address";
   if (labelName && facts.executable) return labelName;
   if (facts.executable) return "On-chain contract";
@@ -1688,7 +1780,12 @@ function meaningFrom(findings: Finding[], band: Report["band"], facts: WalletFac
 }
 
 function nextStep(facts: WalletFacts, intent: ReturnType<typeof detectIntent>): string {
-  if (facts.restrictions?.self) return "Treat the OFAC listing as the fact to act on. The behaviour score does not override it.";
+  if (facts.restrictions?.self?.list === "ofac" || (facts.restrictions?.self && facts.restrictions.self.list !== "meteora-kelsier")) {
+    return "Treat the OFAC listing as the fact to act on. The behaviour score does not override it.";
+  }
+  if (facts.restrictions?.self?.list === "meteora-kelsier") {
+    return "Treat the Meteora Kelsier listing as a hard warning. Confirm the public list entry before you send value to this address.";
+  }
   if (facts.accountType === "mint" && facts.mintInfo?.mintAuthority) return "The mint authority can still create supply. Do not add to this mint while that address can dilute holders.";
   if (facts.flows.some((flow) => flow.burnClose)) return facts.mintInfo?.freezeAuthority
     ? "Do not send value into this mint until you have read the burn-and-close transactions. Mint authority is cleared, and the freeze authority can still freeze a holder."
@@ -1779,25 +1876,39 @@ function rugcheckVisual(facts: WalletFacts): Visual | null {
 function restrictionVisual(facts: WalletFacts): Visual {
   const screen = facts.restrictions;
   const frozen = facts.tokens.filter((token) => token.frozen);
-  const blocked = screen?.self;
-  const other = screen?.counterparties[0];
+  const ofacSelf = screen?.self?.list === "meteora-kelsier" ? undefined : screen?.self;
+  const kelsierSelf = screen?.self?.list === "meteora-kelsier" ? screen.self : undefined;
+  const ofacOther = screen?.counterparties.find((hit) => hit.list !== "meteora-kelsier");
+  const kelsierOther = screen?.counterparties.find((hit) => hit.list === "meteora-kelsier");
+  const kel = kelsierMeta();
   return {
     type: "restrictions",
-    caption: "Blocked means the address is on the current OFAC SDN list. Restricted means a token account is frozen on chain. A clear row means that check found nothing.",
+    caption: "Blocked means an OFAC SDN match. Listed means a match on the public Meteora Kelsier blacklist. Restricted means a token account is frozen on chain.",
     rows: [
       {
         label: "OFAC SDN list",
-        state: screen ? (blocked ? "Blocked" : "Clear") : "Not checked",
-        detail: blocked ? blocked.name : screen ? "No exact Solana match in the current file." : "The list could not be read.",
+        state: facts.restrictionWarning && !ofacSelf ? "Not checked" : ofacSelf ? "Blocked" : "Clear",
+        detail: ofacSelf
+          ? ofacSelf.name
+          : facts.restrictionWarning
+            ? "The OFAC SDN list could not be read."
+            : "No exact Solana match in the current file.",
+      },
+      {
+        label: "Meteora Kelsier blacklist",
+        state: kelsierSelf ? "Listed" : "Clear",
+        detail: kelsierSelf
+          ? kelsierSelf.detail || "Exact match on the public Meteora list."
+          : `No exact match in the ${kel.count} addresses published by ${kel.source}.`,
       },
       {
         label: "Opened activity",
-        state: screen ? (other ? "Blocked" : "Clear") : "Not checked",
-        detail: other
-          ? `${other.name} appears in the scanned flows, a delegate, or the funding address.`
-          : screen
-            ? "No listed counterparty in the opened window."
-            : "Opened activity was not screened because the list could not be read.",
+        state: ofacOther ? "Blocked" : kelsierOther ? "Listed" : "Clear",
+        detail: ofacOther
+          ? `${ofacOther.name} appears in the scanned flows, a delegate, or the funding address.`
+          : kelsierOther
+            ? "A Meteora Kelsier-listed address appears in the scanned flows, a delegate, or the funding address."
+            : "No listed counterparty in the opened window.",
       },
       {
         label: "Token accounts",

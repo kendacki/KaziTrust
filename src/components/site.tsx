@@ -200,7 +200,7 @@ export function Home({ go }: { go: (to: string) => void }) {
             <span className="card-icon"><IconBook size={18} /></span>
             <p className="eyebrow">The engine</p>
             <h3>A method you can read</h3>
-            <p>Funding, counterparties, behaviour, permissions, and the public blocked list. Version {SCORING_VERSION} lists every rule that fired.</p>
+            <p>Funding, counterparties, behaviour, permissions, the OFAC SDN list, and the public Meteora Kelsier blacklist. Version {SCORING_VERSION} lists every rule that fired.</p>
             <button type="button" className="text-btn" onClick={() => go("/method")}>
               Read the method <IconArrow size={14} />
             </button>
@@ -697,7 +697,7 @@ npm run dev`}</pre>
       <h3 id="service-rugcheck">Token risk</h3>
       <p><span className="num">GET /api/v1/rugcheck?mint=</span> reads one mint. The body includes the mint, name, symbol, RugCheck score, normalised score, band, authorities, and any risks that were present. Good is a raw score under 1000. Warning runs through 5000. Above that is Danger. This number does not move the KaziTrust score. Executable contracts are not sent here.</p>
       <h3 id="service-restrictions">Blocked list</h3>
-      <p><span className="num">GET /api/v1/restrictions</span> returns the OFAC SDN Solana addresses currently published, with a source name, the fetch time, and entries of address and name.</p>
+      <p><span className="num">GET /api/v1/restrictions</span> returns the OFAC SDN Solana addresses currently published and the public Meteora Kelsier blacklist, with a source name, the fetch time, and entries of address, name, and list.</p>
       <h3 id="service-solscan">Labels and activity</h3>
       <p><span className="num">GET /api/v1/solscan?path=&amp;address=</span> takes a Solana address and one of three paths: <span className="num">account/metadata</span>, <span className="num">account/portfolio</span>, or <span className="num">account/defi/activities</span>. Any other path is rejected.</p>
       <h3 id="service-wording">Wording</h3>
