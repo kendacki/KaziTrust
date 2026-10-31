@@ -11,4 +11,10 @@ Allow: /apple-touch-icon.png
 Allow: /avatar.png
 Allow: /
 
+User-agent: Googlebot
+Allow: /favicon.ico
+Allow: /favicon.png
+Allow: /apple-touch-icon.png
+Allow: /avatar.png
+
 Sitemap: https://www.kazitrustai.fun/sitemap.xml
