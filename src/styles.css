@@ -1986,8 +1986,9 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   .try-open .btn { padding: 10px 16px; font-size: 14px; }
   .engine { border-radius: 16px; margin-top: 22px; }
   .engine-title {
-    font-size: clamp(24px, 6.8vw, 32px);
+    font-size: clamp(18px, 5.2vw, 28px);
     max-width: 100%;
+    white-space: nowrap;
   }
   .engine-step { padding: 20px 16px; gap: 10px; }
   .engine-num { font-size: 28px; }
