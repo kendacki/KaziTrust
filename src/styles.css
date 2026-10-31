@@ -989,8 +989,15 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   overflow-wrap: anywhere;
   word-break: break-all;
 }
-.api-key-life { margin: 0; padding: 0; border: 0; display: grid; gap: 8px; }
-.api-key-life legend { padding: 0; color: var(--mute); font-size: 12px; }
+.api-key-life { margin: 0; padding: 0; border: 0; display: grid; gap: 8px; min-width: 0; }
+.api-key-life legend {
+  padding: 0;
+  color: var(--mute);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
+}
 .api-key-life-options { display: flex; flex-wrap: wrap; gap: 8px; }
 .api-key-life label {
   display: inline-flex;
