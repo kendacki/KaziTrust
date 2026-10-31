@@ -326,36 +326,44 @@ h3 {
 }
 @media (min-width: 961px) {
   .hero {
-    grid-template-columns: minmax(0, 1fr) minmax(320px, 0.92fr);
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 0.92fr);
     grid-template-areas:
-      "title field"
+      "title title"
       "copy field";
     column-gap: 48px;
-    row-gap: 22px;
+    row-gap: 28px;
     padding: 48px 0 36px;
     align-items: center;
   }
   .hero > h1 {
     grid-area: title;
-    font-size: clamp(42px, 4.8vw, 72px);
-    align-self: end;
+    font-size: clamp(48px, 5.2vw, 72px);
+    max-width: none;
+  }
+  .hero h1 span {
+    display: block;
+    white-space: nowrap;
   }
   .hero-copy {
     grid-area: copy;
     gap: 22px;
-    align-self: start;
+    align-self: center;
+    justify-items: start;
+    max-width: 36em;
   }
   .hero .field {
     grid-area: field;
     min-height: 0;
     align-self: center;
+    width: 100%;
   }
   .hero-film { border-radius: 28px; }
+  .hero-actions { align-items: center; }
 }
 .hero h1 span { display: block; }
 .hero > h1 { min-width: 0; }
 .hero-copy { display: grid; gap: 22px; justify-items: start; min-width: 0; }
-.hero-actions { display: flex; flex-wrap: wrap; gap: 10px; max-width: 100%; }
+.hero-actions { display: flex; flex-wrap: wrap; gap: 10px; max-width: 100%; align-items: center; }
 .scroll-cue {
   background: none;
   border: 0;
