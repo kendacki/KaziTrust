@@ -141,7 +141,7 @@ export function Chrome({
 
 export function Home({ go }: { go: (to: string) => void }) {
   return (
-    <>
+    <div className="home">
       <section className="hero wrap">
         <h1>
           <Line index={0}>Know the Wallet,</Line>
@@ -425,7 +425,7 @@ export function Home({ go }: { go: (to: string) => void }) {
           </Card>
         </CardGrid>
       </section>
-    </>
+    </div>
   );
 }
 
