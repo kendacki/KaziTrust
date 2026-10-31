@@ -148,22 +148,6 @@ export function Home({ go }: { go: (to: string) => void }) {
           <Line index={1}>Measure the Risk,</Line>
           <Line index={2}>Protect Your Assets.</Line>
         </h1>
-        <div className="hero-copy">
-          <motion.p className="lede" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.48, duration: 0.7 }}>
-            Ask about any Solana wallet. The score comes with the reasons and the evidence still attached.
-          </motion.p>
-          <motion.div className="hero-actions" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6, duration: 0.7 }}>
-            <button type="button" className="btn ink" onClick={() => go("/app")}>
-              Open app
-            </button>
-            <button type="button" className="btn ghost" onClick={() => go("/docs")}>
-              Read the docs
-            </button>
-          </motion.div>
-          <motion.button type="button" className="scroll-cue" onClick={() => go("/#features")} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }}>
-            Scroll to explore <IconArrow size={16} />
-          </motion.button>
-        </div>
         <div className="field hero-film">
           <video
             src="/hero.mp4"
@@ -176,6 +160,22 @@ export function Home({ go }: { go: (to: string) => void }) {
             preload="auto"
             aria-label="A robot working in a room"
           />
+        </div>
+        <div className="hero-copy">
+          <motion.p className="lede" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.48, duration: 0.7 }}>
+            Ask about any Solana wallet. The score comes with the reasons and the evidence still attached.
+          </motion.p>
+          <motion.div className="hero-actions" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6, duration: 0.7 }}>
+            <button type="button" className="btn ink" onClick={() => go("/app")}>
+              Open app
+            </button>
+            <button type="button" className="btn ghost" onClick={() => go("/docs")}>
+              Read the docs
+            </button>
+          </motion.div>
+          <motion.button type="button" className="scroll-cue" onClick={() => go("/#features")} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }}>
+            Scroll to explore <IconArrow size={16} />
+          </motion.button>
         </div>
       </section>
 
