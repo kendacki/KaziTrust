@@ -2110,11 +2110,11 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
 */
 @media (max-width: 960px) {
   .site {
-    --site-gutter: max(18px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
+    --site-gutter: max(24px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
     --site-gap: 16px;
     --site-radius: 16px;
     --site-section: 40px;
-    --gutter: clamp(18px, 5vw, 24px);
+    --gutter: clamp(24px, 6vw, 32px);
     overflow-x: clip;
   }
   .site .wrap,
@@ -2123,6 +2123,9 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
     max-width: var(--page-max);
     padding-inline: max(var(--gutter), env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
     box-sizing: border-box;
+  }
+  .site .home .hero {
+    padding-inline: max(var(--gutter), env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
   }
   .site .footer-panel {
     width: calc(100% - (var(--gutter) * 2));
@@ -2166,7 +2169,7 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
 
 @media (max-width: 640px) {
   .site {
-    --gutter: clamp(18px, 5.5vw, 22px);
+    --gutter: clamp(24px, 6.5vw, 28px);
     --site-gap: 14px;
     --site-radius: 14px;
     --site-section: 36px;
@@ -2564,7 +2567,7 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
 
 @media (max-width: 380px) {
   .site {
-    --gutter: 16px;
+    --gutter: 20px;
     --site-section: 32px;
     --site-gap: 12px;
   }
