@@ -239,7 +239,10 @@ export function Home({ go }: { go: (to: string) => void }) {
         <Reveal>
           <header className="section-head">
             <p className="eyebrow">Risk engine</p>
-            <h2>Three questions every wallet must answer</h2>
+            <h2 className="engine-title">
+              <span>Three questions every</span>
+              <span>wallet must answer</span>
+            </h2>
             <p className="lede">A read does not guess. It asks who this address is, how risky it looks under published rules, and what can still move the assets.</p>
           </header>
         </Reveal>
