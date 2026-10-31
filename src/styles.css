@@ -528,14 +528,10 @@ h3 {
 }
 
 .engine-title {
-  display: grid;
-  gap: 0;
   max-width: none;
-  text-wrap: balance;
-}
-.engine-title span {
-  display: block;
   white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 .engine {
   margin-top: 28px;
