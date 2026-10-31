@@ -87,7 +87,7 @@ export function Chrome({
               Open app
             </button>
             <button type="button" className="icon-btn menu-btn" aria-label={open ? "Close menu" : "Open menu"} onClick={() => setOpen((value) => !value)}>
-              {open ? <IconClose /> : <IconMenu />}
+              {open ? <IconClose size={24} /> : <IconMenu size={24} />}
             </button>
           </div>
         </motion.div>
@@ -188,7 +188,7 @@ export function Home({ go }: { go: (to: string) => void }) {
         </Reveal>
         <CardGrid className="cards three">
           <Card>
-            <span className="card-icon"><IconChat size={18} /></span>
+            <span className="card-icon"><IconChat size={22} /></span>
             <p className="eyebrow">The app</p>
             <h3>Chat with any wallet</h3>
             <p>Ask in plain language. The answer comes back as a score, the reasons, and the transactions behind them.</p>
@@ -197,7 +197,7 @@ export function Home({ go }: { go: (to: string) => void }) {
             </button>
           </Card>
           <Card>
-            <span className="card-icon"><IconBook size={18} /></span>
+            <span className="card-icon"><IconBook size={22} /></span>
             <p className="eyebrow">The engine</p>
             <h3>A method you can read</h3>
             <p>Funding, counterparties, behaviour, permissions, the OFAC SDN list, and the public Meteora Kelsier blacklist. Version {SCORING_VERSION} lists every rule that fired.</p>
@@ -206,7 +206,7 @@ export function Home({ go }: { go: (to: string) => void }) {
             </button>
           </Card>
           <Card>
-            <span className="card-icon"><IconPackage size={18} /></span>
+            <span className="card-icon"><IconPackage size={22} /></span>
             <p className="eyebrow">The API</p>
             <h3>The same read, in your product</h3>
             <p>Exchanges, launchpads, and agents can ask for the same report. The package shape is published. The hosted API is next.</p>
@@ -254,12 +254,12 @@ export function Home({ go }: { go: (to: string) => void }) {
         </Reveal>
         <CardGrid className="cards six">
           {[
-            { title: "Traders", body: "Decide whether a deployer or a token is worth the click.", icon: <IconSearch size={18} /> },
-            { title: "Communities and DAOs", body: "Vet a wallet before an allowlist, a grant, or a payout.", icon: <IconPeople size={18} /> },
-            { title: "Researchers", body: "Trace funds and see the accounts that move together.", icon: <IconBook size={18} /> },
-            { title: "Token teams", body: "Check a mint's authorities before you tell holders it is safe.", icon: <IconToken size={18} /> },
-            { title: "Platforms and exchanges", body: "Score an address at sign-up, with the evidence attached.", icon: <IconBuilding size={18} /> },
-            { title: "Agents", body: "Ask for a counterparty check before a payment goes out.", icon: <IconAgent size={18} /> },
+            { title: "Traders", body: "Decide whether a deployer or a token is worth the click.", icon: <IconSearch size={22} /> },
+            { title: "Communities and DAOs", body: "Vet a wallet before an allowlist, a grant, or a payout.", icon: <IconPeople size={22} /> },
+            { title: "Researchers", body: "Trace funds and see the accounts that move together.", icon: <IconBook size={22} /> },
+            { title: "Token teams", body: "Check a mint's authorities before you tell holders it is safe.", icon: <IconToken size={22} /> },
+            { title: "Platforms and exchanges", body: "Score an address at sign-up, with the evidence attached.", icon: <IconBuilding size={22} /> },
+            { title: "Agents", body: "Ask for a counterparty check before a payment goes out.", icon: <IconAgent size={22} /> },
           ].map((item) => (
             <Card key={item.title}>
               <span className="card-icon">{item.icon}</span>
@@ -405,17 +405,17 @@ export function Home({ go }: { go: (to: string) => void }) {
         </Reveal>
         <CardGrid className="cards three">
           <Card>
-            <span className="card-icon"><IconBook size={18} /></span>
+            <span className="card-icon"><IconBook size={22} /></span>
             <h3>The method is versioned</h3>
             <p>Version {SCORING_VERSION} lists its rules. A later version will not quietly replace them.</p>
           </Card>
           <Card>
-            <span className="card-icon"><IconLock size={18} /></span>
+            <span className="card-icon"><IconLock size={22} /></span>
             <h3>No custody, ever</h3>
             <p>Paste an address, or connect a wallet later for a read-only approvals check. KaziTrust never asks for a signature that moves assets.</p>
           </Card>
           <Card>
-            <span className="card-icon"><IconCite size={18} /></span>
+            <span className="card-icon"><IconCite size={22} /></span>
             <h3>The score cites its inputs</h3>
             <p>A live number is reproducible from the signatures and account reads named in the report.</p>
           </Card>
@@ -496,14 +496,14 @@ function AppPreview() {
                 <textarea rows={1} readOnly tabIndex={-1} placeholder="Ask about a Solana wallet, mint, or contract" aria-label="Message" />
                 <div className="composer-bar">
                   <span className="icon-btn" aria-hidden="true">
-                    <IconAttach size={18} />
+                    <IconAttach size={22} />
                   </span>
                   <div className="mode">
                     <button type="button" aria-pressed="true" tabIndex={-1}>Quick read</button>
                     <button type="button" tabIndex={-1}>Deep scan</button>
                   </div>
                   <button type="button" className="send" aria-label="Send" tabIndex={-1} disabled>
-                    <IconSend size={18} />
+                    <IconSend size={20} />
                   </button>
                 </div>
                 <p className="mode-note">Quick read walks toward six months of signatures and samples interactions across that window.</p>

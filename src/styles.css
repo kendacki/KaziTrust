@@ -48,7 +48,23 @@ body {
 button, input, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
 img, video { max-width: 100%; height: auto; }
-svg { max-width: 100%; }
+svg { max-width: 100%; height: auto; }
+.icon-btn svg,
+.menu-btn svg,
+.send svg,
+.card-icon svg,
+.history-search svg,
+.history-new svg,
+.api-entry svg,
+.profile-signout svg,
+.text-btn svg,
+.scroll-cue svg {
+  max-width: none;
+  width: auto;
+  height: auto;
+  flex-shrink: 0;
+  display: block;
+}
 a { color: inherit; }
 h1, h2, h3, p { margin: 0; overflow-wrap: break-word; }
 h1 {
@@ -214,12 +230,17 @@ h3 {
 .icon-btn {
   width: 36px;
   height: 36px;
+  min-width: 36px;
+  min-height: 36px;
   border-radius: 999px;
   border: 0;
   background: transparent;
   display: inline-grid;
   place-items: center;
   color: var(--text);
+  flex-shrink: 0;
+  padding: 0;
+  line-height: 0;
 }
 .icon-btn.tiny { width: 28px; height: 28px; }
 .dot {
@@ -286,7 +307,14 @@ h3 {
 }
 .nav nav a { text-decoration: none; color: var(--soft); }
 .nav nav a[aria-current="page"] { color: var(--text); }
-.nav-actions { display: flex; align-items: center; gap: 10px; }
+.nav-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex: 0 0 auto;
+  min-width: 0;
+}
 .menu-btn { display: none; }
 
 .hero {
@@ -1149,12 +1177,15 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
 .card-icon {
   width: 36px;
   height: 36px;
+  min-width: 36px;
+  min-height: 36px;
   border: 1px solid var(--line);
   border-radius: 10px;
   display: grid;
   place-items: center;
   background: var(--panel);
   color: var(--text);
+  flex-shrink: 0;
 }
 .logo-carousel {
   overflow: hidden;
@@ -1540,6 +1571,8 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
 .send {
   width: 36px;
   height: 36px;
+  min-width: 36px;
+  min-height: 36px;
   border-radius: 999px;
   border: 0;
   background: var(--ink);
@@ -1547,6 +1580,9 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   display: grid;
   place-items: center;
   justify-self: end;
+  flex-shrink: 0;
+  padding: 0;
+  line-height: 0;
 }
 .send:disabled { opacity: 0.4; }
 .panel-head {
@@ -1608,9 +1644,62 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
     z-index: 30;
     box-shadow: var(--shadow);
   }
-  .menu-btn { display: inline-grid; }
+  .menu-btn {
+    display: inline-grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    flex: 0 0 auto;
+  }
+  .menu-btn svg {
+    width: 24px;
+    height: 24px;
+    max-width: none;
+  }
+  .nav-actions { gap: 8px; align-items: center; }
   .nav .btn.ghost { display: none; }
-  .nav .btn.ink { padding: 10px 12px; flex: 0 0 auto; }
+  .nav .btn.ink { padding: 10px 14px; flex: 0 0 auto; align-self: center; }
+  .card-icon {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: 12px;
+  }
+  .composer-bar {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    align-items: center;
+    gap: 8px;
+  }
+  .composer-bar .icon-btn {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    justify-self: start;
+  }
+  .composer-bar .send {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    margin-left: 0;
+    justify-self: end;
+  }
+  .composer-bar .mode {
+    justify-self: center;
+    max-width: 100%;
+  }
+  .thread-top .icon-btn,
+  .side-top .icon-btn {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
   .announce button { font-size: 12px; line-height: 1.35; text-align: left; overflow-wrap: anywhere; }
   .footer-panel {
     width: calc(100% - (var(--gutter) * 2));
@@ -1722,31 +1811,32 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   .section { padding: 40px 0; }
   h1 { letter-spacing: -0.03em; }
   .eyebrow { letter-spacing: 0.06em; }
-  .nav { min-height: 56px; gap: 8px; }
+  .nav { min-height: 60px; gap: 8px; align-items: center; }
   .lockup, .lockup-btn { gap: 10px; }
   .wordmark { font-size: 16px; }
-  .nav-actions { gap: 6px; flex: 0 0 auto; align-items: center; }
-  .nav .btn.ink { padding: 8px 12px; font-size: 13px; white-space: nowrap; }
+  .nav-actions { gap: 8px; flex: 0 0 auto; align-items: center; }
+  .nav .btn.ink { padding: 10px 12px; font-size: 13px; white-space: nowrap; }
   .menu-btn {
-    width: 36px;
-    height: 36px;
-    flex: 0 0 auto;
-    display: inline-grid;
-    place-items: center;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
   }
-  .menu-btn svg { width: 20px; height: 20px; }
+  .menu-btn svg { width: 24px; height: 24px; max-width: none; }
   .nav nav.open { animation: phone-rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
-  .nav nav.open a { display: flex; align-items: center; min-height: 40px; }
+  .nav nav.open a { display: flex; align-items: center; min-height: 44px; }
   .announce button { font-size: 12px; padding: 8px 0; }
   .hero-actions { gap: 8px; }
   .hero-actions .btn { padding: 10px 14px; font-size: 14px; }
   .scroll-cue { font-size: 13px; max-width: 100%; }
   .cards { gap: 10px; margin-top: 18px; }
-  .cards article, .product-card { padding: 16px; gap: 8px; min-width: 0; }
+  .cards article, .product-card { padding: 16px; gap: 10px; min-width: 0; }
   .card-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: 12px;
   }
   .card-icon, .menu-btn, .try-stage .send, .try-stage .icon-btn {
     animation: phone-icon 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -1799,54 +1889,44 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   .suggest { justify-content: center; gap: 6px; max-width: 100%; }
   .suggest button { padding: 7px 10px; font-size: 13px; max-width: 100%; min-width: 0; }
   .thread-top {
-    min-height: 56px;
+    min-height: 60px;
     padding: 0 var(--gutter);
-    display: flex;
     align-items: center;
   }
-  .thread-top .icon-btn {
-    width: 36px;
-    height: 36px;
-    flex: 0 0 auto;
+  .thread-top .icon-btn,
+  .composer-bar .icon-btn,
+  .composer-bar .send {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
   }
   .composer-wrap { margin-top: 8px; margin-bottom: 8px; padding-inline: var(--gutter); }
-  .composer { border-radius: 18px; padding: 10px; gap: 6px; max-width: 100%; }
-  .composer textarea { min-height: 36px; font-size: 16px; }
+  .composer { border-radius: 18px; padding: 12px; gap: 8px; max-width: 100%; }
+  .composer textarea { min-height: 40px; font-size: 16px; }
   .composer-bar {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
     align-items: center;
     gap: 8px;
   }
-  .composer-bar .icon-btn {
-    order: 1;
-    width: 36px;
-    height: 36px;
-    flex: 0 0 auto;
-  }
+  .composer-bar .icon-btn { justify-self: start; }
   .composer-bar .send {
-    order: 2;
-    width: 36px;
-    height: 36px;
-    flex: 0 0 auto;
-    margin-left: auto;
+    margin-left: 0;
+    justify-self: end;
     padding: 0;
     display: grid;
     place-items: center;
     line-height: 0;
     appearance: none;
   }
-  .composer-bar .send svg {
-    display: block;
-    margin: 0;
-  }
-  .composer-bar .mode { order: 3; flex: 1 0 100%; justify-content: center; }
-  .mode button { padding: 6px 10px; font-size: 12px; }
+  .composer-bar .mode { justify-self: center; max-width: 100%; }
+  .mode button { padding: 8px 12px; font-size: 13px; min-height: 36px; }
   .mode-note { font-size: 11px; }
   .sidebar { padding: 12px; gap: 8px; }
-  .side-top { min-height: 56px; align-items: center; }
+  .side-top { min-height: 60px; align-items: center; }
   .history-new { padding: 8px; font-size: 14px; }
-  .history-search { width: 36px; height: 36px; }
+  .history-search { width: 44px; height: 44px; }
   .profile-mark { width: 36px; height: 36px; }
   .profile-edit { font-size: 14px; }
   .profile-signout { width: 28px; height: 28px; }
@@ -1876,8 +1956,10 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   .composer-bar .send,
   .thread-top .icon-btn,
   .card-icon {
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
   }
 }
 

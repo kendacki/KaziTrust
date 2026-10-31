@@ -316,7 +316,7 @@ export function Chat({ go, api = false }: { go: (to: string) => void; api?: bool
             <Lockup size={28} />
           </button>
           <button type="button" className="icon-btn" aria-label="Hide history" onClick={toggleHistory}>
-            <IconSidebar />
+            <IconSidebar size={22} />
           </button>
         </header>
         <div className="history-tools">
@@ -445,7 +445,7 @@ export function Chat({ go, api = false }: { go: (to: string) => void; api?: bool
             <header className="thread-top">
               <div className="thread-start">
                 <button type="button" className="icon-btn" aria-label="Show history" onClick={toggleHistory}>
-                  <IconSidebar />
+                  <IconSidebar size={22} />
                 </button>
               </div>
             </header>
@@ -460,7 +460,7 @@ export function Chat({ go, api = false }: { go: (to: string) => void; api?: bool
           <div className="thread-start">
             {sidebar ? null : (
               <button type="button" className="icon-btn" aria-label="Show history" onClick={toggleHistory}>
-                <IconSidebar />
+                <IconSidebar size={22} />
               </button>
             )}
             {sidebar ? null : (
@@ -473,7 +473,7 @@ export function Chat({ go, api = false }: { go: (to: string) => void; api?: bool
           {active ? (
             <nav className="thread-nav" aria-label="Chat">
               <button type="button" className="icon-btn" aria-label="Copy transcript" onClick={() => navigator.clipboard.writeText(active.messages.map((message) => message.report ? reportPlainText(message.report) : `${message.role}: ${message.content}`).join("\n\n"))}>
-                <IconCopy size={16} />
+                <IconCopy size={20} />
               </button>
               <button
                 type="button"
@@ -481,7 +481,7 @@ export function Chat({ go, api = false }: { go: (to: string) => void; api?: bool
                 aria-label="Download PDF"
                 onClick={() => void downloadChatPdf(active)}
               >
-                <IconExport size={16} />
+                <IconExport size={20} />
               </button>
             </nav>
           ) : null}
@@ -582,7 +582,7 @@ export function Chat({ go, api = false }: { go: (to: string) => void; api?: bool
             />
             <div className="composer-bar">
               <button type="button" className="icon-btn" aria-label="Attach" disabled={busy} onClick={() => fileRef.current?.click()}>
-                <IconAttach size={18} />
+                <IconAttach size={22} />
               </button>
               <input
                 ref={fileRef}
@@ -607,11 +607,11 @@ export function Chat({ go, api = false }: { go: (to: string) => void; api?: bool
               </div>
               {busy ? (
                 <button type="button" className="send" aria-label="Stop" onClick={() => abortRef.current?.abort()}>
-                  <IconStop size={18} />
+                  <IconStop size={20} />
                 </button>
               ) : (
                 <button type="submit" className="send" aria-label="Send" disabled={!draft.trim()}>
-                  <IconSend size={18} />
+                  <IconSend size={20} />
                 </button>
               )}
             </div>
