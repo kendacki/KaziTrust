@@ -607,11 +607,11 @@ export function Chat({ go, api = false }: { go: (to: string) => void; api?: bool
               </div>
               {busy ? (
                 <button type="button" className="send" aria-label="Stop" onClick={() => abortRef.current?.abort()}>
-                  <IconStop size={16} />
+                  <IconStop size={18} />
                 </button>
               ) : (
                 <button type="submit" className="send" aria-label="Send" disabled={!draft.trim()}>
-                  <IconSend size={16} />
+                  <IconSend size={18} />
                 </button>
               )}
             </div>

@@ -1723,12 +1723,18 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   h1 { letter-spacing: -0.03em; }
   .eyebrow { letter-spacing: 0.06em; }
   .nav { min-height: 56px; gap: 8px; }
-  .lockup, .lockup-btn { gap: 8px; }
-  .wordmark { font-size: 15px; }
-  .nav-actions { gap: 6px; flex: 0 0 auto; }
+  .lockup, .lockup-btn { gap: 10px; }
+  .wordmark { font-size: 16px; }
+  .nav-actions { gap: 6px; flex: 0 0 auto; align-items: center; }
   .nav .btn.ink { padding: 8px 12px; font-size: 13px; white-space: nowrap; }
-  .menu-btn { width: 36px; height: 36px; flex: 0 0 auto; }
-  .menu-btn svg { width: 18px; height: 18px; }
+  .menu-btn {
+    width: 36px;
+    height: 36px;
+    flex: 0 0 auto;
+    display: inline-grid;
+    place-items: center;
+  }
+  .menu-btn svg { width: 20px; height: 20px; }
   .nav nav.open { animation: phone-rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
   .nav nav.open a { display: flex; align-items: center; min-height: 40px; }
   .announce button { font-size: 12px; padding: 8px 0; }
@@ -1738,11 +1744,10 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   .cards { gap: 10px; margin-top: 18px; }
   .cards article, .product-card { padding: 16px; gap: 8px; min-width: 0; }
   .card-icon {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
   }
-  .card-icon svg, .text-btn svg { width: 16px; height: 16px; }
   .card-icon, .menu-btn, .try-stage .send, .try-stage .icon-btn {
     animation: phone-icon 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
@@ -1786,14 +1791,24 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   .footer-col button { display: inline-flex; align-items: center; min-height: 32px; }
   .footer-plate { height: clamp(120px, 38vw, 148px); }
   .logo-carousel { padding: 16px 0; max-width: 100%; }
-  .logo-track li { height: 36px; }
-  .logo-track img { height: 28px; width: auto; max-width: none; }
-  .logo-track ul { gap: 40px; }
+  .logo-track li { height: 48px; }
+  .logo-track img { height: 40px; width: auto; max-width: none; }
+  .logo-track ul { gap: 48px; }
   .empty-chat { gap: 12px; padding-block: 16px 20px; padding-inline: var(--gutter); }
   .empty-chat h2 { font-size: clamp(22px, 6.5vw, 26px); max-width: 16ch; }
   .suggest { justify-content: center; gap: 6px; max-width: 100%; }
   .suggest button { padding: 7px 10px; font-size: 13px; max-width: 100%; min-width: 0; }
-  .thread-top { min-height: 52px; padding: 0 var(--gutter); }
+  .thread-top {
+    min-height: 56px;
+    padding: 0 var(--gutter);
+    display: flex;
+    align-items: center;
+  }
+  .thread-top .icon-btn {
+    width: 36px;
+    height: 36px;
+    flex: 0 0 auto;
+  }
   .composer-wrap { margin-top: 8px; margin-bottom: 8px; padding-inline: var(--gutter); }
   .composer { border-radius: 18px; padding: 10px; gap: 6px; max-width: 100%; }
   .composer textarea { min-height: 36px; font-size: 16px; }
@@ -1803,12 +1818,17 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
     align-items: center;
     gap: 8px;
   }
-  .composer-bar .icon-btn { order: 1; width: 32px; height: 32px; }
-  .composer-bar .icon-btn svg { width: 16px; height: 16px; }
+  .composer-bar .icon-btn {
+    order: 1;
+    width: 36px;
+    height: 36px;
+    flex: 0 0 auto;
+  }
   .composer-bar .send {
     order: 2;
-    width: 32px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
+    flex: 0 0 auto;
     margin-left: auto;
     padding: 0;
     display: grid;
@@ -1818,22 +1838,18 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   }
   .composer-bar .send svg {
     display: block;
-    width: 16px;
-    height: 16px;
     margin: 0;
   }
   .composer-bar .mode { order: 3; flex: 1 0 100%; justify-content: center; }
   .mode button { padding: 6px 10px; font-size: 12px; }
   .mode-note { font-size: 11px; }
   .sidebar { padding: 12px; gap: 8px; }
-  .side-top { min-height: 48px; }
+  .side-top { min-height: 56px; align-items: center; }
   .history-new { padding: 8px; font-size: 14px; }
-  .history-new svg, .history-search svg, .api-entry svg { width: 16px; height: 16px; }
   .history-search { width: 36px; height: 36px; }
-  .profile-mark { width: 32px; height: 32px; font-size: 11px; }
+  .profile-mark { width: 36px; height: 36px; }
   .profile-edit { font-size: 14px; }
-  .profile-signout { width: 32px; height: 32px; }
-  .profile-signout svg { width: 16px; height: 16px; }
+  .profile-signout { width: 28px; height: 28px; }
   .messages { gap: 16px; padding-block: 16px 24px; padding-inline: var(--gutter); }
   .msg.user { padding: 10px 12px; }
   .page-head h1, .prose h1, .gate h1 { font-size: clamp(26px, 8vw, 32px); }
@@ -1851,10 +1867,18 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
 @media (max-width: 380px) {
   :root { --gutter: 12px; }
   .nav .btn.ink { padding: 8px 10px; font-size: 12px; }
-  .wordmark { font-size: 14px; }
+  .wordmark { font-size: 15px; }
   .hero-actions .btn { width: 100%; justify-content: center; }
   .suggest button { font-size: 12px; }
   .empty-chat h2 { font-size: 22px; }
+  .menu-btn,
+  .composer-bar .icon-btn,
+  .composer-bar .send,
+  .thread-top .icon-btn,
+  .card-icon {
+    width: 36px;
+    height: 36px;
+  }
 }
 
 @keyframes phone-rise {

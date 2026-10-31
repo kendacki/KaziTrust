@@ -503,7 +503,7 @@ function AppPreview() {
                     <button type="button" tabIndex={-1}>Deep scan</button>
                   </div>
                   <button type="button" className="send" aria-label="Send" tabIndex={-1} disabled>
-                    <IconSend size={16} />
+                    <IconSend size={18} />
                   </button>
                 </div>
                 <p className="mode-note">Quick read walks toward six months of signatures and samples interactions across that window.</p>
