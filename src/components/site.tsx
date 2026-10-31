@@ -150,7 +150,7 @@ export function Home({ go }: { go: (to: string) => void }) {
         </h1>
         <div className="hero-copy">
           <motion.p className="lede" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.48, duration: 0.7 }}>
-            A wallet tracker for Solana that reads the chain for you and shows the evidence behind every answer.
+            Ask about any Solana wallet. The score comes with the reasons and the evidence still attached.
           </motion.p>
           <motion.div className="hero-actions" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6, duration: 0.7 }}>
             <button type="button" className="btn ink" onClick={() => go("/app")}>
