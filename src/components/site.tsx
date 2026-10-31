@@ -70,7 +70,7 @@ export function Chrome({
         </motion.div>
         <motion.div className="nav frame" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.05 }}>
           <button type="button" className="lockup-btn" onClick={() => go("/")}>
-            <Lockup />
+            <Lockup size={24} />
           </button>
           <nav className={open ? "open" : ""}>
             {item("/#features", "Features")}
@@ -87,7 +87,7 @@ export function Chrome({
               Open app
             </button>
             <button type="button" className="icon-btn menu-btn" aria-label={open ? "Close menu" : "Open menu"} onClick={() => setOpen((value) => !value)}>
-              {open ? <IconClose size={24} /> : <IconMenu size={24} />}
+              {open ? <IconClose size={20} /> : <IconMenu size={20} />}
             </button>
           </div>
         </motion.div>

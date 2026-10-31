@@ -2130,14 +2130,37 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
     box-sizing: border-box;
   }
   .site .nav {
-    min-height: 60px;
-    gap: 10px;
+    min-height: 56px;
+    gap: 8px;
     align-items: center;
   }
   .site .nav-actions {
-    gap: 8px;
+    gap: 6px;
     align-items: center;
     flex: 0 0 auto;
+  }
+  .site .nav .lockup,
+  .site .nav .lockup-btn {
+    gap: 8px;
+  }
+  .site .nav .wordmark {
+    font-size: 15px;
+  }
+  .site .nav .btn.ink {
+    padding: 8px 12px;
+    font-size: 13px;
+    min-height: 36px;
+  }
+  .site .menu-btn {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
+  }
+  .site .menu-btn svg {
+    width: 20px;
+    height: 20px;
+    max-width: none;
   }
 }
 
@@ -2195,8 +2218,8 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    gap: 20px;
-    padding: 18px 0 28px;
+    gap: 16px;
+    padding: 14px 0 24px;
     position: relative;
     z-index: 1;
     isolation: isolate;
@@ -2205,7 +2228,7 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   }
   .site .home .hero > h1 {
     flex: 0 0 auto;
-    font-size: clamp(24px, 6.6vw, 32px);
+    font-size: clamp(24px, 6.4vw, 30px);
     line-height: 1.12;
     letter-spacing: -0.03em;
     max-width: 100%;
@@ -2221,18 +2244,20 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   .site .home .hero-film {
     flex: 0 0 auto;
     order: 0;
-    width: 100%;
-    max-width: 100%;
+    width: min(100%, 280px);
+    max-width: 78%;
     min-width: 0;
     aspect-ratio: 16 / 9;
-    max-height: none;
-    border-radius: 16px;
+    max-height: 168px;
+    margin-inline: auto;
+    border-radius: 14px;
     overflow: hidden;
     background: #0b0c0e;
     position: relative;
     z-index: 0;
     transform: none;
     animation: none;
+    align-self: center;
   }
   .site .home .hero-film video {
     display: block;
@@ -2246,8 +2271,8 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
     flex: 0 0 auto;
     display: flex;
     flex-direction: column;
-    align-items: stretch;
-    gap: 16px;
+    align-items: flex-start;
+    gap: 14px;
     max-width: 100%;
     min-width: 0;
     position: relative;
@@ -2256,30 +2281,33 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   }
   .site .home .hero-copy .lede {
     margin: 0;
-    max-width: 100%;
+    max-width: 34ch;
     font-size: 15px;
-    line-height: 1.5;
+    line-height: 1.45;
   }
   .site .home .hero-actions {
     display: flex;
-    flex-direction: column;
-    gap: 10px;
-    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    width: auto;
     max-width: 100%;
     margin-top: 0;
   }
   .site .home .hero-actions .btn {
-    width: 100%;
+    width: auto;
+    flex: 0 0 auto;
     box-sizing: border-box;
-    min-height: 48px;
-    padding: 12px 16px;
-    font-size: 15px;
+    min-height: 40px;
+    padding: 9px 14px;
+    font-size: 14px;
     justify-content: center;
   }
   .site .home .scroll-cue {
     font-size: 13px;
-    min-height: 40px;
-    padding: 4px 0 0;
+    min-height: 36px;
+    padding: 2px 0 0;
     align-self: flex-start;
     position: relative;
     z-index: 1;
@@ -2292,7 +2320,7 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
     background: var(--paper);
   }
   .site .home > .section#features {
-    padding-top: 32px;
+    padding-top: 28px;
   }
 
   /* Product cards */
@@ -2541,17 +2569,26 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
     --site-gap: 12px;
   }
   .site .home .hero {
-    gap: 16px;
-    padding: 14px 0 24px;
+    gap: 14px;
+    padding: 12px 0 20px;
   }
-  .site .home .hero > h1 { font-size: clamp(22px, 6.4vw, 28px); }
+  .site .home .hero > h1 { font-size: clamp(22px, 6.2vw, 28px); }
   .site .home .hero-film {
+    width: min(100%, 240px);
+    max-width: 72%;
+    max-height: 148px;
     aspect-ratio: 16 / 9;
-    border-radius: 14px;
+    border-radius: 12px;
   }
   .site .home .hero-actions .btn {
-    min-height: 46px;
-    font-size: 14px;
+    min-height: 38px;
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+  .site .nav .btn.ink {
+    padding: 7px 10px;
+    font-size: 12px;
+    min-height: 34px;
   }
   .site .home .device { width: min(236px, 100%); }
   .site .home .engine-title { font-size: clamp(17px, 5vw, 22px); }
