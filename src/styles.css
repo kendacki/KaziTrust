@@ -2103,6 +2103,119 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   }
 }
 
+/* Homepage mobile only. Do not touch .page-app or desktop. */
+@media (max-width: 960px) {
+  .site {
+    --gutter: clamp(18px, 5vw, 24px);
+  }
+  .site .footer-panel {
+    width: calc(100% - (var(--gutter) * 2));
+  }
+}
+
+@media (max-width: 640px) {
+  .site {
+    --gutter: clamp(18px, 5.5vw, 22px);
+  }
+  .site .section { padding: 36px 0; }
+  .site .section-head { max-width: 100%; }
+  .site .hero {
+    gap: 14px;
+    padding: 18px 0 10px;
+  }
+  .site .hero > h1 {
+    font-size: clamp(28px, 8.2vw, 40px);
+  }
+  .site .hero-film {
+    aspect-ratio: 4 / 3;
+    max-height: 220px;
+    border-radius: 14px;
+  }
+  .site .hero-film video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+  }
+  .site .feeds {
+    margin-top: 16px;
+    border-radius: 14px;
+  }
+  .site .feed { padding: 14px 14px 0; }
+  .site .feed-window { height: min(148px, 36vw); }
+  .site .logo-carousel { padding: 14px 0; }
+  .site .logo-track li { height: 34px; }
+  .site .logo-track img {
+    height: 24px;
+    width: auto;
+    max-width: 96px;
+    object-fit: contain;
+  }
+  .site .logo-track ul { gap: 28px; }
+  .site .engine-title {
+    font-size: clamp(18px, 5vw, 26px);
+  }
+  .site .engine { border-radius: 14px; }
+  .site .engine-step { padding: 18px 16px; }
+  .site .device {
+    width: min(268px, 100%);
+    max-width: 100%;
+  }
+  .site .device-chassis {
+    border-radius: 28px;
+    padding: 10px 9px 12px;
+  }
+  .site .device-speaker {
+    width: 56px;
+    height: 5px;
+    margin-bottom: 10px;
+  }
+  .site .device-screen {
+    min-height: 0;
+    border-radius: 20px;
+    padding: 14px 12px 12px;
+    gap: 12px;
+  }
+  .site .device .score { font-size: 34px; }
+  .site .device-id h3 { font-size: 15px; }
+  .site .device-screen li { padding: 9px 0; gap: 8px; font-size: 13px; }
+  .site .work { gap: 18px; }
+  .site .contrast { gap: 12px; margin-top: 18px; }
+  .site .contrast article,
+  .site .receipt {
+    padding: 16px;
+    border-radius: 14px;
+  }
+  .site .code {
+    font-size: 12px;
+    padding: 14px;
+    overflow-x: auto;
+    max-width: 100%;
+  }
+  .site .footer-panel { border-radius: 16px; }
+  .site .footer-plate {
+    height: clamp(88px, 26vw, 112px);
+    margin-top: 16px;
+  }
+  .site .footer-plate img {
+    object-position: 50% 70%;
+  }
+  .site .try-stage {
+    width: 100%;
+    max-width: 100%;
+    border-radius: 12px 12px 0 0;
+  }
+}
+
+@media (max-width: 380px) {
+  .site {
+    --gutter: 16px;
+  }
+  .site .hero-film { max-height: 200px; }
+  .site .device { width: min(248px, 100%); }
+  .site .engine-title { font-size: clamp(16px, 4.8vw, 22px); }
+}
+
 @keyframes phone-rise {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: none; }
