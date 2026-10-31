@@ -527,21 +527,106 @@ h3 {
   overflow-wrap: anywhere;
 }
 
-.questions { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 18px; margin-top: 28px; }
-.question-tabs { display: grid; gap: 10px; }
-.question-tabs button, .evidence-demo > button {
+.engine {
+  margin-top: 28px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  overflow: hidden;
+  background: var(--panel);
+}
+.engine-step {
+  position: relative;
+  padding: 28px 24px 26px;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  min-width: 0;
+  border-left: 1px solid var(--line);
+  background: transparent;
+}
+.engine-step:first-child { border-left: 0; }
+.engine-step::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  background: var(--ink);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.engine-step:hover::before,
+.engine-step:focus-within::before { transform: scaleX(1); }
+.engine-step-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.engine-num {
+  font-size: clamp(28px, 3vw, 40px);
+  font-weight: 300;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--mute);
+}
+.engine-step h3 {
+  margin: 0;
+  font-size: clamp(20px, 2.2vw, 24px);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  max-width: 12ch;
+}
+.engine-step > p:not(.eyebrow) {
+  margin: 0;
+  color: var(--soft);
+  line-height: 1.5;
+  max-width: 32ch;
+}
+.engine-points {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 8px;
+}
+.engine-points li {
+  position: relative;
+  padding-left: 14px;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.4;
+}
+.engine-points li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--ink);
+}
+.evidence-demo { margin-top: 22px; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.evidence-demo > button {
+  width: 100%;
   text-align: left;
-  background: var(--surface);
+  background: var(--panel);
   border: 1px solid transparent;
   border-radius: 16px;
   padding: 16px;
-  display: grid;
-  gap: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
-.question-tabs button[aria-pressed="true"] { border-color: var(--ink); background: var(--panel); }
-.question-panel { border-radius: 16px; border: 1px solid var(--line); padding: 28px; display: grid; gap: 12px; align-content: center; min-height: 240px; }
-.evidence-demo { margin-top: 22px; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
-.evidence-demo > button { width: 100%; background: var(--panel); display: flex; justify-content: space-between; align-items: center; }
 .evidence-mark { display: grid; place-items: center; color: var(--text); }
 .evidence-demo ul { margin: 0; padding: 0 18px 16px 36px; color: var(--soft); }
 .evidence {
@@ -1648,7 +1733,11 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
     max-width: var(--page-max);
     padding-inline: var(--gutter);
   }
-  .cards.three, .cards.six, .questions, .feeds, .footer-top, .footer-links, .compare, .split-flow, .contrast, .work, .doc-layout { grid-template-columns: 1fr; }
+  .cards.three, .cards.six, .engine, .feeds, .footer-top, .footer-links, .compare, .split-flow, .contrast, .work, .doc-layout { grid-template-columns: 1fr; }
+  .engine-step { border-left: 0; border-top: 1px solid var(--line); padding: 22px 18px; }
+  .engine-step:first-child { border-top: 0; }
+  .engine-step h3 { max-width: none; }
+  .engine-step > p:not(.eyebrow) { max-width: none; }
   .feed + .feed { border-left: 0; border-top: 1px solid var(--line); }
   .nav {
     min-width: 0;
@@ -1889,8 +1978,11 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   .try-stage .composer { padding: 10px; border-radius: 16px; gap: 6px; }
   .try-open { margin-top: 16px; }
   .try-open .btn { padding: 10px 16px; font-size: 14px; }
-  .question-tabs button { padding: 12px; }
-  .question-panel { padding: 16px; }
+  .engine { border-radius: 16px; margin-top: 22px; }
+  .engine-step { padding: 20px 16px; gap: 10px; }
+  .engine-num { font-size: 28px; }
+  .engine-points { padding-top: 10px; gap: 7px; }
+  .engine-points li { font-size: 13px; }
   .footer-panel { border-radius: 18px; }
   .site-footer { padding: 40px 0 20px; }
   .footer-top {

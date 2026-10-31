@@ -2,9 +2,9 @@ import { useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { RULE_CATALOG, SCORING_VERSION } from "../engine/labels";
 import { shortAddress } from "../format";
-import { Card, CardGrid, Line, Reveal } from "../motion";
+import { Card, CardGrid, Line, Reveal, ease, rise, stagger } from "../motion";
 import { Lockup } from "./mark";
-import { IconAgent, IconArrow, IconAttach, IconBook, IconBuilding, IconChat, IconCite, IconClose, IconCompose, IconKey, IconLock, IconMenu, IconPackage, IconPeople, IconPlus, IconSearch, IconSend, IconSidebar, IconToken } from "./icons";
+import { IconAgent, IconApproval, IconArrow, IconAttach, IconBook, IconBuilding, IconChat, IconCite, IconClose, IconCompose, IconKey, IconLock, IconMenu, IconPackage, IconPeople, IconPlus, IconSearch, IconSend, IconSidebar, IconToken, IconWallet } from "./icons";
 import { EvidenceList } from "./report";
 import type { Finding } from "../types";
 
@@ -239,7 +239,8 @@ export function Home({ go }: { go: (to: string) => void }) {
         <Reveal>
           <header className="section-head">
             <p className="eyebrow">Risk engine</p>
-            <h2>Three questions, answered</h2>
+            <h2>Three questions every wallet must answer</h2>
+            <p className="lede">A read does not guess. It asks who this address is, how risky it looks under published rules, and what can still move the assets.</p>
           </header>
         </Reveal>
         <Questions />
@@ -537,48 +538,60 @@ function LiveTry({ go }: { go: (to: string) => void }) {
 }
 
 function Questions() {
-  const [active, setActive] = useState(0);
   const items = [
     {
       kicker: "Know the wallet",
-      title: "Profile and history",
-      body: "Type, balance, first visible transaction, and the hours it tends to move. The guess is labelled, and thin history stays thin.",
+      title: "Who this address is",
+      body: "Type, balance, first visible activity, and the hours it tends to move. Thin history stays labelled as thin.",
+      points: ["Wallet, mint, or program", "First visible activity", "How often it moves"],
+      icon: <IconWallet size={22} />,
     },
     {
       kicker: "Measure the risk",
-      title: "A number and the reasons",
-      body: "Zero to one hundred. Higher is riskier. The band is a word and a four-part gauge, so the level is not carried by colour alone.",
+      title: "What the score says",
+      body: "Zero to one hundred. Higher is riskier. Each point names the rule that added it, and the band is a word as well as a gauge.",
+      points: ["Published scoring rules", "Reasons beside the number", "Band you can read without colour"],
+      icon: <IconSearch size={22} />,
     },
     {
       kicker: "Protect your assets",
-      title: "Approvals, without a transaction",
-      body: "Open delegates and freeze authorities are listed from the account data. KaziTrust stops at the list. It does not build a revoke.",
+      title: "What can still move",
+      body: "Open delegates and freeze authorities, listed from the account data. KaziTrust stops at the list. It never builds a revoke.",
+      points: ["Open token delegates", "Freeze authority still held", "Read-only. No transaction asked"],
+      icon: <IconApproval size={22} />,
     },
   ];
   return (
-    <div className="questions">
-      <div className="question-tabs">
-        {items.map((item, index) => (
-          <button key={item.kicker} type="button" aria-pressed={active === index} onClick={() => setActive(index)}>
-            <span className="eyebrow">{item.kicker}</span>
-            <strong>{item.title}</strong>
-          </button>
-        ))}
-      </div>
-      <AnimatePresence mode="wait">
+    <motion.div
+      className="engine"
+      variants={stagger}
+      initial="hidden"
+      whileInView="show"
+      viewport={{ once: true, margin: "-60px" }}
+    >
+      {items.map((item, index) => (
         <motion.article
-          key={items[active].kicker}
-          className="question-panel"
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -8 }}
+          key={item.kicker}
+          className="engine-step"
+          variants={rise}
+          whileHover={{ y: -4 }}
+          transition={{ duration: 0.35, ease }}
         >
-          <p className="eyebrow">{items[active].kicker}</p>
-          <h3>{items[active].title}</h3>
-          <p>{items[active].body}</p>
+          <div className="engine-step-top">
+            <span className="engine-num" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+            <span className="card-icon">{item.icon}</span>
+          </div>
+          <p className="eyebrow">{item.kicker}</p>
+          <h3>{item.title}</h3>
+          <p>{item.body}</p>
+          <ul className="engine-points">
+            {item.points.map((point) => (
+              <li key={point}>{point}</li>
+            ))}
+          </ul>
         </motion.article>
-      </AnimatePresence>
-    </div>
+      ))}
+    </motion.div>
   );
 }
 
