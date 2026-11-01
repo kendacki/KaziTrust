@@ -41,6 +41,7 @@ export async function saveRemoteKey(record, env = process.env) {
     expiresAt: record.expiresAt || null,
     ownerId: typeof record.ownerId === "string" ? record.ownerId.slice(0, 120) : null,
     readLimit: limit,
+    purpose: record.purpose === "development" ? "development" : "production",
   };
   memoryKeys.set(payload.hash, payload);
   if (payload.ownerId) memoryOwners.set(payload.ownerId, payload.hash);

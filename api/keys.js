@@ -83,8 +83,17 @@ async function run(request, raw) {
     };
   }
   if (request.method !== "POST") return { status: 405, body: { error: "Use GET or POST." } };
-  const hours = readHours(raw);
+  const parsed = readBody(raw);
+  const hours = parsed.hours;
+  const purpose = parsed.purpose;
   if (!LIFETIMES.includes(hours)) return { status: 400, body: { error: "Choose how long the key stays active." } };
+  if (purpose !== "development" && purpose !== "production") {
+    return { status: 400, body: { error: "Choose production or development for this key." } };
+  }
+  // Development keys are short-lived test keys for MCP / local clients.
+  if (purpose === "development" && hours > 168) {
+    return { status: 400, body: { error: "Development keys can stay active for at most 7 days." } };
+  }
   const issued = mint(hours);
   const readLimit = dailyReadLimit(process.env);
   current = {
@@ -94,6 +103,7 @@ async function run(request, raw) {
     expiresAt: issued.expiresAt,
     ownerId: session.ownerId,
     readLimit,
+    purpose,
   };
   await saveRemoteKey(current, process.env);
   const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
@@ -103,6 +113,7 @@ async function run(request, raw) {
     body: {
       ...issued,
       readLimit,
+      purpose,
       ownerBound: true,
       quota: { used: 0, limit: readLimit, remaining: readLimit },
     },
@@ -122,16 +133,20 @@ function viewOf(record) {
     active,
     readLimit: Number(record.readLimit) || dailyReadLimit(process.env),
     ownerBound: Boolean(record.ownerId),
+    purpose: record.purpose === "development" ? "development" : "production",
   };
 }
 
-function readHours(raw) {
-  if (!raw || raw.length > 200) return null;
+function readBody(raw) {
+  if (!raw || raw.length > 400) return { hours: null, purpose: null };
   try {
     const body = JSON.parse(raw);
-    return typeof body?.hours === "number" ? body.hours : null;
+    return {
+      hours: typeof body?.hours === "number" ? body.hours : null,
+      purpose: body?.purpose === "development" || body?.purpose === "production" ? body.purpose : null,
+    };
   } catch {
-    return null;
+    return { hours: null, purpose: null };
   }
 }
 

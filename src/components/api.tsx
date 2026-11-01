@@ -20,6 +20,8 @@ type Service = {
   sample: (origin: string) => string;
 };
 
+type KeyPurpose = "production" | "development";
+
 type KeyRecord = {
   prefix: string;
   createdAt: string;
@@ -27,6 +29,7 @@ type KeyRecord = {
   active: boolean;
   readLimit?: number;
   ownerBound?: boolean;
+  purpose?: KeyPurpose;
 };
 
 type KeyQuota = {
@@ -340,15 +343,21 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [hours, setHours] = useState(24);
+  const [purpose, setPurpose] = useState<KeyPurpose>("production");
   const [now, setNow] = useState(() => Date.now());
   const [quota, setQuota] = useState<KeyQuota | null>(null);
   const bearer = secret || "kt_your_key";
+  const bearerHeader = `Bearer ${bearer}`;
   const life = keyLifetime(hours) ?? KEY_LIFETIMES[2];
   const ends = record?.expiresAt ? Date.parse(record.expiresAt) : NaN;
   const remaining = Number.isFinite(ends) ? ends - now : null;
   const expired = Boolean(record) && (remaining !== null ? remaining <= 0 : !record?.active);
   const liveKey = Boolean(record) && !expired;
-  const mcpKeyed = secret ? `${mcpOrigin(origin)}/mcp/${secret}` : `${mcpOrigin(origin)}/mcp/kt_YOUR_KEY`;
+  const mcpBase = `${mcpOrigin(origin)}/mcp`;
+  const mcpKeyed = secret ? `${mcpBase}/${secret}` : `${mcpBase}/kt_YOUR_KEY`;
+  const mcpPaste = `MCP server URL:\n${mcpKeyed}\n\nAuthorization (Bearer):\n${bearerHeader}`;
+  const purposeLabel = record?.purpose === "development" ? "Development" : record ? "Production" : purpose === "development" ? "Development" : "Production";
+  const lifetimeOptions = purpose === "development" ? KEY_LIFETIMES.filter((item) => item.hours <= 168) : KEY_LIFETIMES;
 
   useEffect(() => {
     if (!record?.expiresAt || expired) return;
@@ -413,7 +422,7 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
         method: "POST",
         headers: { ...headers, "content-type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ hours: life.hours }),
+        body: JSON.stringify({ hours: life.hours, purpose }),
       });
       const body = (await response.json().catch(() => null)) as {
         key?: string;
@@ -421,6 +430,7 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
         createdAt?: string;
         expiresAt?: string;
         readLimit?: number;
+        purpose?: KeyPurpose;
         quota?: KeyQuota;
         error?: string;
       } | null;
@@ -436,13 +446,18 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
         active: true,
         readLimit: body.readLimit,
         ownerBound: true,
+        purpose: body.purpose === "development" ? "development" : "production",
       });
       setSecret(issued.key);
       setQuota(body.quota ?? { used: 0, limit: body.readLimit || 30, remaining: body.readLimit || 30 });
       setNow(Date.now());
       setConfirm(false);
-      setNotice(`Key created. It stops after ${life.label}. ${body.readLimit || 30} MCP/API reads per day on this key. Copy the Claude connector URL below.`);
-      track({ name: "api_key_create", meta: { hours: life.hours } });
+      setNotice(
+        body.purpose === "development"
+          ? `Development key created for ${life.label}. Copy the MCP URL and Bearer value below into Claude or your local client.`
+          : `Production key created for ${life.label}. ${body.readLimit || 30} MCP/API reads per day. Copy the MCP URL and Bearer value below.`,
+      );
+      track({ name: "api_key_create", meta: { hours: life.hours, purpose } });
     } catch (caught) {
       track({ name: "api_key_create", ok: false, error: caught instanceof Error ? caught.message : "key failed" });
       setError(caught instanceof Error ? caught.message : "The key service did not answer.");
@@ -501,6 +516,10 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
                     : "After create"}
             </dd>
           </div>
+          <div>
+            <dt>Purpose</dt>
+            <dd>{loading ? "Checking" : purposeLabel}</dd>
+          </div>
         </dl>
         <div className="api-key-body">
           <p className="api-key-value num">{loading ? "Checking your key." : secret || (record ? `${record.prefix}…` : "No key yet.")}</p>
@@ -508,15 +527,50 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
             {expired
               ? "This key has stopped. Calls with it are refused. Create a new key and choose a new lifetime."
               : secret
-                ? "This browser holds the full key. Leave it here, or copy it into the client that will call the API. The countdown above is the time left before it stops."
+                ? "This browser holds the full key. Use the MCP paste fields below for Claude or a local client."
                 : liveKey
                   ? "The full key stays in the browser that created it. Create a new key to see a full value again."
-                  : "Choose a lifetime, then create a key. Send it as Authorization: Bearer on each call."}
+                  : "Choose production or development, pick a lifetime, then create a key."}
           </p>
+          <fieldset className="api-key-life">
+            <legend>{liveKey ? "Next key is for" : "This key is for"}</legend>
+            <div className="api-key-life-options" role="radiogroup" aria-label="Key purpose">
+              <label>
+                <input
+                  type="radio"
+                  name="key-purpose"
+                  value="production"
+                  checked={purpose === "production"}
+                  onChange={() => setPurpose("production")}
+                  disabled={working || loading}
+                />
+                Production
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="key-purpose"
+                  value="development"
+                  checked={purpose === "development"}
+                  onChange={() => {
+                    setPurpose("development");
+                    if (hours > 168) setHours(24);
+                  }}
+                  disabled={working || loading}
+                />
+                Development only
+              </label>
+            </div>
+            <p className="quiet">
+              {purpose === "development"
+                ? "Development keys are for MCP and local testing. Max lifetime 7 days. Same daily read budget as production."
+                : "Production keys are for live clients and connectors."}
+            </p>
+          </fieldset>
           <fieldset className="api-key-life">
             <legend>{liveKey ? "Next key stays active for" : "This key stays active for"}</legend>
             <div className="api-key-life-options" role="radiogroup" aria-label="Key lifetime">
-              {KEY_LIFETIMES.map((option) => (
+              {lifetimeOptions.map((option) => (
                 <label key={option.hours}>
                   <input
                     type="radio"
@@ -532,7 +586,13 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
             </div>
           </fieldset>
           <div className="api-key-actions">
-            <p className="quiet">{confirm ? `The current key stops working. The new key stays active for ${life.label}.` : liveKey ? "A new key retires the previous one." : `The key stops after ${life.label}.`}</p>
+            <p className="quiet">
+              {confirm
+                ? `The current key stops working. The new ${purpose === "development" ? "development" : "production"} key stays active for ${life.label}.`
+                : liveKey
+                  ? "A new key retires the previous one for this account."
+                  : `The key stops after ${life.label}.`}
+            </p>
             <div className="api-key-buttons">
               {secret && !expired ? (
                 <button type="button" className="btn ink" onClick={() => void copy(secret, "Key copied.")} disabled={working}>
@@ -603,29 +663,48 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
 
       <section className="api-key-block" aria-labelledby="claude-mcp-title">
         <div className="api-meta">
-          <h2 id="claude-mcp-title">Connect Claude</h2>
+          <h2 id="claude-mcp-title">MCP paste</h2>
           {secret && !expired ? (
-            <button type="button" className="btn ghost" onClick={() => void copy(mcpKeyed, "Claude connector URL copied.")}>
-              Copy connector URL
+            <button type="button" className="btn ghost" onClick={() => void copy(mcpPaste, "MCP URL and Bearer copied.")}>
+              Copy both
             </button>
           ) : null}
         </div>
         <ol className="api-open-list">
           <li>
-            <strong>1.</strong> Sign in here and create a key. Replacing a key retires the old one for your account.
+            <strong>1.</strong> Create a production or development key above.
           </li>
           <li>
-            <strong>2.</strong> In Claude: Settings → Connectors → Add custom connector.
+            <strong>2.</strong> Claude → Settings → Connectors → Add custom connector.
           </li>
           <li>
-            <strong>3.</strong> Paste this URL (key in the path). Claude often has no separate API-key box.
+            <strong>3.</strong> Paste the MCP server URL. If Claude shows Request headers, also paste the Bearer value.
           </li>
         </ol>
-        <pre className="code">{mcpKeyed}</pre>
-        <p className="quiet">
-          If Claude shows Request headers, you may use {mcpOrigin(origin)}/mcp and set Authorization to Bearer plus your key instead. Each wallet_snapshot or token_risk call spends one of this key’s daily reads
-          {quota ? ` (${quota.remaining} left today)` : ""}. Docs and screen_address stay free.
-        </p>
+        <div className="api-mcp-paste">
+          <div className="api-meta">
+            <h3>MCP server URL</h3>
+            {secret && !expired ? (
+              <button type="button" className="btn ghost" onClick={() => void copy(mcpKeyed, "MCP server URL copied.")}>
+                Copy URL
+              </button>
+            ) : null}
+          </div>
+          <pre className="code">{mcpKeyed}</pre>
+          <div className="api-meta">
+            <h3>Authorization Bearer</h3>
+            {secret && !expired ? (
+              <button type="button" className="btn ghost" onClick={() => void copy(bearerHeader, "Bearer value copied.")}>
+                Copy Bearer
+              </button>
+            ) : null}
+          </div>
+          <pre className="code">{bearerHeader}</pre>
+          <p className="quiet">
+            Claude without a header field: paste only the URL. Claude with Request headers: use {mcpBase} as the URL and set Authorization to the Bearer line. Each wallet_snapshot or token_risk spends one daily read
+            {quota ? ` (${quota.remaining} left today)` : ""}.
+          </p>
+        </div>
       </section>
 
       <section className="api-key-block" aria-labelledby="api-opens-title">
@@ -674,6 +753,7 @@ async function readKeyState(headers: HeadersInit): Promise<{ key: KeyRecord | nu
       active,
       readLimit: typeof key.readLimit === "number" ? key.readLimit : undefined,
       ownerBound: Boolean(key.ownerBound),
+      purpose: key.purpose === "development" ? "development" : "production",
     },
     quota: body?.quota ?? null,
   };
@@ -682,6 +762,8 @@ async function readKeyState(headers: HeadersInit): Promise<{ key: KeyRecord | nu
 function keyFailure(status: number, error?: string): string {
   if (status === 401 || error === "Sign in before creating a key.") return "Sign in again, then create the key.";
   if (status === 400 || error === "Choose how long the key stays active.") return "Choose how long the key stays active.";
+  if (error === "Choose production or development for this key.") return "Choose production or development for this key.";
+  if (error === "Development keys can stay active for at most 7 days.") return "Development keys can stay active for at most 7 days.";
   if (error === "Sign-in is not configured.") return "Sign-in is not configured on this server.";
   return "The key service did not answer.";
 }
