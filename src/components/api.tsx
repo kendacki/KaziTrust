@@ -544,7 +544,7 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
               <dd>Not used on these calls</dd>
             </div>
           </dl>
-          <p className="quiet">Add the MCP URL in Claude Connectors or ChatGPT settings. Snapshot and token tools need this key as Bearer.</p>
+          <p className="quiet">Claude without a header field: paste {mcpOrigin(origin)}/mcp/ followed by this key. Or use Authorization Bearer when the client supports it.</p>
         </section>
         <section className="api-key-block" aria-label="First call">
           <div className="api-meta">

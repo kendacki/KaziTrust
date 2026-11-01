@@ -1,4 +1,5 @@
 import { track } from "./analytics.mjs";
+import { keyFromArgs, stripKeyArgs, withApiKey } from "./auth.mjs";
 import { callTool, INSTRUCTIONS, SERVER_INFO, TOOLS } from "./handlers.mjs";
 
 const SUPPORTED_PROTOCOL = new Set(["2024-11-05", "2025-03-26", "2025-06-18"]);
@@ -51,7 +52,7 @@ async function handleOne(message, env) {
     }
     if (method === "tools/call") {
       const name = message.params?.name;
-      const args = message.params?.arguments ?? {};
+      const rawArgs = message.params?.arguments ?? {};
       if (typeof name !== "string") {
         await track(
           { source: "mcp", name: "tools/call", ok: false, ms: Date.now() - started, error: "Tool name required" },
@@ -59,7 +60,9 @@ async function handleOne(message, env) {
         );
         return errorResponse(id, -32602, "Tool name required");
       }
-      const gate = authorize(env, name);
+      const callEnv = withApiKey(env, keyFromArgs(rawArgs));
+      const args = stripKeyArgs(rawArgs);
+      const gate = authorize(callEnv, name);
       if (gate) {
         await track(
           {
@@ -74,7 +77,7 @@ async function handleOne(message, env) {
         );
         return errorResponse(id, -32001, gate);
       }
-      const output = await callTool(name, args, env);
+      const output = await callTool(name, args, callEnv);
       const failed = Boolean(output?.isError);
       await track(
         {
@@ -124,7 +127,7 @@ function authorize(env, toolName) {
   }
   const key = (env.KAZITRUST_API_KEY || env.MCP_API_KEY || "").trim();
   if (!key) {
-    return "Set KAZITRUST_API_KEY for wallet_snapshot and token_risk, or set KAZITRUST_MCP_OPEN=1 for local open mode.";
+    return "wallet_snapshot and token_risk need a kt_ API key. In Claude: reconnect the connector with https://www.kazitrustai.fun/mcp/kt_YOUR_KEY (or add Request header Authorization = Bearer kt_YOUR_KEY if your plan shows that field). You can also pass api_key on the tool call.";
   }
   return null;
 }
@@ -142,7 +145,7 @@ export function mcpHttpHeaders() {
     "content-type": "application/json",
     "cache-control": "no-store",
     "access-control-allow-origin": "*",
-    "access-control-allow-headers": "content-type, authorization, mcp-session-id, mcp-protocol-version",
+    "access-control-allow-headers": "content-type, authorization, x-api-key, x-auth-token, mcp-session-id, mcp-protocol-version",
     "access-control-allow-methods": "GET, POST, OPTIONS",
   };
 }

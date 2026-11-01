@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { ingestClientEvents, summarize, track } from "../analytics.mjs";
+import { keyFromUrl, normalizeApiKey } from "../auth.mjs";
 import { callTool } from "../handlers.mjs";
 import { handleMcpMessage } from "../protocol.mjs";
 
@@ -8,6 +9,36 @@ const env = {
   KAZITRUST_MCP_OPEN: "1",
   KAZITRUST_BASE_URL: process.env.KAZITRUST_BASE_URL || "https://www.kazitrustai.fun",
 };
+
+assert.equal(normalizeApiKey("Bearer kt_abc123"), "kt_abc123");
+assert.equal(keyFromUrl("https://www.kazitrustai.fun/mcp/kt_abc123"), "kt_abc123");
+assert.equal(keyFromUrl("https://www.kazitrustai.fun/mcp?key=kt_abc123"), "kt_abc123");
+
+const gated = await handleMcpMessage(
+  {
+    jsonrpc: "2.0",
+    id: 99,
+    method: "tools/call",
+    params: { name: "wallet_snapshot", arguments: { address: "11111111111111111111111111111111" } },
+  },
+  { ...process.env, KAZITRUST_BASE_URL: env.KAZITRUST_BASE_URL },
+);
+assert.equal(gated.error?.code, -32001);
+
+const keyed = await handleMcpMessage(
+  {
+    jsonrpc: "2.0",
+    id: 100,
+    method: "tools/call",
+    params: {
+      name: "wallet_snapshot",
+      arguments: { address: "not-an-address", api_key: "kt_smoke_key_for_auth_gate" },
+    },
+  },
+  { ...process.env, KAZITRUST_BASE_URL: env.KAZITRUST_BASE_URL },
+);
+assert.equal(keyed.error, undefined);
+assert.equal(keyed.result?.isError, true);
 
 function ok(reply) {
   assert.equal(reply.jsonrpc, "2.0");

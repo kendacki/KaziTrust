@@ -727,8 +727,12 @@ npm run dev`}</pre>
         Server URL: <span className="num">{MCP_URL}</span>
       </p>
       <ul>
-        <li><strong>Claude. </strong>Settings → Connectors → Add custom connector → paste the URL above. Then ask Claude to screen a Solana wallet with KaziTrust.</li>
-        <li><strong>ChatGPT. </strong>Add a custom MCP server with the same URL.</li>
+        <li>
+          <strong>Claude. </strong>Settings → Connectors → Add custom connector. Many Claude plans show no API-key field. In that case paste{" "}
+          <span className="num">{MCP_URL}/kt_YOUR_KEY</span>. If Request headers appears, use the plain URL above and set Authorization to{" "}
+          <span className="num">Bearer kt_YOUR_KEY</span>.
+        </li>
+        <li><strong>ChatGPT. </strong>Add a custom MCP server with the same base URL and a Bearer key when asked.</li>
         <li><strong>OpenAI / Cursor. </strong>Use the URL as a remote Streamable HTTP MCP server. For Cursor-style local use, run <span className="num">npm run mcp</span>.</li>
       </ul>
       <p>What Kaz can do over MCP:</p>
@@ -740,10 +744,15 @@ npm run dev`}</pre>
         <li><strong>list_services. </strong>See the full API and MCP catalog.</li>
       </ul>
       <p>
-        Screening and docs tools work without a key. For live snapshots and token risk, create a <span className="num">kt_</span> key on the <button type="button" className="quiet-link" onClick={() => go("/api")}>API page</button> and send it as a Bearer token when the client asks for auth.
+        Screening and docs tools work without a key. For live snapshots and token risk, create a <span className="num">kt_</span> key on the{" "}
+        <button type="button" className="quiet-link" onClick={() => go("/api")}>API page</button>. Put it in the Claude connector URL path, or in an Authorization header when the client supports one.
       </p>
-      <pre className="code">{`# Paste into Claude Connectors / ChatGPT MCP / OpenAI
+      <pre className="code">{`# Claude without a header field
+${MCP_URL}/kt_YOUR_KEY
+
+# Claude / ChatGPT with Authorization header
 ${MCP_URL}
+Authorization: Bearer kt_YOUR_KEY
 
 # Local
 npm run mcp

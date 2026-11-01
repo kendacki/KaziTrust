@@ -1,4 +1,5 @@
 import { track } from "../mcp/analytics.mjs";
+import { keyFromHeaders, keyFromUrl, withApiKey } from "../mcp/auth.mjs";
 import { handleMcpMessage, mcpHttpHeaders } from "../mcp/protocol.mjs";
 
 export const config = { maxDuration: 30 };
@@ -41,6 +42,7 @@ async function run(req) {
   const method = (req?.method || "GET").toUpperCase();
   const headers = mcpHttpHeaders();
   const accept = header(req, "accept").toLowerCase();
+  const requestUrl = requestUrlOf(req);
 
   if (method === "OPTIONS") {
     return { status: 204, body: "", headers };
@@ -64,10 +66,15 @@ async function run(req) {
         protocol: "MCP over JSON-RPC POST",
         endpoint: "/mcp",
         tools: ["search", "fetch", "screen_address", "wallet_snapshot", "token_risk", "list_services"],
-        auth: "Optional Bearer kt_ key for hosted chain and RugCheck tools. search, fetch, screen_address, and list_services work without a key.",
+        auth: {
+          header: "Authorization: Bearer kt_your_key",
+          also: ["x-api-key", "path /mcp/kt_your_key", "tool arg api_key"],
+          note: "search, fetch, screen_address, and list_services work without a key.",
+        },
         connect: {
-          claude: "Settings → Connectors → Add custom connector → paste https://www.kazitrustai.fun/mcp",
-          chatgpt: "Add a custom MCP server with https://www.kazitrustai.fun/mcp",
+          claude:
+            "Settings → Connectors → Add custom connector. If there is no Request headers field, paste https://www.kazitrustai.fun/mcp/kt_YOUR_KEY. If Request headers is available, use the plain /mcp URL and set Authorization to Bearer kt_YOUR_KEY.",
+          chatgpt: "Add a custom MCP server with https://www.kazitrustai.fun/mcp and a Bearer kt_ key when asked.",
           note: "Do not open this URL as a normal chat link. Paste it into the MCP / connector settings of your client.",
         },
       },
@@ -87,12 +94,11 @@ async function run(req) {
     return { status: 400, body: { error: "Body must be JSON-RPC." }, headers };
   }
 
-  const env = { ...process.env };
-  const auth = header(req, "authorization");
-  if (auth) {
-    const token = auth.replace(/^Bearer\s+/i, "").trim();
-    if (token) env.KAZITRUST_API_KEY = token;
-  }
+  let env = { ...process.env };
+  const key =
+    keyFromHeaders((name) => header(req, name)) ||
+    keyFromUrl(requestUrl);
+  env = withApiKey(env, key);
   if (!env.KAZITRUST_BASE_URL) {
     const host = header(req, "x-forwarded-host") || header(req, "host") || "www.kazitrustai.fun";
     const proto = header(req, "x-forwarded-proto") || "https";
@@ -102,6 +108,19 @@ async function run(req) {
   const reply = await handleMcpMessage(message, env);
   if (reply == null) return { status: 202, body: "", headers };
   return { status: 200, body: reply, headers };
+}
+
+function requestUrlOf(req) {
+  const host = header(req, "x-forwarded-host") || header(req, "host") || "www.kazitrustai.fun";
+  const proto = header(req, "x-forwarded-proto") || "https";
+  if (typeof req?.url === "string" && req.url) {
+    try {
+      return new URL(req.url, `${proto}://${host}`);
+    } catch {
+      /* fall through */
+    }
+  }
+  return new URL(`${proto}://${host}/mcp`);
 }
 
 function header(req, name) {

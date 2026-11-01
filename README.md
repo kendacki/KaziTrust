@@ -103,9 +103,9 @@ https://www.kazitrustai.fun/mcp
 
 Transport is Streamable HTTP over JSON-RPC `POST`. `GET /mcp` returns a short discovery document. Do not paste the URL into a normal chat. Add it in connector / MCP settings.
 
-In Claude: Settings → Connectors → Add custom connector → `https://www.kazitrustai.fun/mcp`.
+In Claude: Settings → Connectors → Add custom connector. If there is no Request headers / API key field, paste `https://www.kazitrustai.fun/mcp/kt_YOUR_KEY`. If Request headers is available, use the plain `/mcp` URL and set `Authorization` to `Bearer kt_YOUR_KEY`.
 
-In ChatGPT: add a custom MCP server with the same URL. For hosted chain and RugCheck tools, send a KaziTrust API key as a bearer token. `search`, `fetch`, `screen_address`, and `list_services` work without a key.
+In ChatGPT: add a custom MCP server with the same base URL. For hosted chain and RugCheck tools, send a KaziTrust API key as a bearer token. `search`, `fetch`, `screen_address`, and `list_services` work without a key.
 
 OpenAI Responses API example:
 

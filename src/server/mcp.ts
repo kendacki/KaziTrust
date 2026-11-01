@@ -1,5 +1,6 @@
 import type { Connect, Plugin } from "vite";
 // Local MCP JSON-RPC helpers (plain ESM next to the Vite app).
+import { keyFromHeaders, keyFromUrl, withApiKey } from "../../mcp/auth.mjs";
 import { handleMcpMessage, mcpHttpHeaders } from "../../mcp/protocol.mjs";
 
 type NodeRequest = {
@@ -23,11 +24,13 @@ export function mcpPlugin(): Plugin {
     middlewares.use((req, res, next) => {
       const request = req as NodeRequest;
       const url = new URL(request.url ?? "", "http://127.0.0.1");
-      if (url.pathname !== "/mcp" && url.pathname !== "/api/mcp") {
+      const path = url.pathname.replace(/\/+$/, "") || "/";
+      const mcpPath = path === "/mcp" || path === "/api/mcp" || path.startsWith("/mcp/") || path.startsWith("/api/mcp/");
+      if (!mcpPath) {
         next();
         return;
       }
-      void handle(request, res as NodeResponse, origin);
+      void handle(request, res as NodeResponse, origin, url);
     });
   };
   return {
@@ -48,7 +51,7 @@ export function mcpPlugin(): Plugin {
   };
 }
 
-async function handle(req: NodeRequest, res: NodeResponse, origin: string) {
+async function handle(req: NodeRequest, res: NodeResponse, origin: string, url: URL) {
   const headers = mcpHttpHeaders();
   for (const key of Object.keys(headers)) res.setHeader(key, headers[key] ?? "");
 
@@ -81,12 +84,11 @@ async function handle(req: NodeRequest, res: NodeResponse, origin: string) {
   try {
     const raw = await readBody(req);
     const message = JSON.parse(raw || "{}") as unknown;
-    const env: Record<string, string | undefined> = { ...process.env, KAZITRUST_BASE_URL: origin, KAZITRUST_MCP_OPEN: "1" };
-    const auth = header(req, "authorization");
-    if (auth) {
-      const token = auth.replace(/^Bearer\s+/i, "").trim();
-      if (token) env.KAZITRUST_API_KEY = token;
-    }
+    let env: Record<string, string | undefined> = { ...process.env, KAZITRUST_BASE_URL: origin, KAZITRUST_MCP_OPEN: "1" };
+    env = withApiKey(
+      env,
+      keyFromHeaders((name: string) => header(req, name)) || keyFromUrl(url),
+    );
     const reply = await handleMcpMessage(message, env);
     if (reply == null) {
       res.statusCode = 202;

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { createServer } from "node:http";
+import { keyFromHeaders, keyFromUrl, withApiKey } from "./auth.mjs";
 import { handleMcpMessage, mcpHttpHeaders } from "./protocol.mjs";
 
 const port = Number(process.env.MCP_PORT || 8787);
@@ -38,12 +39,15 @@ const server = createServer(async (req, res) => {
     for await (const chunk of req) chunks.push(chunk);
     const raw = Buffer.concat(chunks).toString("utf8");
     const message = JSON.parse(raw || "{}");
-    const env = { ...process.env };
-    const auth = req.headers.authorization;
-    if (auth) {
-      const token = String(auth).replace(/^Bearer\s+/i, "").trim();
-      if (token) env.KAZITRUST_API_KEY = token;
-    }
+    const requestUrl = new URL(req.url || "/mcp", `http://${host}:${port}`);
+    let env = { ...process.env };
+    env = withApiKey(
+      env,
+      keyFromHeaders((name) => {
+        const value = req.headers[name] || req.headers[name.toLowerCase()];
+        return Array.isArray(value) ? value[0] || "" : value || "";
+      }) || keyFromUrl(requestUrl),
+    );
     if (!env.KAZITRUST_BASE_URL) env.KAZITRUST_BASE_URL = `http://${host}:${process.env.VITE_PORT || 5173}`;
     const reply = await handleMcpMessage(message, env);
     if (reply == null) {

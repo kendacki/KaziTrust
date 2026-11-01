@@ -23,7 +23,7 @@ const DOCS = {
     id: "api-overview",
     title: "KaziTrust API",
     url: "https://kazitrustai.fun/api",
-    text: "Base URL https://www.kazitrustai.fun/api/v1. Send Authorization: Bearer kt_your_key. Services: POST /rpc, GET /rugcheck?mint=, GET /restrictions, GET /solscan, POST /wording. MCP endpoint: https://www.kazitrustai.fun/mcp",
+    text: "Base URL https://www.kazitrustai.fun/api/v1. Send Authorization: Bearer kt_your_key. Services: POST /rpc, GET /rugcheck?mint=, GET /restrictions, GET /solscan, POST /wording. MCP endpoint: https://www.kazitrustai.fun/mcp or https://www.kazitrustai.fun/mcp/kt_your_key for Claude Connectors without a header field.",
   },
   "binance-hack-2026": {
     id: "binance-hack-2026",
@@ -88,7 +88,7 @@ export const TOOLS = [
   {
     name: "wallet_snapshot",
     description:
-      "Read a live Solana wallet snapshot: lamports balance, executable flag, owner, and recent signatures. Use this for a quick on-chain overview before a deeper app read.",
+      "Read a live Solana wallet snapshot: lamports balance, executable flag, owner, and recent signatures. Use this for a quick on-chain overview before a deeper app read. Needs a kt_ API key on the connector URL, Authorization header, or api_key argument.",
     inputSchema: {
       type: "object",
       properties: {
@@ -97,6 +97,10 @@ export const TOOLS = [
           type: "number",
           description: "Signature window size, 1 to 25. Default 8.",
         },
+        api_key: {
+          type: "string",
+          description: "Optional kt_ API key when the connector URL or Authorization header has none.",
+        },
       },
       required: ["address"],
     },
@@ -104,11 +108,15 @@ export const TOOLS = [
   {
     name: "token_risk",
     description:
-      "Fetch the RugCheck report for a Solana mint. Use this for token risk, not for ordinary wallet scores. RugCheck does not change the KaziTrust number.",
+      "Fetch the RugCheck report for a Solana mint. Use this for token risk, not for ordinary wallet scores. RugCheck does not change the KaziTrust number. Needs a kt_ API key on the connector URL, Authorization header, or api_key argument.",
     inputSchema: {
       type: "object",
       properties: {
         mint: { type: "string", description: "Base58 mint address" },
+        api_key: {
+          type: "string",
+          description: "Optional kt_ API key when the connector URL or Authorization header has none.",
+        },
       },
       required: ["mint"],
     },
@@ -296,10 +304,14 @@ function listServices(env) {
   return {
     name: "KaziTrust",
     scoringVersion: SCORING_VERSION,
-    app: "https://kazitrustai.fun",
+    app: "https://www.kazitrustai.fun",
     apiBase: `${apiBase(env)}/api/v1`,
     mcp: `${apiBase(env)}/mcp`,
-    auth: "Send Authorization: Bearer kt_your_key for API and MCP tool calls that hit hosted services.",
+    auth: {
+      header: "Authorization: Bearer kt_your_key",
+      claudeUrl: `${apiBase(env)}/mcp/kt_your_key`,
+      note: "Claude Connectors often have no header field. Re-add the connector with the keyed URL. Or pass api_key on wallet_snapshot / token_risk.",
+    },
     tools: TOOLS.map((tool) => tool.name),
     lists: {
       ofac: "OFAC SDN Solana addresses",

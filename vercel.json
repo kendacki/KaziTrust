@@ -52,6 +52,7 @@
   ],
   "rewrites": [
     { "source": "/rpc", "destination": "/api/rpc" },
+    { "source": "/mcp/:key*", "destination": "/api/mcp?key=:key*" },
     { "source": "/mcp", "destination": "/api/mcp" },
     { "source": "/((?!api/|.*\\..*).*)", "destination": "/index.html" }
   ]
