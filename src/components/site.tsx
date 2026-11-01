@@ -741,7 +741,11 @@ npm run mcp
 # Local HTTP
 npm run mcp:http`}</pre>
       <p>
-        Create a key from the <button type="button" className="quiet-link" onClick={() => go("/api")}>API page</button> when you need snapshot or token tools. Full field notes also live in the repo under <span className="num">mcp/README.md</span>.
+        Create a key from the <button type="button" className="quiet-link" onClick={() => go("/api")}>API page</button> when you need snapshot or token tools. Extra local and remote notes are in{" "}
+        <a className="quiet-link" href="https://github.com/kendacki/KaziTrust/blob/main/mcp/README.md" target="_blank" rel="noreferrer">
+          mcp/README.md
+        </a>
+        .
       </p>
       <h2 id="errors">Errors</h2>
       <ul>
