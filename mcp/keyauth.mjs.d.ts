@@ -1,6 +1,19 @@
 export function sha(value: string): Promise<string>;
 export function bearer(headerValue: unknown): string;
 export function dailyReadLimit(env?: NodeJS.ProcessEnv | Record<string, string | undefined>): number;
+export function issueApiKey(
+  input: { hours: number; purpose?: string; ownerId?: string; readLimit?: number },
+  env?: NodeJS.ProcessEnv | Record<string, string | undefined>,
+): Promise<{
+  key: string;
+  prefix: string;
+  createdAt: string;
+  expiresAt: string;
+  hash: string;
+  ownerId: string | null;
+  readLimit: number;
+  purpose: string;
+}>;
 export function saveRemoteKey(
   record: Record<string, unknown>,
   env?: NodeJS.ProcessEnv | Record<string, string | undefined>,

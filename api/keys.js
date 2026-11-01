@@ -1,4 +1,4 @@
-import { dailyReadLimit, keyQuota, saveRemoteKey } from "../mcp/keyauth.mjs";
+import { dailyReadLimit, issueApiKey, keyQuota, saveRemoteKey } from "../mcp/keyauth.mjs";
 import { track } from "../mcp/analytics.mjs";
 
 const COOKIE = "kazitrust_key";
@@ -94,16 +94,19 @@ async function run(request, raw) {
   if (purpose === "development" && hours > 168) {
     return { status: 400, body: { error: "Development keys can stay active for at most 7 days." } };
   }
-  const issued = mint(hours);
   const readLimit = dailyReadLimit(process.env);
+  const issued = await issueApiKey(
+    { hours, purpose, ownerId: session.ownerId, readLimit },
+    process.env,
+  );
   current = {
-    hash: await sha(issued.key),
+    hash: issued.hash,
     prefix: issued.prefix,
     createdAt: issued.createdAt,
     expiresAt: issued.expiresAt,
     ownerId: session.ownerId,
-    readLimit,
-    purpose,
+    readLimit: issued.readLimit,
+    purpose: issued.purpose,
   };
   await saveRemoteKey(current, process.env);
   const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
@@ -111,11 +114,14 @@ async function run(request, raw) {
   return {
     status: 200,
     body: {
-      ...issued,
-      readLimit,
-      purpose,
+      key: issued.key,
+      prefix: issued.prefix,
+      createdAt: issued.createdAt,
+      expiresAt: issued.expiresAt,
+      readLimit: issued.readLimit,
+      purpose: issued.purpose,
       ownerBound: true,
-      quota: { used: 0, limit: readLimit, remaining: readLimit },
+      quota: { used: 0, limit: issued.readLimit, remaining: issued.readLimit },
     },
     cookie: await seal(current, secret, host, maxAge),
   };
@@ -194,23 +200,6 @@ function asRequest(input) {
 
 function env(name) {
   return globalThis.process?.env?.[name] || "";
-}
-
-function mint(hours) {
-  const created = new Date();
-  const bytes = crypto.getRandomValues(new Uint8Array(24));
-  const key = `kt_${[...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
-  return {
-    key,
-    prefix: key.slice(0, 7),
-    createdAt: created.toISOString(),
-    expiresAt: new Date(created.getTime() + hours * 60 * 60 * 1000).toISOString(),
-  };
-}
-
-async function sha(value) {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 async function signedIn(appId, appSecret, token) {

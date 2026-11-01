@@ -1,4 +1,5 @@
-const KEY_RE = /^kt_[A-Za-z0-9_]+$/;
+// Supports legacy kt_hex keys and signed kt_id_exp_meta_sig keys.
+const KEY_RE = /^kt_[A-Za-z0-9_]{6,160}$/;
 
 export function normalizeApiKey(value) {
   if (typeof value !== "string") return "";

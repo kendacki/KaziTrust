@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { ingestClientEvents, summarize, track } from "../analytics.mjs";
 import { keyFromUrl, normalizeApiKey } from "../auth.mjs";
 import { callTool } from "../handlers.mjs";
-import { consumeKeyRead, dailyReadLimit, saveRemoteKey, sha } from "../keyauth.mjs";
+import { consumeKeyRead, dailyReadLimit, issueApiKey, resolveApiKey } from "../keyauth.mjs";
 import { handleMcpMessage } from "../protocol.mjs";
 import { openModeEnabled, redactSecrets } from "../security.mjs";
 
@@ -12,6 +12,7 @@ const env = {
   KAZITRUST_BASE_URL: process.env.KAZITRUST_BASE_URL || "https://www.kazitrustai.fun",
   VERCEL_ENV: "development",
   KAZITRUST_API_DAILY_READS: "3",
+  PRIVY_APP_SECRET: process.env.PRIVY_APP_SECRET || "smoke-privy-secret-for-signed-keys",
 };
 
 assert.equal(normalizeApiKey("Bearer kt_abc123"), "kt_abc123");
@@ -33,27 +34,28 @@ const gated = await handleMcpMessage(
 );
 assert.equal(gated.error?.code, -32001);
 
-const smokeKey = "kt_smokequota001smokequota001smoke01";
-const smokeHash = await sha(smokeKey);
-await saveRemoteKey(
-  {
-    hash: smokeHash,
-    prefix: smokeKey.slice(0, 7),
-    createdAt: new Date().toISOString(),
-    expiresAt: new Date(Date.now() + 3600_000).toISOString(),
-    ownerId: "did:privy:smoke",
-    readLimit: 2,
-  },
-  { ...process.env, VERCEL_ENV: "production" },
+const prodEnv = {
+  ...process.env,
+  VERCEL_ENV: "production",
+  PRIVY_APP_SECRET: env.PRIVY_APP_SECRET,
+  KAZITRUST_API_DAILY_READS: "2",
+};
+const issued = await issueApiKey(
+  { hours: 1, purpose: "development", ownerId: "did:privy:smoke", readLimit: 2 },
+  prodEnv,
 );
+assert.match(issued.key, /^kt_[a-f0-9]{32}_/i);
+const resolved = await resolveApiKey(issued.key, {}, prodEnv);
+assert.equal(resolved.ok, true);
+assert.equal(keyFromUrl(`https://www.kazitrustai.fun/mcp/${issued.key}`), issued.key);
 
-const first = await consumeKeyRead(smokeKey, {}, { ...process.env, VERCEL_ENV: "production", KAZITRUST_API_DAILY_READS: "2" });
+const first = await consumeKeyRead(issued.key, {}, prodEnv);
 assert.equal(first.ok, true);
 assert.equal(first.remaining, 1);
-const second = await consumeKeyRead(smokeKey, {}, { ...process.env, VERCEL_ENV: "production", KAZITRUST_API_DAILY_READS: "2" });
+const second = await consumeKeyRead(issued.key, {}, prodEnv);
 assert.equal(second.ok, true);
 assert.equal(second.remaining, 0);
-const third = await consumeKeyRead(smokeKey, {}, { ...process.env, VERCEL_ENV: "production", KAZITRUST_API_DAILY_READS: "2" });
+const third = await consumeKeyRead(issued.key, {}, prodEnv);
 assert.equal(third.ok, false);
 
 const badKey = await handleMcpMessage(
@@ -66,10 +68,29 @@ const badKey = await handleMcpMessage(
       arguments: { mint: "So11111111111111111111111111111111111111112", api_key: "kt_smoke_key_for_auth_gate" },
     },
   },
-  { ...process.env, KAZITRUST_BASE_URL: env.KAZITRUST_BASE_URL, VERCEL_ENV: "production" },
+  { ...process.env, KAZITRUST_BASE_URL: env.KAZITRUST_BASE_URL, VERCEL_ENV: "production", PRIVY_APP_SECRET: env.PRIVY_APP_SECRET },
 );
 assert.equal(badKey.error?.code, -32001);
 assert.match(String(badKey.error?.message || ""), /invalid or expired|API key/i);
+
+const snapKey = await issueApiKey(
+  { hours: 1, purpose: "development", ownerId: "did:privy:smoke-snap", readLimit: 30 },
+  { ...prodEnv, KAZITRUST_API_DAILY_READS: "30" },
+);
+const goodSnap = await handleMcpMessage(
+  {
+    jsonrpc: "2.0",
+    id: 101,
+    method: "tools/call",
+    params: {
+      name: "wallet_snapshot",
+      arguments: { address: "not-an-address", api_key: snapKey.key },
+    },
+  },
+  { ...process.env, KAZITRUST_BASE_URL: env.KAZITRUST_BASE_URL, VERCEL_ENV: "production", PRIVY_APP_SECRET: env.PRIVY_APP_SECRET, KAZITRUST_API_DAILY_READS: "30" },
+);
+assert.equal(goodSnap.error, undefined);
+assert.equal(goodSnap.result?.isError, true);
 
 function ok(reply) {
   assert.equal(reply.jsonrpc, "2.0");

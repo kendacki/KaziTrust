@@ -1,5 +1,5 @@
 import { track } from "../mcp/analytics.mjs";
-import { keyFromHeaders, keyFromUrl, withApiKey } from "../mcp/auth.mjs";
+import { keyFromHeaders, keyFromUrl, normalizeApiKey, withApiKey } from "../mcp/auth.mjs";
 import { handleMcpMessage, mcpHttpHeaders } from "../mcp/protocol.mjs";
 import { clientIp, publicError, rateLimit, redactSecrets } from "../mcp/security.mjs";
 
@@ -102,7 +102,8 @@ async function run(req) {
   let env = { ...process.env };
   const key =
     keyFromHeaders((name) => header(req, name)) ||
-    keyFromUrl(requestUrl);
+    keyFromUrl(requestUrl) ||
+    normalizeFromQuery(req);
   env = withApiKey(env, key);
   if (!env.KAZITRUST_BASE_URL) {
     const host = header(req, "x-forwarded-host") || header(req, "host") || "www.kazitrustai.fun";
@@ -126,6 +127,14 @@ function requestUrlOf(req) {
     }
   }
   return new URL(`${proto}://${host}/mcp`);
+}
+
+function normalizeFromQuery(req) {
+  const query = req?.query;
+  if (!query || typeof query !== "object") return "";
+  const raw = query.key || query.api_key || query.apiKey || "";
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return normalizeApiKey(value);
 }
 
 function header(req, name) {

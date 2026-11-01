@@ -81,10 +81,45 @@ export async function apiKeyAllowed(token, reqHeaders = {}, env = process.env) {
 }
 
 /**
+ * Issue a self-verifying key so MCP connectors work without Redis/cookies.
+ * Format: kt_<id>_<exp36>_<purpose><limit36>_<mac>
+ */
+export async function issueApiKey(
+  { hours, purpose = "production", ownerId = "", readLimit },
+  env = process.env,
+) {
+  const secret = signingSecret(env);
+  if (!secret) throw new Error("Sign-in is not configured.");
+  const created = new Date();
+  const expiresAt = new Date(created.getTime() + hours * 60 * 60 * 1000).toISOString();
+  const limit = Number(readLimit) || dailyReadLimit(env);
+  const idBytes = crypto.getRandomValues(new Uint8Array(16));
+  const id = [...idBytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  const expMs = Date.parse(expiresAt);
+  const purposeFlag = purpose === "development" ? "d" : "p";
+  const meta = `${purposeFlag}${Math.max(1, Math.min(500, limit)).toString(36)}`;
+  // Sign only public token fields so any serverless instance can verify without Redis/cookies.
+  const body = `${id}.${expMs}.${meta}`;
+  const mac = (await hmacHex(secret, body)).slice(0, 20);
+  const key = `kt_${id}_${expMs.toString(36)}_${meta}_${mac}`;
+  const hash = await sha(key);
+  return {
+    key,
+    prefix: key.slice(0, 7),
+    createdAt: created.toISOString(),
+    expiresAt,
+    hash,
+    ownerId: ownerId || null,
+    readLimit: limit,
+    purpose: purpose === "development" ? "development" : "production",
+  };
+}
+
+/**
  * @returns {Promise<{ ok: boolean, reason?: string, hash?: string, record?: Record<string, unknown> }>}
  */
 export async function resolveApiKey(token, reqHeaders = {}, env = process.env) {
-  if (!token || typeof token !== "string" || !token.startsWith("kt_") || token.length > 80) {
+  if (!token || typeof token !== "string" || !token.startsWith("kt_") || token.length > 160) {
     return { ok: false, reason: "missing" };
   }
   if (openModeEnabled(env)) {
@@ -118,6 +153,10 @@ export async function resolveApiKey(token, reqHeaders = {}, env = process.env) {
     };
   }
 
+  // Prefer self-verifying signed keys so Claude MCP works without Redis or cookies.
+  const signed = await verifySignedKey(token, env);
+  if (signed.ok) return signed;
+
   const remote = (await loadKeyByHash(hash, env)) || (await loadLegacyKey(env));
   if (remote?.hash && String(remote.hash).toLowerCase() === hash) {
     if (remote.expiresAt && Date.parse(String(remote.expiresAt)) <= Date.now()) {
@@ -135,6 +174,50 @@ export async function resolveApiKey(token, reqHeaders = {}, env = process.env) {
     return { ok: true, hash, record: { ...cookie, readLimit: dailyReadLimit(env) } };
   }
   return { ok: false, reason: "invalid" };
+}
+
+async function verifySignedKey(token, env) {
+  const secret = signingSecret(env);
+  if (!secret) return { ok: false, reason: "missing" };
+  const match = /^kt_([a-f0-9]{32})_([a-z0-9]+)_([dp][a-z0-9]+)_([a-f0-9]{20})$/i.exec(token);
+  if (!match) return { ok: false, reason: "invalid" };
+  const id = match[1].toLowerCase();
+  const expMs = Number.parseInt(match[2], 36);
+  const meta = match[3];
+  const mac = match[4].toLowerCase();
+  if (!Number.isFinite(expMs)) return { ok: false, reason: "invalid" };
+  if (expMs <= Date.now()) return { ok: false, reason: "expired" };
+  const purposeFlag = meta[0];
+  const readLimit = Number.parseInt(meta.slice(1), 36);
+  if ((purposeFlag !== "d" && purposeFlag !== "p") || !Number.isFinite(readLimit)) {
+    return { ok: false, reason: "invalid" };
+  }
+  const body = `${id}.${expMs}.${meta}`;
+  const expected = (await hmacHex(secret, body)).slice(0, 20);
+  if (expected !== mac) return { ok: false, reason: "invalid" };
+  const hash = await sha(token);
+  return {
+    ok: true,
+    hash,
+    record: {
+      hash,
+      prefix: token.slice(0, 7),
+      expiresAt: new Date(expMs).toISOString(),
+      readLimit: Math.max(1, Math.min(500, readLimit)),
+      purpose: purposeFlag === "d" ? "development" : "production",
+      ownerId: null,
+    },
+  };
+}
+
+function signingSecret(env) {
+  return String(env.PRIVY_APP_SECRET || env.KAZITRUST_KEY_SECRET || "").trim();
+}
+
+async function hmacHex(secret, value) {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(value));
+  return [...new Uint8Array(sig)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 /**
