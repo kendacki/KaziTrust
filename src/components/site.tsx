@@ -112,7 +112,7 @@ export function Chrome({
                 <p className="eyebrow">Developers</p>
                 <button type="button" onClick={() => go("/docs")}>Docs</button>
                 <button type="button" onClick={() => go("/api")}>API</button>
-                <button type="button" onClick={() => go("/#developers")}>API shape</button>
+                <button type="button" onClick={() => go("/docs#mcp")}>MCP</button>
               </div>
               <div className="footer-col">
                 <p className="eyebrow">Notes</p>
