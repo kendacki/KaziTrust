@@ -8,7 +8,8 @@ import { IconAgent, IconApproval, IconArrow, IconAttach, IconBook, IconBuilding,
 import { EvidenceList } from "./report";
 import type { Finding } from "../types";
 
-const SITE = "https://kazitrustai.fun";
+const SITE = "https://www.kazitrustai.fun";
+const MCP_URL = `${SITE}/mcp`;
 
 const explorerRows = [
   "5jF2…a91k  System program  2.40 SOL",
@@ -718,16 +719,18 @@ npm run dev`}</pre>
   -H "Authorization: Bearer kt_your_key" \\
   -H "Content-Type: application/json" \\
   -d "{\\"kind\\":\\"chat\\",\\"question\\":\\"What does a low score mean?\\"}"`}</pre>
-      <h2 id="mcp">MCP for ChatGPT and OpenAI</h2>
+      <h2 id="mcp">MCP for ChatGPT, Claude, and OpenAI</h2>
       <p>
-        Want Kaz inside ChatGPT or another AI client? Point the client at our MCP server. It gets the same wallet checks you use here, without wiring each API path yourself.
+        Kaz can sit inside ChatGPT, Claude, Cursor, and other MCP clients. Paste the server URL into the client’s connector / MCP settings. Do not drop the link into a normal chat message. Chat apps cannot open an MCP endpoint that way, and they will say the page failed.
       </p>
       <p>
-        Server URL: <span className="num">{SITE}/mcp</span>
+        Server URL: <span className="num">{MCP_URL}</span>
       </p>
-      <p>
-        In ChatGPT, open custom MCP / plugins, add that URL, and save. OpenAI Responses and other MCP clients use the same address. Ask something like “Screen this Solana wallet with KaziTrust,” and Kaz will call the tools for you.
-      </p>
+      <ul>
+        <li><strong>Claude. </strong>Settings → Connectors → Add custom connector → paste the URL above. Then ask Claude to screen a Solana wallet with KaziTrust.</li>
+        <li><strong>ChatGPT. </strong>Add a custom MCP server with the same URL.</li>
+        <li><strong>OpenAI / Cursor. </strong>Use the URL as a remote Streamable HTTP MCP server. For Cursor-style local use, run <span className="num">npm run mcp</span>.</li>
+      </ul>
       <p>What Kaz can do over MCP:</p>
       <ul>
         <li><strong>screen_address. </strong>Check an address against OFAC SDN (when available), the Meteora Kelsier list, and the Binance hack 2026 Solana watchlist.</li>
@@ -737,12 +740,12 @@ npm run dev`}</pre>
         <li><strong>list_services. </strong>See the full API and MCP catalog.</li>
       </ul>
       <p>
-        Screening and docs tools work without a key. For live snapshots and token risk, create a <span className="num">kt_</span> key on the <button type="button" className="quiet-link" onClick={() => go("/api")}>API page</button> and send it as a Bearer token with the MCP connection.
+        Screening and docs tools work without a key. For live snapshots and token risk, create a <span className="num">kt_</span> key on the <button type="button" className="quiet-link" onClick={() => go("/api")}>API page</button> and send it as a Bearer token when the client asks for auth.
       </p>
-      <pre className="code">{`# Add this URL in ChatGPT or OpenAI
-${SITE}/mcp
+      <pre className="code">{`# Paste into Claude Connectors / ChatGPT MCP / OpenAI
+${MCP_URL}
 
-# On your machine
+# Local
 npm run mcp
 npm run mcp:http`}</pre>
       <p>

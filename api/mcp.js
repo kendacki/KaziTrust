@@ -7,7 +7,7 @@ export default async function handler(req, res) {
   const started = Date.now();
   try {
     const result = await run(req);
-    if ((req?.method || "GET").toUpperCase() !== "GET") {
+    if ((req?.method || "GET").toUpperCase() !== "GET" || result.status >= 400) {
       await track(
         {
           source: "mcp",
@@ -15,7 +15,7 @@ export default async function handler(req, res) {
           ok: result.status < 400,
           ms: Date.now() - started,
           error: result.status >= 400 ? String(result.body?.error || result.status) : undefined,
-          meta: { route: "/mcp", status: result.status },
+          meta: { route: "/mcp", status: result.status, method: (req?.method || "GET").toUpperCase() },
         },
         process.env,
       );
@@ -40,21 +40,36 @@ export default async function handler(req, res) {
 async function run(req) {
   const method = (req?.method || "GET").toUpperCase();
   const headers = mcpHttpHeaders();
+  const accept = header(req, "accept").toLowerCase();
 
   if (method === "OPTIONS") {
     return { status: 204, body: "", headers };
   }
 
+  if (method === "DELETE") {
+    return { status: 405, body: { error: "This MCP server does not use client-managed sessions." }, headers };
+  }
+
   if (method === "GET") {
+    // Streamable HTTP clients that only ask for SSE should get 405, not a JSON page.
+    if (accept.includes("text/event-stream") && !accept.includes("application/json") && !accept.includes("*/*") && !accept.includes("text/html")) {
+      return { status: 405, body: { error: "SSE listen is not enabled. Use JSON-RPC POST." }, headers };
+    }
     return {
       status: 200,
       body: {
         name: "KaziTrust MCP",
+        agent: "Kaz",
         transport: "streamable-http",
         protocol: "MCP over JSON-RPC POST",
         endpoint: "/mcp",
         tools: ["search", "fetch", "screen_address", "wallet_snapshot", "token_risk", "list_services"],
         auth: "Optional Bearer kt_ key for hosted chain and RugCheck tools. search, fetch, screen_address, and list_services work without a key.",
+        connect: {
+          claude: "Settings → Connectors → Add custom connector → paste https://www.kazitrustai.fun/mcp",
+          chatgpt: "Add a custom MCP server with https://www.kazitrustai.fun/mcp",
+          note: "Do not open this URL as a normal chat link. Paste it into the MCP / connector settings of your client.",
+        },
       },
       headers,
     };
@@ -79,7 +94,7 @@ async function run(req) {
     if (token) env.KAZITRUST_API_KEY = token;
   }
   if (!env.KAZITRUST_BASE_URL) {
-    const host = header(req, "x-forwarded-host") || header(req, "host") || "kazitrustai.fun";
+    const host = header(req, "x-forwarded-host") || header(req, "host") || "www.kazitrustai.fun";
     const proto = header(req, "x-forwarded-proto") || "https";
     env.KAZITRUST_BASE_URL = `${proto}://${host}`;
   }

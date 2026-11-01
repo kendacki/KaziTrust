@@ -6,7 +6,7 @@ import { handleMcpMessage } from "../protocol.mjs";
 const env = {
   ...process.env,
   KAZITRUST_MCP_OPEN: "1",
-  KAZITRUST_BASE_URL: process.env.KAZITRUST_BASE_URL || "https://kazitrustai.fun",
+  KAZITRUST_BASE_URL: process.env.KAZITRUST_BASE_URL || "https://www.kazitrustai.fun",
 };
 
 function ok(reply) {

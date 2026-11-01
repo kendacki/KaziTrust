@@ -1,4 +1,33 @@
 {
+  "functions": {
+    "api/mcp.js": {
+      "includeFiles": "mcp/**"
+    },
+    "api/analytics.js": {
+      "includeFiles": "mcp/**"
+    },
+    "api/v1/[[...path]].js": {
+      "includeFiles": "mcp/**"
+    },
+    "api/solscan.js": {
+      "includeFiles": "mcp/**"
+    },
+    "api/rugcheck.js": {
+      "includeFiles": "mcp/**"
+    },
+    "api/restrictions.js": {
+      "includeFiles": "mcp/**"
+    },
+    "api/groq.js": {
+      "includeFiles": "mcp/**"
+    },
+    "api/keys.js": {
+      "includeFiles": "mcp/**"
+    },
+    "api/rpc.js": {
+      "includeFiles": "mcp/**"
+    }
+  },
   "headers": [
     {
       "source": "/favicon.ico",

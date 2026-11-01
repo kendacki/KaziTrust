@@ -107,6 +107,16 @@ const CODES = [
   ["503", "Labels, wording, token risk, or the blocked list is not configured on this server."],
 ];
 
+function mcpOrigin(origin: string) {
+  try {
+    const url = new URL(origin);
+    if (url.hostname === "kazitrustai.fun") url.hostname = "www.kazitrustai.fun";
+    return url.origin;
+  } catch {
+    return origin;
+  }
+}
+
 export function ApiDesk() {
   const { authenticated, getAccessToken } = usePrivy();
   return <ApiKeys getAccessToken={authenticated ? getAccessToken : undefined} />;
@@ -205,11 +215,11 @@ function ApiPublic({ go }: { go: (to: string) => void }) {
         <dl className="api-facts">
           <div>
             <dt>MCP</dt>
-            <dd className="num">{origin}/mcp</dd>
+            <dd className="num">{mcpOrigin(origin)}/mcp</dd>
           </div>
           <div>
             <dt>For</dt>
-            <dd>ChatGPT, OpenAI, Cursor</dd>
+            <dd>Claude, ChatGPT, Cursor</dd>
           </div>
           <div>
             <dt>Auth</dt>
@@ -217,7 +227,7 @@ function ApiPublic({ go }: { go: (to: string) => void }) {
           </div>
         </dl>
         <p className="quiet">
-          Paste that URL into ChatGPT or OpenAI as a custom MCP server so Kaz can screen wallets from chat. Full steps are in{" "}
+          Add that URL in Claude Connectors or ChatGPT MCP settings. Do not paste it into a normal chat. Full steps are in{" "}
           <button type="button" className="quiet-link" onClick={() => go("/docs#mcp")}>
             Docs → MCP
           </button>
@@ -527,14 +537,14 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
             </div>
             <div>
               <dt>MCP</dt>
-              <dd className="num">{origin}/mcp</dd>
+              <dd className="num">{mcpOrigin(origin)}/mcp</dd>
             </div>
             <div>
               <dt>Session</dt>
               <dd>Not used on these calls</dd>
             </div>
           </dl>
-          <p className="quiet">Paste the MCP URL into ChatGPT or OpenAI. Snapshot and token tools need this key as Bearer.</p>
+          <p className="quiet">Add the MCP URL in Claude Connectors or ChatGPT settings. Snapshot and token tools need this key as Bearer.</p>
         </section>
         <section className="api-key-block" aria-label="First call">
           <div className="api-meta">

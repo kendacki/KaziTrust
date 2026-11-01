@@ -98,12 +98,14 @@ KaziTrust exposes a remote Model Context Protocol server so ChatGPT, the OpenAI 
 ### Remote endpoint
 
 ```
-https://kazitrustai.fun/mcp
+https://www.kazitrustai.fun/mcp
 ```
 
-Transport is Streamable HTTP over JSON-RPC `POST`. `GET /mcp` returns a short discovery document.
+Transport is Streamable HTTP over JSON-RPC `POST`. `GET /mcp` returns a short discovery document. Do not paste the URL into a normal chat. Add it in connector / MCP settings.
 
-In ChatGPT: Plugins → Add custom MCP server → Server URL `https://kazitrustai.fun/mcp`. For hosted chain and RugCheck tools, send a KaziTrust API key as a bearer token. `search`, `fetch`, `screen_address`, and `list_services` work without a key.
+In Claude: Settings → Connectors → Add custom connector → `https://www.kazitrustai.fun/mcp`.
+
+In ChatGPT: add a custom MCP server with the same URL. For hosted chain and RugCheck tools, send a KaziTrust API key as a bearer token. `search`, `fetch`, `screen_address`, and `list_services` work without a key.
 
 OpenAI Responses API example:
 
@@ -117,7 +119,7 @@ curl https://api.openai.com/v1/responses \
       "type": "mcp",
       "server_label": "kazitrust",
       "server_description": "Solana wallet risk, restriction lists, and token checks.",
-      "server_url": "https://kazitrustai.fun/mcp",
+      "server_url": "https://www.kazitrustai.fun/mcp",
       "authorization": "Bearer kt_your_key",
       "require_approval": "never"
     }],

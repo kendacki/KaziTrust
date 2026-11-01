@@ -1,20 +1,10 @@
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import binanceHack from "./lists/binance-hack-2026.json" with { type: "json" };
+import kelsier from "./lists/kelsier.json" with { type: "json" };
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SCORING_VERSION = "0.4.3";
-
 const ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
-
-function loadJson(relative) {
-  return JSON.parse(readFileSync(join(ROOT, relative), "utf8"));
-}
-
-const kelsier = loadJson("src/engine/lists/kelsier.json");
-const binanceHack = loadJson("src/engine/lists/binance-hack-2026.json");
-const KELSIER = new Set(kelsier.addresses);
-const BINANCE = new Set(binanceHack.addresses);
+const KELSIER = new Set(kelsier.addresses || []);
+const BINANCE = new Set(binanceHack.addresses || []);
 
 const DOCS = {
   "method-overview": {
@@ -33,7 +23,7 @@ const DOCS = {
     id: "api-overview",
     title: "KaziTrust API",
     url: "https://kazitrustai.fun/api",
-    text: "Base URL https://kazitrustai.fun/api/v1. Send Authorization: Bearer kt_your_key. Services: POST /rpc, GET /rugcheck?mint=, GET /restrictions, GET /solscan, POST /wording. MCP endpoint: https://kazitrustai.fun/mcp",
+    text: "Base URL https://www.kazitrustai.fun/api/v1. Send Authorization: Bearer kt_your_key. Services: POST /rpc, GET /rugcheck?mint=, GET /restrictions, GET /solscan, POST /wording. MCP endpoint: https://www.kazitrustai.fun/mcp",
   },
   "binance-hack-2026": {
     id: "binance-hack-2026",
@@ -368,8 +358,8 @@ async function rpc(method, params, env) {
 }
 
 function apiBase(env) {
-  const raw = (env.KAZITRUST_BASE_URL || env.MCP_BASE_URL || "https://kazitrustai.fun").trim().replace(/\/$/, "");
-  return raw || "https://kazitrustai.fun";
+  const raw = (env.KAZITRUST_BASE_URL || env.MCP_BASE_URL || "https://www.kazitrustai.fun").trim().replace(/\/$/, "");
+  return raw || "https://www.kazitrustai.fun";
 }
 
 function authHeaders(env) {

@@ -1,6 +1,8 @@
 import { track } from "./analytics.mjs";
 import { callTool, INSTRUCTIONS, SERVER_INFO, TOOLS } from "./handlers.mjs";
 
+const SUPPORTED_PROTOCOL = new Set(["2024-11-05", "2025-03-26", "2025-06-18"]);
+
 export async function handleMcpMessage(message, env = process.env) {
   if (!message || typeof message !== "object") {
     return errorResponse(null, -32600, "Invalid request");
@@ -26,8 +28,10 @@ async function handleOne(message, env) {
   const started = Date.now();
   try {
     if (method === "initialize") {
+      const requested = String(message.params?.protocolVersion || "2024-11-05");
+      const protocolVersion = SUPPORTED_PROTOCOL.has(requested) ? requested : "2024-11-05";
       const payload = result(id, {
-        protocolVersion: "2024-11-05",
+        protocolVersion,
         capabilities: { tools: { listChanged: false } },
         serverInfo: {
           name: SERVER_INFO.name,
@@ -37,7 +41,7 @@ async function handleOne(message, env) {
         },
         instructions: INSTRUCTIONS,
       });
-      await track({ source: "mcp", name: "initialize", ok: true, ms: Date.now() - started }, env);
+      await track({ source: "mcp", name: "initialize", ok: true, ms: Date.now() - started, meta: { protocolVersion } }, env);
       return payload;
     }
     if (method === "ping") return result(id, {});
