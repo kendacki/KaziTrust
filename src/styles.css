@@ -1956,7 +1956,7 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   .nav nav.open { animation: phone-rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
   .nav nav.open a { display: flex; align-items: center; min-height: 44px; }
   .announce button { font-size: 12px; padding: 8px 0; }
-  .hero { gap: 16px; padding: 20px 0 8px; }
+  .hero { gap: 16px; padding-block: 20px 8px; }
   .hero-copy { gap: 14px; }
   .hero-actions { gap: 8px; }
   .hero-actions .btn { padding: 10px 14px; font-size: 14px; }
@@ -2118,14 +2118,15 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
     overflow-x: clip;
   }
   .site .wrap,
-  .site .frame {
+  .site .frame,
+  .site .nav.frame,
+  .site .announce .frame,
+  .site .home .hero.wrap {
     width: 100%;
     max-width: var(--page-max);
-    padding-inline: max(var(--gutter), env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
     box-sizing: border-box;
-  }
-  .site .home .hero {
-    padding-inline: max(var(--gutter), env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
+    padding-left: max(var(--gutter), env(safe-area-inset-left, 0px));
+    padding-right: max(var(--gutter), env(safe-area-inset-right, 0px));
   }
   .site .footer-panel {
     width: calc(100% - (var(--gutter) * 2));
@@ -2222,12 +2223,17 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
     flex-direction: column;
     align-items: stretch;
     gap: 16px;
-    padding: 14px 0 24px;
+    /* Keep sides via padding-left/right — never use padding shorthand here. */
+    padding-top: 14px;
+    padding-bottom: 24px;
+    padding-left: max(var(--gutter), env(safe-area-inset-left, 0px));
+    padding-right: max(var(--gutter), env(safe-area-inset-right, 0px));
     position: relative;
     z-index: 1;
     isolation: isolate;
     overflow: visible;
     min-height: 0;
+    box-sizing: border-box;
   }
   .site .home .hero > h1 {
     flex: 0 0 auto;
@@ -2573,7 +2579,10 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   }
   .site .home .hero {
     gap: 14px;
-    padding: 12px 0 20px;
+    padding-top: 12px;
+    padding-bottom: 20px;
+    padding-left: max(var(--gutter), env(safe-area-inset-left, 0px));
+    padding-right: max(var(--gutter), env(safe-area-inset-right, 0px));
   }
   .site .home .hero > h1 { font-size: clamp(22px, 6.2vw, 28px); }
   .site .home .hero-film {
