@@ -114,11 +114,6 @@ export function Chrome({
                 <button type="button" onClick={() => go("/api")}>API</button>
                 <button type="button" onClick={() => go("/docs#mcp")}>MCP</button>
               </div>
-              <div className="footer-col">
-                <p className="eyebrow">Notes</p>
-                <button type="button" onClick={() => go("/docs#disclaimer")}>Disclaimer</button>
-                <button type="button" onClick={() => go("/docs#privacy")}>Privacy</button>
-              </div>
             </div>
           </div>
           <div className="frame footer-meta">
