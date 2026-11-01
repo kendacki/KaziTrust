@@ -38,15 +38,12 @@ export function App() {
     const hash = to.includes("#") ? to.split("#")[1] : "";
     window.history.pushState({}, "", to);
     setUrl(window.location.pathname + window.location.search + window.location.hash);
-    if (hash) {
-      window.setTimeout(() => document.getElementById(hash)?.scrollIntoView({ behavior: "smooth" }), 40);
-    } else {
-      window.scrollTo(0, 0);
-    }
+    if (!hash) window.scrollTo(0, 0);
   }, []);
 
   const bare = url.split("?")[0].split("#")[0] || "/";
   const path = bare.length > 1 ? bare.replace(/\/+$/, "") : bare;
+  const hash = url.includes("#") ? url.split("#")[1] : "";
   const online = useOnline();
   const missing = !KNOWN.has(path);
   useEffect(() => {
@@ -56,6 +53,28 @@ export function App() {
   useEffect(() => {
     trackPage(!online ? "offline" : missing ? "missing" : path);
   }, [path, online, missing]);
+
+  // Hash targets often mount after route animation; retry until the section exists.
+  useEffect(() => {
+    if (!hash) return;
+    let cancelled = false;
+    let tries = 0;
+    const jump = () => {
+      if (cancelled) return;
+      const target = document.getElementById(hash);
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+      tries += 1;
+      if (tries < 30) window.setTimeout(jump, 40);
+    };
+    const start = window.setTimeout(jump, 60);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(start);
+    };
+  }, [path, hash]);
 
   let body;
   if (!online) body = <Lost go={go} mode="offline" />;
