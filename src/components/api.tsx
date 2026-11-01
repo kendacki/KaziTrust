@@ -25,6 +25,14 @@ type KeyRecord = {
   createdAt: string;
   expiresAt: string | null;
   active: boolean;
+  readLimit?: number;
+  ownerBound?: boolean;
+};
+
+type KeyQuota = {
+  used: number;
+  limit: number;
+  remaining: number;
 };
 
 const SERVICES: Service[] = [
@@ -333,12 +341,14 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
   const [error, setError] = useState("");
   const [hours, setHours] = useState(24);
   const [now, setNow] = useState(() => Date.now());
+  const [quota, setQuota] = useState<KeyQuota | null>(null);
   const bearer = secret || "kt_your_key";
   const life = keyLifetime(hours) ?? KEY_LIFETIMES[2];
   const ends = record?.expiresAt ? Date.parse(record.expiresAt) : NaN;
   const remaining = Number.isFinite(ends) ? ends - now : null;
   const expired = Boolean(record) && (remaining !== null ? remaining <= 0 : !record?.active);
   const liveKey = Boolean(record) && !expired;
+  const mcpKeyed = secret ? `${mcpOrigin(origin)}/mcp/${secret}` : `${mcpOrigin(origin)}/mcp/kt_YOUR_KEY`;
 
   useEffect(() => {
     if (!record?.expiresAt || expired) return;
@@ -356,8 +366,10 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
     let live = true;
     void (async () => {
       try {
-        const next = await readRecord(await sessionHeaders(tokenRef.current));
+        const loaded = await readKeyState(await sessionHeaders(tokenRef.current));
         if (!live) return;
+        const next = loaded.key;
+        setQuota(loaded.quota);
         const saved = loadApiKey();
         if (next && saved?.prefix === next.prefix) {
           setRecord(next);
@@ -403,17 +415,33 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
         credentials: "include",
         body: JSON.stringify({ hours: life.hours }),
       });
-      const body = (await response.json().catch(() => null)) as { key?: string; prefix?: string; createdAt?: string; expiresAt?: string; error?: string } | null;
+      const body = (await response.json().catch(() => null)) as {
+        key?: string;
+        prefix?: string;
+        createdAt?: string;
+        expiresAt?: string;
+        readLimit?: number;
+        quota?: KeyQuota;
+        error?: string;
+      } | null;
       if (!response.ok || !body?.key?.startsWith("kt_") || !body.prefix || !body.createdAt || !body.expiresAt) {
         throw new Error(keyFailure(response.status, body?.error));
       }
       const issued = { key: body.key, prefix: body.prefix, createdAt: body.createdAt, expiresAt: body.expiresAt };
       saveApiKey(issued);
-      setRecord({ prefix: issued.prefix, createdAt: issued.createdAt, expiresAt: issued.expiresAt, active: true });
+      setRecord({
+        prefix: issued.prefix,
+        createdAt: issued.createdAt,
+        expiresAt: issued.expiresAt,
+        active: true,
+        readLimit: body.readLimit,
+        ownerBound: true,
+      });
       setSecret(issued.key);
+      setQuota(body.quota ?? { used: 0, limit: body.readLimit || 30, remaining: body.readLimit || 30 });
       setNow(Date.now());
       setConfirm(false);
-      setNotice(`Key created. It stops after ${life.label}. Copy it now.`);
+      setNotice(`Key created. It stops after ${life.label}. ${body.readLimit || 30} MCP/API reads per day on this key. Copy the Claude connector URL below.`);
       track({ name: "api_key_create", meta: { hours: life.hours } });
     } catch (caught) {
       track({ name: "api_key_create", ok: false, error: caught instanceof Error ? caught.message : "key failed" });
@@ -438,7 +466,9 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
     <div className="api-page api-keys wrap">
       <header className="page-head">
         <h1>Your key</h1>
-        <p className="lede">Create the key for every service. Choose how long it stays active. It is shown in full once, and it stops when that time ends.</p>
+        <p className="lede">
+          Sign in, create a key, then paste the Claude connector URL below. Live MCP and API reads on this key share one daily quota tied to your signed-in account.
+        </p>
       </header>
 
       <section className="api-key" aria-label="Your key">
@@ -458,6 +488,18 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
           <div>
             <dt>Time left</dt>
             <dd className="num">{loading ? "Checking" : !record ? life.label : remaining === null ? "No end time" : formatKeyRemaining(remaining)}</dd>
+          </div>
+          <div>
+            <dt>Reads today</dt>
+            <dd className="num">
+              {loading
+                ? "Checking"
+                : quota
+                  ? `${quota.remaining} of ${quota.limit} left`
+                  : liveKey
+                    ? `${record?.readLimit ?? 30} / day`
+                    : "After create"}
+            </dd>
           </div>
         </dl>
         <div className="api-key-body">
@@ -544,7 +586,9 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
               <dd>Not used on these calls</dd>
             </div>
           </dl>
-          <p className="quiet">Claude without a header field: paste {mcpOrigin(origin)}/mcp/ followed by this key. Or use Authorization Bearer when the client supports it.</p>
+          <p className="quiet">
+            Claude usually has no API-key field. Use the keyed connector URL in the Claude section below. wallet_snapshot and token_risk each use one daily read on this key.
+          </p>
         </section>
         <section className="api-key-block" aria-label="First call">
           <div className="api-meta">
@@ -556,6 +600,33 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
           <pre className="code">{`curl ${origin}/api/v1 \\\n  -H "Authorization: Bearer ${bearer}"`}</pre>
         </section>
       </div>
+
+      <section className="api-key-block" aria-labelledby="claude-mcp-title">
+        <div className="api-meta">
+          <h2 id="claude-mcp-title">Connect Claude</h2>
+          {secret && !expired ? (
+            <button type="button" className="btn ghost" onClick={() => void copy(mcpKeyed, "Claude connector URL copied.")}>
+              Copy connector URL
+            </button>
+          ) : null}
+        </div>
+        <ol className="api-open-list">
+          <li>
+            <strong>1.</strong> Sign in here and create a key. Replacing a key retires the old one for your account.
+          </li>
+          <li>
+            <strong>2.</strong> In Claude: Settings → Connectors → Add custom connector.
+          </li>
+          <li>
+            <strong>3.</strong> Paste this URL (key in the path). Claude often has no separate API-key box.
+          </li>
+        </ol>
+        <pre className="code">{mcpKeyed}</pre>
+        <p className="quiet">
+          If Claude shows Request headers, you may use {mcpOrigin(origin)}/mcp and set Authorization to Bearer plus your key instead. Each wallet_snapshot or token_risk call spends one of this key’s daily reads
+          {quota ? ` (${quota.remaining} left today)` : ""}. Docs and screen_address stay free.
+        </p>
+      </section>
 
       <section className="api-key-block" aria-labelledby="api-opens-title">
         <h2 id="api-opens-title">What this key opens</h2>
@@ -583,15 +654,29 @@ async function sessionHeaders(readToken: (() => Promise<string | null>) | undefi
   }
 }
 
-async function readRecord(headers: HeadersInit): Promise<KeyRecord | null> {
+async function readKeyState(headers: HeadersInit): Promise<{ key: KeyRecord | null; quota: KeyQuota | null }> {
   const response = await fetch("/api/keys", { headers, credentials: "include" });
-  const body = (await response.json().catch(() => null)) as { key?: KeyRecord | null; error?: string } | null;
+  const body = (await response.json().catch(() => null)) as {
+    key?: KeyRecord | null;
+    quota?: KeyQuota | null;
+    error?: string;
+  } | null;
   if (!response.ok) throw new Error(keyFailure(response.status, body?.error));
   const key = body?.key;
-  if (!key?.prefix || !key.createdAt) return null;
+  if (!key?.prefix || !key.createdAt) return { key: null, quota: body?.quota ?? null };
   const expiresAt = typeof key.expiresAt === "string" && Number.isFinite(Date.parse(key.expiresAt)) ? key.expiresAt : null;
   const active = typeof key.active === "boolean" ? key.active : keyActive(expiresAt);
-  return { prefix: key.prefix, createdAt: key.createdAt, expiresAt, active };
+  return {
+    key: {
+      prefix: key.prefix,
+      createdAt: key.createdAt,
+      expiresAt,
+      active,
+      readLimit: typeof key.readLimit === "number" ? key.readLimit : undefined,
+      ownerBound: Boolean(key.ownerBound),
+    },
+    quota: body?.quota ?? null,
+  };
 }
 
 function keyFailure(status: number, error?: string): string {

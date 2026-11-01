@@ -1,7 +1,7 @@
 import { track } from "./analytics.mjs";
 import { keyFromArgs, stripKeyArgs, withApiKey } from "./auth.mjs";
 import { callTool, INSTRUCTIONS, SERVER_INFO, TOOLS } from "./handlers.mjs";
-import { apiKeyAllowed } from "./keyauth.mjs";
+import { consumeKeyRead, resolveApiKey } from "./keyauth.mjs";
 import { mcpCorsHeaders, openModeEnabled, publicError, redactSecrets, securityHeaders } from "./security.mjs";
 
 const SUPPORTED_PROTOCOL = new Set(["2024-11-05", "2025-03-26", "2025-06-18"]);
@@ -79,6 +79,21 @@ async function handleOne(message, env) {
         );
         return errorResponse(id, -32001, gate);
       }
+      const quotaGate = await enforceQuota(callEnv, name);
+      if (quotaGate) {
+        await track(
+          {
+            source: "mcp",
+            name: "tools/call",
+            ok: false,
+            ms: Date.now() - started,
+            error: redactSecrets(quotaGate),
+            meta: { tool: name, reason: "quota" },
+          },
+          env,
+        );
+        return errorResponse(id, -32001, quotaGate);
+      }
       const output = await callTool(name, args, callEnv);
       const failed = Boolean(output?.isError);
       await track(
@@ -121,20 +136,32 @@ async function handleOne(message, env) {
   }
 }
 
+const FREE_TOOLS = new Set(["search", "fetch", "list_services", "screen_address"]);
+const QUOTA_TOOLS = new Set(["wallet_snapshot", "token_risk"]);
+
 async function authorize(env, toolName) {
   if (openModeEnabled(env)) return null;
-  // Public reads: docs, list screening, and wallet snapshots via the open /rpc proxy.
-  if (toolName === "search" || toolName === "fetch" || toolName === "list_services" || toolName === "screen_address" || toolName === "wallet_snapshot") {
-    return null;
-  }
-  // Paid / credentialed upstreams (RugCheck, etc.) require a real issued kt_ key.
+  if (FREE_TOOLS.has(toolName)) return null;
+  // wallet_snapshot and token_risk need the account key so quota can be charged to that key only.
+  if (!QUOTA_TOOLS.has(toolName)) return null;
   const key = (env.KAZITRUST_API_KEY || env.MCP_API_KEY || "").trim();
   if (!key) {
-    return "token_risk needs a kt_ API key. In Claude: reconnect with https://www.kazitrustai.fun/mcp/kt_YOUR_KEY (or Authorization: Bearer kt_YOUR_KEY). You can also pass api_key on the tool call.";
+    return `${toolName} needs your kt_ API key. In Claude: Settings → Connectors → remove the old connector → Add custom connector with https://www.kazitrustai.fun/mcp/kt_YOUR_KEY. Create the key while signed in on https://www.kazitrustai.fun/api.`;
   }
-  if (!(await apiKeyAllowed(key, {}, env))) {
-    return "API key is invalid or expired. Create a new kt_ key on https://www.kazitrustai.fun/api and reconnect the MCP connector.";
+  const resolved = await resolveApiKey(key, {}, env);
+  if (!resolved.ok) {
+    return "API key is invalid or expired. Sign in on https://www.kazitrustai.fun/api, create a new key, and reconnect Claude with that keyed MCP URL.";
   }
+  return null;
+}
+
+async function enforceQuota(env, toolName) {
+  if (openModeEnabled(env)) return null;
+  if (!QUOTA_TOOLS.has(toolName)) return null;
+  const key = (env.KAZITRUST_API_KEY || env.MCP_API_KEY || "").trim();
+  if (!key) return null;
+  const quota = await consumeKeyRead(key, {}, env);
+  if (!quota.ok) return quota.error || "Daily read limit reached for this API key.";
   return null;
 }
 

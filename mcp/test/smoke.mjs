@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { ingestClientEvents, summarize, track } from "../analytics.mjs";
 import { keyFromUrl, normalizeApiKey } from "../auth.mjs";
 import { callTool } from "../handlers.mjs";
+import { consumeKeyRead, dailyReadLimit, saveRemoteKey, sha } from "../keyauth.mjs";
 import { handleMcpMessage } from "../protocol.mjs";
 import { openModeEnabled, redactSecrets } from "../security.mjs";
 
@@ -10,6 +11,7 @@ const env = {
   KAZITRUST_MCP_OPEN: "1",
   KAZITRUST_BASE_URL: process.env.KAZITRUST_BASE_URL || "https://www.kazitrustai.fun",
   VERCEL_ENV: "development",
+  KAZITRUST_API_DAILY_READS: "3",
 };
 
 assert.equal(normalizeApiKey("Bearer kt_abc123"), "kt_abc123");
@@ -18,17 +20,41 @@ assert.equal(keyFromUrl("https://www.kazitrustai.fun/mcp?key=kt_abc123"), "kt_ab
 assert.match(redactSecrets("Bearer kt_abc123def4567890abcd"), /Bearer …|kt_abc12…/);
 assert.equal(openModeEnabled({ KAZITRUST_MCP_OPEN: "1", VERCEL_ENV: "production" }), false);
 assert.equal(openModeEnabled({ KAZITRUST_MCP_OPEN: "1", VERCEL_ENV: "development" }), true);
+assert.equal(dailyReadLimit({ KAZITRUST_API_DAILY_READS: "3" }), 3);
 
 const gated = await handleMcpMessage(
   {
     jsonrpc: "2.0",
     id: 99,
     method: "tools/call",
-    params: { name: "token_risk", arguments: { mint: "So11111111111111111111111111111111111111112" } },
+    params: { name: "wallet_snapshot", arguments: { address: "11111111111111111111111111111111" } },
   },
   { ...process.env, KAZITRUST_BASE_URL: env.KAZITRUST_BASE_URL, VERCEL_ENV: "production" },
 );
 assert.equal(gated.error?.code, -32001);
+
+const smokeKey = "kt_smokequota001smokequota001smoke01";
+const smokeHash = await sha(smokeKey);
+await saveRemoteKey(
+  {
+    hash: smokeHash,
+    prefix: smokeKey.slice(0, 7),
+    createdAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+    ownerId: "did:privy:smoke",
+    readLimit: 2,
+  },
+  { ...process.env, VERCEL_ENV: "production" },
+);
+
+const first = await consumeKeyRead(smokeKey, {}, { ...process.env, VERCEL_ENV: "production", KAZITRUST_API_DAILY_READS: "2" });
+assert.equal(first.ok, true);
+assert.equal(first.remaining, 1);
+const second = await consumeKeyRead(smokeKey, {}, { ...process.env, VERCEL_ENV: "production", KAZITRUST_API_DAILY_READS: "2" });
+assert.equal(second.ok, true);
+assert.equal(second.remaining, 0);
+const third = await consumeKeyRead(smokeKey, {}, { ...process.env, VERCEL_ENV: "production", KAZITRUST_API_DAILY_READS: "2" });
+assert.equal(third.ok, false);
 
 const badKey = await handleMcpMessage(
   {
@@ -43,7 +69,7 @@ const badKey = await handleMcpMessage(
   { ...process.env, KAZITRUST_BASE_URL: env.KAZITRUST_BASE_URL, VERCEL_ENV: "production" },
 );
 assert.equal(badKey.error?.code, -32001);
-assert.match(String(badKey.error?.message || ""), /invalid or expired|kt_ API key/i);
+assert.match(String(badKey.error?.message || ""), /invalid or expired|API key/i);
 
 function ok(reply) {
   assert.equal(reply.jsonrpc, "2.0");

@@ -88,7 +88,7 @@ export const TOOLS = [
   {
     name: "wallet_snapshot",
     description:
-      "Read a live Solana wallet snapshot: lamports balance, executable flag, owner, and recent signatures. Use this for a quick on-chain overview before a deeper app read.",
+      "Read a live Solana wallet snapshot: lamports balance, executable flag, owner, and recent signatures. Needs the account kt_ API key (Claude connector URL or Authorization). Spends one daily read on that key.",
     inputSchema: {
       type: "object",
       properties: {
@@ -97,6 +97,10 @@ export const TOOLS = [
           type: "number",
           description: "Signature window size, 1 to 25. Default 8.",
         },
+        api_key: {
+          type: "string",
+          description: "Optional kt_ API key when the connector URL or Authorization header has none.",
+        },
       },
       required: ["address"],
     },
@@ -104,7 +108,7 @@ export const TOOLS = [
   {
     name: "token_risk",
     description:
-      "Fetch the RugCheck report for a Solana mint. Use this for token risk, not for ordinary wallet scores. RugCheck does not change the KaziTrust number. Needs a valid issued kt_ API key on the connector URL, Authorization header, or api_key argument.",
+      "Fetch the RugCheck report for a Solana mint. Use this for token risk, not for ordinary wallet scores. Needs a valid issued kt_ API key and spends one daily read on that key.",
     inputSchema: {
       type: "object",
       properties: {
@@ -306,7 +310,8 @@ function listServices(env) {
     auth: {
       header: "Authorization: Bearer kt_your_key",
       claudeUrl: `${apiBase(env)}/mcp/kt_your_key`,
-      note: "token_risk needs a valid issued kt_ key. Claude Connectors without a header field should use the keyed URL. Or pass api_key on token_risk.",
+      dailyReads: "wallet_snapshot and token_risk each spend one daily read on the key that was issued to your signed-in account.",
+      note: "Create the key while signed in on /api. Claude without a header field should use the keyed URL. Replacing a key retires the previous key for that account.",
     },
     tools: TOOLS.map((tool) => tool.name),
     lists: {

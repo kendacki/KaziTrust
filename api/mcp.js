@@ -74,13 +74,13 @@ async function run(req) {
         auth: {
           header: "Authorization: Bearer kt_your_key",
           also: ["x-api-key", "path /mcp/kt_your_key", "tool arg api_key"],
-          note: "search, fetch, screen_address, wallet_snapshot, and list_services work without a key. token_risk needs a valid issued kt_ key.",
+          note: "search, fetch, screen_address, and list_services are free. wallet_snapshot and token_risk need a valid issued kt_ key and each spend one daily read on that key.",
         },
         connect: {
           claude:
-            "Settings → Connectors → Add custom connector. If there is no Request headers field, paste https://www.kazitrustai.fun/mcp/kt_YOUR_KEY. If Request headers is available, use the plain /mcp URL and set Authorization to Bearer kt_YOUR_KEY.",
+            "Sign in at https://www.kazitrustai.fun/api → create a key → Copy connector URL → Claude Settings → Connectors → Add custom connector → paste https://www.kazitrustai.fun/mcp/kt_YOUR_KEY. Start a new chat after saving.",
           chatgpt: "Add a custom MCP server with https://www.kazitrustai.fun/mcp and a Bearer kt_ key when asked.",
-          note: "Do not open this URL as a normal chat link. Paste it into the MCP / connector settings of your client.",
+          note: "Do not open this URL as a normal chat link. Each key’s daily reads are tied to the signed-in account that created it.",
         },
       },
       headers,

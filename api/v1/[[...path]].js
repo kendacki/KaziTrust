@@ -1,5 +1,5 @@
 import { track } from "../../mcp/analytics.mjs";
-import { apiKeyAllowed, bearer } from "../../mcp/keyauth.mjs";
+import { bearer, consumeKeyRead, resolveApiKey } from "../../mcp/keyauth.mjs";
 import { clientIp, publicError, rateLimit, redactSecrets, securityHeaders } from "../../mcp/security.mjs";
 
 export const config = { maxDuration: 30 };
@@ -56,17 +56,40 @@ async function run(req, url, route) {
   }
 
   const token = bearer(header(req, "authorization"));
-  if (!(await apiKeyAllowed(token, req?.headers || {}, process.env))) {
+  const resolved = await resolveApiKey(token, req?.headers || {}, process.env);
+  if (!resolved.ok) {
     return { status: 401, body: { error: "Send the API key in the Authorization header." } };
   }
 
   if (method === "GET" && (route === "/api/v1" || route === "/api/v1/")) {
-    return { status: 200, body: { name: "KaziTrust", base: "/api/v1", services: SERVICES } };
+    return {
+      status: 200,
+      body: {
+        name: "KaziTrust",
+        base: "/api/v1",
+        services: SERVICES,
+        quota: {
+          note: "Each authenticated service call uses one daily read on this key.",
+          limit: Number(resolved.record?.readLimit) || null,
+        },
+      },
+    };
   }
 
   const target = forward(route);
   if (!target || method !== target.method) {
     return { status: 404, body: { error: "That service is not on this key." } };
+  }
+
+  const quota = await consumeKeyRead(resolved.hash, {}, process.env);
+  if (!quota.ok) {
+    return {
+      status: 429,
+      body: {
+        error: quota.error || "Daily read limit reached for this API key.",
+        quota: { used: quota.used, limit: quota.limit, remaining: quota.remaining },
+      },
+    };
   }
 
   const next = new URL(target.path, `${url.protocol}//${url.host}`);

@@ -17,20 +17,25 @@ Do not paste the MCP URL into a normal chat. Add it in the client’s connector 
 
 Claude’s connector dialog often has **no place to paste an API key** (Request headers is beta / org-gated).
 
-1. Create a `kt_` key on https://www.kazitrustai.fun/api
-2. Remove the old connector if you already added the plain `/mcp` URL
-3. Add a custom connector with this URL (key in the path):
+1. Sign in on https://www.kazitrustai.fun/api and create a `kt_` key (bound to your account)
+2. On the API page, click **Copy connector URL**
+3. In Claude: Settings → Connectors → remove any old KaziTrust connector → Add custom connector
+4. Paste:
 
 ```text
 https://www.kazitrustai.fun/mcp/kt_YOUR_KEY
 ```
+
+5. Start a **new** Claude chat and ask it to run a wallet snapshot
 
 If your Claude plan shows **Request headers**, you can instead use `https://www.kazitrustai.fun/mcp` and set:
 
 - Header: `Authorization`
 - Value: `Bearer kt_YOUR_KEY` (include the word `Bearer` and the space)
 
-`wallet_snapshot` and `token_risk` also accept an `api_key` argument as a last resort.
+### Quotas
+
+Each issued key gets a daily read budget (default **30**, override with `KAZITRUST_API_DAILY_READS`). Creating a new key retires the previous key for that signed-in account. `wallet_snapshot` and `token_risk` each spend one read. Docs tools (`search`, `fetch`, `list_services`, `screen_address`) stay free. When the budget is gone, MCP returns an auth/quota error until UTC midnight.
 
 ## Environment
 
@@ -38,7 +43,9 @@ If your Claude plan shows **Request headers**, you can instead use `https://www.
 | --- | --- |
 | `KAZITRUST_BASE_URL` | API origin. Defaults to `https://www.kazitrustai.fun`. |
 | `KAZITRUST_API_KEY` | Bearer `kt_` key for `wallet_snapshot` and `token_risk` (stdio / local HTTP). |
-| `KAZITRUST_MCP_OPEN` | Set to `1` to allow all tools without a key (local only). |
+| `KAZITRUST_API_DAILY_READS` | Daily MCP/API reads per issued key. Default `30`. |
+| `KAZITRUST_MCP_OPEN` | Set to `1` to allow all tools without a key (local only; ignored on Vercel production). |
+| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Persist keys and per-key daily counters across serverless instances. |
 | `MCP_PORT` | Port for `npm run mcp:http`. Default `8787`. |
 
 ## Cursor / Claude Desktop stdio example

@@ -1,4 +1,4 @@
-import { saveRemoteKey } from "../mcp/keyauth.mjs";
+import { dailyReadLimit, keyQuota, saveRemoteKey } from "../mcp/keyauth.mjs";
 import { track } from "../mcp/analytics.mjs";
 
 const COOKIE = "kazitrust_key";
@@ -61,25 +61,53 @@ async function run(request, raw) {
   const restored = await readCookie(request.headers.get("cookie") || "", secret);
   if (restored) current = restored;
   const token = (request.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").trim();
-  let allowed = false;
+  let session;
   try {
-    allowed = await signedIn(appId, secret, token);
+    session = await signedIn(appId, secret, token);
   } catch {
     return { status: 503, body: { error: "Sign-in is not configured." } };
   }
-  if (!allowed) return { status: 401, body: { error: "Sign in before creating a key." } };
+  if (!session?.ok || !session.ownerId) return { status: 401, body: { error: "Sign in before creating a key." } };
   if (request.method === "GET") {
-    return { status: 200, body: { key: viewOf(current) } };
+    const view = viewOf(current);
+    if (!view) return { status: 200, body: { key: null, quota: null } };
+    const quota = current?.hash ? await keyQuota(current.hash, {}, process.env) : null;
+    return {
+      status: 200,
+      body: {
+        key: view,
+        quota: quota?.ok
+          ? { used: quota.used, limit: quota.limit, remaining: quota.remaining }
+          : { used: 0, limit: dailyReadLimit(process.env), remaining: dailyReadLimit(process.env) },
+      },
+    };
   }
   if (request.method !== "POST") return { status: 405, body: { error: "Use GET or POST." } };
   const hours = readHours(raw);
   if (!LIFETIMES.includes(hours)) return { status: 400, body: { error: "Choose how long the key stays active." } };
   const issued = mint(hours);
-  current = { hash: await sha(issued.key), prefix: issued.prefix, createdAt: issued.createdAt, expiresAt: issued.expiresAt };
+  const readLimit = dailyReadLimit(process.env);
+  current = {
+    hash: await sha(issued.key),
+    prefix: issued.prefix,
+    createdAt: issued.createdAt,
+    expiresAt: issued.expiresAt,
+    ownerId: session.ownerId,
+    readLimit,
+  };
   await saveRemoteKey(current, process.env);
   const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
   const maxAge = Math.max(1, Math.ceil((Date.parse(issued.expiresAt) - Date.now()) / 1000));
-  return { status: 200, body: issued, cookie: await seal(current, secret, host, maxAge) };
+  return {
+    status: 200,
+    body: {
+      ...issued,
+      readLimit,
+      ownerBound: true,
+      quota: { used: 0, limit: readLimit, remaining: readLimit },
+    },
+    cookie: await seal(current, secret, host, maxAge),
+  };
 }
 
 function viewOf(record) {
@@ -87,7 +115,14 @@ function viewOf(record) {
   const expiresAt = typeof record.expiresAt === "string" ? record.expiresAt : null;
   const ends = expiresAt ? Date.parse(expiresAt) : NaN;
   const active = !expiresAt || (Number.isFinite(ends) && ends > Date.now());
-  return { prefix: record.prefix, createdAt: record.createdAt, expiresAt, active };
+  return {
+    prefix: record.prefix,
+    createdAt: record.createdAt,
+    expiresAt,
+    active,
+    readLimit: Number(record.readLimit) || dailyReadLimit(process.env),
+    ownerBound: Boolean(record.ownerId),
+  };
 }
 
 function readHours(raw) {
@@ -164,7 +199,7 @@ async function sha(value) {
 }
 
 async function signedIn(appId, appSecret, token) {
-  if (!token || token.length > 8000) return false;
+  if (!token || token.length > 8000) return { ok: false };
   const key = cachedKey || (await verificationKey(appId, appSecret));
   cachedKey = key;
   return verify(token, key, appId);
@@ -185,17 +220,19 @@ async function verificationKey(appId, appSecret) {
 
 async function verify(token, pem, appId) {
   const parts = token.split(".");
-  if (parts.length !== 3) return false;
+  if (parts.length !== 3) return { ok: false };
   const header = JSON.parse(new TextDecoder().decode(base64Url(parts[0])));
   const payload = JSON.parse(new TextDecoder().decode(base64Url(parts[1])));
-  if (header.alg !== "ES256" || payload.iss !== "privy.io") return false;
+  if (header.alg !== "ES256" || payload.iss !== "privy.io") return { ok: false };
   const audience = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
-  if (!audience.includes(appId)) return false;
-  if (typeof payload.exp !== "number" || payload.exp * 1000 <= Date.now()) return false;
-  if (!payload.sub?.startsWith("did:privy:")) return false;
+  if (!audience.includes(appId)) return { ok: false };
+  if (typeof payload.exp !== "number" || payload.exp * 1000 <= Date.now()) return { ok: false };
+  if (!payload.sub?.startsWith("did:privy:")) return { ok: false };
   const key = await crypto.subtle.importKey("spki", copyBytes(pemBytes(pem)), { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
   const data = new TextEncoder().encode(`${parts[0]}.${parts[1]}`);
-  return crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, key, copyBytes(base64Url(parts[2])), data);
+  const ok = await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, key, copyBytes(base64Url(parts[2])), data);
+  if (!ok) return { ok: false };
+  return { ok: true, ownerId: String(payload.sub).slice(0, 120) };
 }
 
 function copyBytes(bytes) {

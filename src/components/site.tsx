@@ -728,9 +728,9 @@ npm run dev`}</pre>
       </p>
       <ul>
         <li>
-          <strong>Claude. </strong>Settings → Connectors → Add custom connector. Many Claude plans show no API-key field. In that case paste{" "}
-          <span className="num">{MCP_URL}/kt_YOUR_KEY</span>. If Request headers appears, use the plain URL above and set Authorization to{" "}
-          <span className="num">Bearer kt_YOUR_KEY</span>.
+          <strong>Claude. </strong>Sign in on the <button type="button" className="quiet-link" onClick={() => go("/api")}>API page</button>, create a key, copy the connector URL, then Settings → Connectors → Add custom connector and paste{" "}
+          <span className="num">{MCP_URL}/kt_YOUR_KEY</span>. That key’s daily read budget covers wallet_snapshot and token_risk only for the account that created it. If Request headers appears, you can use the plain URL with Authorization{" "}
+          <span className="num">Bearer kt_YOUR_KEY</span> instead.
         </li>
         <li><strong>ChatGPT. </strong>Add a custom MCP server with the same base URL and a Bearer key when asked.</li>
         <li><strong>OpenAI / Cursor. </strong>Use the URL as a remote Streamable HTTP MCP server. For Cursor-style local use, run <span className="num">npm run mcp</span>.</li>
@@ -744,8 +744,8 @@ npm run dev`}</pre>
         <li><strong>list_services. </strong>See the full API and MCP catalog.</li>
       </ul>
       <p>
-        Screening and docs tools work without a key. For live snapshots and token risk, create a <span className="num">kt_</span> key on the{" "}
-        <button type="button" className="quiet-link" onClick={() => go("/api")}>API page</button>. Put it in the Claude connector URL path, or in an Authorization header when the client supports one.
+        Screening and docs tools work without a key. Live snapshots and token risk need your account key and spend from that key’s daily read quota (default 30). Create the key on the{" "}
+        <button type="button" className="quiet-link" onClick={() => go("/api")}>API page</button>, then put it in the Claude connector URL path (or an Authorization header when the client supports one).
       </p>
       <pre className="code">{`# Claude without a header field
 ${MCP_URL}/kt_YOUR_KEY
