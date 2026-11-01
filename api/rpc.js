@@ -1,4 +1,5 @@
 import { track } from "../mcp/analytics.mjs";
+import { clientIp, rateLimit, redactSecrets, securityHeaders } from "../mcp/security.mjs";
 
 const PUBLIC_NODES = ["https://solana-rpc.publicnode.com", "https://api.mainnet-beta.solana.com", "https://api.mainnet.solana.com"];
 
@@ -37,7 +38,7 @@ export default async function handler(req, res) {
         name: "rpc",
         ok: false,
         ms: Date.now() - started,
-        error: error instanceof Error ? error.message : "rpc failed",
+        error: redactSecrets(error instanceof Error ? error.message : "rpc failed"),
         meta: { route: "/api/rpc" },
       },
       process.env,
@@ -48,6 +49,9 @@ export default async function handler(req, res) {
 
 async function run(req) {
   if ((req?.method || "GET") !== "POST") return { status: 405, body: envelope("Use POST.") };
+  if (!rateLimit(`rpc:${clientIp(req)}`, { limit: 120, windowMs: 60_000 })) {
+    return { status: 429, body: envelope("Too many chain reads. Try again shortly.") };
+  }
   const raw = await bodyOf(req);
   let parsed;
   try {
@@ -103,11 +107,12 @@ async function bodyOf(req) {
 }
 
 function write(res, status, body) {
+  const headers = { "content-type": "application/json", ...securityHeaders() };
   if (res && typeof res.end === "function") {
     res.statusCode = status;
-    res.setHeader("content-type", "application/json");
+    for (const [key, value] of Object.entries(headers)) res.setHeader(key, value);
     res.end(body);
     return;
   }
-  return new Response(body, { status, headers: { "content-type": "application/json" } });
+  return new Response(body, { status, headers });
 }

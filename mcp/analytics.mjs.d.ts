@@ -15,7 +15,7 @@ export function summarize(
   options?: { limit?: number },
 ): Promise<Record<string, unknown>>;
 
-export function analyticsHttpHeaders(): Record<string, string>;
+export function analyticsHttpHeaders(req?: unknown): Record<string, string>;
 
 export function authorizeAnalyticsRead(
   reqAuth: string,

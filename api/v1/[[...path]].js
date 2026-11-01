@@ -1,5 +1,6 @@
 import { track } from "../../mcp/analytics.mjs";
 import { apiKeyAllowed, bearer } from "../../mcp/keyauth.mjs";
+import { clientIp, publicError, rateLimit, redactSecrets, securityHeaders } from "../../mcp/security.mjs";
 
 export const config = { maxDuration: 30 };
 
@@ -24,7 +25,7 @@ export default async function handler(req, res) {
         name: "api_v1",
         ok: result.status < 400,
         ms: Date.now() - started,
-        error: result.status >= 400 ? String(result.body?.error || result.status) : undefined,
+        error: result.status >= 400 ? redactSecrets(String(result.body?.error || result.status)) : undefined,
         meta: { route, method: (req?.method || "GET").toUpperCase(), status: result.status },
       },
       process.env,
@@ -37,18 +38,22 @@ export default async function handler(req, res) {
         name: "api_v1",
         ok: false,
         ms: Date.now() - started,
-        error: error instanceof Error ? error.message : "gateway failed",
+        error: redactSecrets(error instanceof Error ? error.message : "gateway failed"),
         meta: { route, method: (req?.method || "GET").toUpperCase() },
       },
       process.env,
     );
-    return write(res, 502, { error: "The service did not answer." });
+    return write(res, 502, { error: publicError(error, "The service did not answer.") });
   }
 }
 
 async function run(req, url, route) {
   const method = (req?.method || "GET").toUpperCase();
   if (method === "OPTIONS") return { status: 204, body: "" };
+
+  if (!rateLimit(`api_v1:${clientIp(req)}`, { limit: 90, windowMs: 60_000 })) {
+    return { status: 429, body: { error: "Too many API requests. Try again shortly." } };
+  }
 
   const token = bearer(header(req, "authorization"));
   if (!(await apiKeyAllowed(token, req?.headers || {}, process.env))) {
@@ -83,7 +88,8 @@ async function run(req, url, route) {
   try {
     body = text ? JSON.parse(text) : {};
   } catch {
-    body = { error: "Upstream returned a non-JSON body.", raw: text.slice(0, 400) };
+    // Never echo upstream raw bodies — they may contain provider errors or secrets.
+    body = { error: "Upstream returned a non-JSON body." };
   }
   return { status: response.status, body };
 }
@@ -135,13 +141,15 @@ async function bodyOf(req) {
 }
 
 function write(res, status, body) {
+  const headers = { "content-type": "application/json", ...securityHeaders() };
   if (typeof res?.status === "function" && typeof res?.json === "function") {
+    for (const [key, value] of Object.entries(headers)) res.setHeader(key, value);
     if (body === "") return res.status(status).end();
     if (typeof body === "string") return res.status(status).send(body);
     return res.status(status).json(body);
   }
   res.statusCode = status;
-  res.setHeader("content-type", "application/json");
+  for (const [key, value] of Object.entries(headers)) res.setHeader(key, value);
   if (body === "") {
     res.end();
     return;

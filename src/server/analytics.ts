@@ -45,7 +45,7 @@ export function analyticsPlugin(): Plugin {
 }
 
 async function handle(req: NodeRequest, res: NodeResponse, url: URL) {
-  const headers = analyticsHttpHeaders();
+  const headers = analyticsHttpHeaders(req);
   for (const key of Object.keys(headers)) res.setHeader(key, headers[key] ?? "");
 
   const method = (req.method || "GET").toUpperCase();
@@ -61,10 +61,10 @@ async function handle(req: NodeRequest, res: NodeResponse, url: URL) {
       res.end(JSON.stringify({ ok: true, service: "analytics" }));
       return;
     }
-    const auth = header(req, "authorization") || url.searchParams.get("token") || "";
+    const auth = header(req, "authorization") || "";
     if (!authorizeAnalyticsRead(auth, process.env)) {
       res.statusCode = 401;
-      res.end(JSON.stringify({ error: "Analytics summary requires ANALYTICS_TOKEN." }));
+      res.end(JSON.stringify({ error: "Analytics summary requires Authorization: Bearer ANALYTICS_TOKEN." }));
       return;
     }
     const body = await summarize(process.env, { limit: Number(url.searchParams.get("limit") || 40) });
@@ -86,9 +86,9 @@ async function handle(req: NodeRequest, res: NodeResponse, url: URL) {
     const accepted = await ingestClientEvents(events, { ...process.env, KAZITRUST_MCP_OPEN: "1" });
     res.statusCode = 202;
     res.end(JSON.stringify({ ok: true, accepted: accepted.length }));
-  } catch (error) {
+  } catch {
     res.statusCode = 500;
-    res.end(JSON.stringify({ error: error instanceof Error ? error.message : "Analytics failed." }));
+    res.end(JSON.stringify({ error: "Analytics failed." }));
   }
 }
 

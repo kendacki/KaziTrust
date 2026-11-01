@@ -88,7 +88,7 @@ export const TOOLS = [
   {
     name: "wallet_snapshot",
     description:
-      "Read a live Solana wallet snapshot: lamports balance, executable flag, owner, and recent signatures. Use this for a quick on-chain overview before a deeper app read. Needs a kt_ API key on the connector URL, Authorization header, or api_key argument.",
+      "Read a live Solana wallet snapshot: lamports balance, executable flag, owner, and recent signatures. Use this for a quick on-chain overview before a deeper app read.",
     inputSchema: {
       type: "object",
       properties: {
@@ -97,10 +97,6 @@ export const TOOLS = [
           type: "number",
           description: "Signature window size, 1 to 25. Default 8.",
         },
-        api_key: {
-          type: "string",
-          description: "Optional kt_ API key when the connector URL or Authorization header has none.",
-        },
       },
       required: ["address"],
     },
@@ -108,7 +104,7 @@ export const TOOLS = [
   {
     name: "token_risk",
     description:
-      "Fetch the RugCheck report for a Solana mint. Use this for token risk, not for ordinary wallet scores. RugCheck does not change the KaziTrust number. Needs a kt_ API key on the connector URL, Authorization header, or api_key argument.",
+      "Fetch the RugCheck report for a Solana mint. Use this for token risk, not for ordinary wallet scores. RugCheck does not change the KaziTrust number. Needs a valid issued kt_ API key on the connector URL, Authorization header, or api_key argument.",
     inputSchema: {
       type: "object",
       properties: {
@@ -310,7 +306,7 @@ function listServices(env) {
     auth: {
       header: "Authorization: Bearer kt_your_key",
       claudeUrl: `${apiBase(env)}/mcp/kt_your_key`,
-      note: "Claude Connectors often have no header field. Re-add the connector with the keyed URL. Or pass api_key on wallet_snapshot / token_risk.",
+      note: "token_risk needs a valid issued kt_ key. Claude Connectors without a header field should use the keyed URL. Or pass api_key on token_risk.",
     },
     tools: TOOLS.map((tool) => tool.name),
     lists: {

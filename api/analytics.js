@@ -5,10 +5,9 @@ import {
   summarize,
   track,
 } from "../mcp/analytics.mjs";
+import { clientIp, publicError, rateLimit } from "../mcp/security.mjs";
 
 export const config = { maxDuration: 10 };
-
-const hits = new Map();
 
 export default async function handler(req, res) {
   try {
@@ -18,26 +17,31 @@ export default async function handler(req, res) {
     return write(
       res,
       500,
-      { error: error instanceof Error ? error.message : "Analytics failed." },
-      analyticsHttpHeaders(),
+      { error: publicError(error, "Analytics failed.") },
+      analyticsHttpHeaders(req),
     );
   }
 }
 
 async function run(req) {
   const method = (req?.method || "GET").toUpperCase();
-  const headers = analyticsHttpHeaders();
+  const headers = analyticsHttpHeaders(req);
 
   if (method === "OPTIONS") return { status: 204, body: "", headers };
+
+  if (!rateLimit(`analytics:${clientIp(req)}:${method}`, { limit: method === "GET" ? 20 : 30, windowMs: 60_000 })) {
+    return { status: 429, body: { error: "Too many analytics requests from this client." }, headers };
+  }
 
   if (method === "GET") {
     const url = requestUrl(req);
     if (url.searchParams.get("health") === "1") {
       return { status: 200, body: { ok: true, service: "analytics" }, headers };
     }
-    const auth = header(req, "authorization") || url.searchParams.get("token") || "";
+    // Never accept the analytics token in the query string (logs / referrers).
+    const auth = header(req, "authorization") || "";
     if (!authorizeAnalyticsRead(auth, process.env)) {
-      return { status: 401, body: { error: "Analytics summary requires ANALYTICS_TOKEN." }, headers };
+      return { status: 401, body: { error: "Analytics summary requires Authorization: Bearer ANALYTICS_TOKEN." }, headers };
     }
     const limit = Number(url.searchParams.get("limit") || 40);
     const body = await summarize(process.env, { limit });
@@ -46,10 +50,6 @@ async function run(req) {
 
   if (method !== "POST") {
     return { status: 405, body: { error: "Use GET or POST." }, headers };
-  }
-
-  if (!allow(req)) {
-    return { status: 429, body: { error: "Too many analytics posts from this client." }, headers };
   }
 
   const raw = await bodyOf(req);
@@ -72,20 +72,6 @@ async function run(req) {
     process.env,
   );
   return { status: 202, body: { ok: true, accepted: accepted.length }, headers };
-}
-
-function allow(req) {
-  const ip = header(req, "x-forwarded-for").split(",")[0].trim() || header(req, "x-real-ip") || "local";
-  const now = Date.now();
-  const bucket = hits.get(ip) || [];
-  const recent = bucket.filter((ts) => now - ts < 60_000);
-  if (recent.length >= 30) {
-    hits.set(ip, recent);
-    return false;
-  }
-  recent.push(now);
-  hits.set(ip, recent);
-  return true;
 }
 
 function requestUrl(req) {

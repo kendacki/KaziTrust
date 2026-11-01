@@ -1,6 +1,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { corsHeaders, redactSecrets, securityHeaders } from "./security.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const FILE = join(ROOT, "data", "analytics.jsonl");
@@ -116,13 +117,11 @@ export async function summarize(env = process.env, options = {}) {
   };
 }
 
-export function analyticsHttpHeaders() {
+export function analyticsHttpHeaders(req) {
   return {
     "content-type": "application/json",
-    "cache-control": "no-store",
-    "access-control-allow-origin": "*",
-    "access-control-allow-headers": "content-type, authorization",
-    "access-control-allow-methods": "GET, POST, OPTIONS",
+    ...securityHeaders(),
+    ...corsHeaders(req),
   };
 }
 
@@ -207,7 +206,7 @@ function normalize(partial) {
     name,
     ok: partial.ok !== false,
     ms: Number.isFinite(Number(partial.ms)) ? Math.max(0, Math.round(Number(partial.ms))) : undefined,
-    error: partial.ok === false && partial.error ? String(partial.error).slice(0, 240) : undefined,
+    error: partial.ok === false && partial.error ? redactSecrets(String(partial.error)).slice(0, 240) : undefined,
     meta: Object.keys(meta).length ? meta : undefined,
   };
 }
@@ -218,7 +217,7 @@ function scrubMeta(input) {
   const out = {};
   for (const [key, value] of Object.entries(input).slice(0, 24)) {
     const lower = key.toLowerCase();
-    if (/auth|token|secret|password|cookie|authorization|apikey|api_key|bearer/.test(lower)) continue;
+    if (/auth|token|secret|password|cookie|authorization|apikey|api_key|bearer|key$/.test(lower)) continue;
     if (typeof value === "string") {
       out[key] = redact(value).slice(0, 160);
     } else if (typeof value === "number" || typeof value === "boolean") {
@@ -226,16 +225,17 @@ function scrubMeta(input) {
     } else if (value == null) {
       continue;
     } else {
-      out[key] = String(value).slice(0, 120);
+      out[key] = redactSecrets(String(value)).slice(0, 120);
     }
   }
   return out;
 }
 
 function redact(value) {
-  if (/^kt_[a-f0-9]{20,}$/i.test(value)) return `${value.slice(0, 7)}…`;
-  if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(value)) return `${value.slice(0, 4)}…${value.slice(-4)}`;
-  return value;
+  const cleaned = redactSecrets(value);
+  if (/^kt_[a-f0-9_]{8,}$/i.test(cleaned)) return `${cleaned.slice(0, 7)}…`;
+  if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(cleaned)) return `${cleaned.slice(0, 4)}…${cleaned.slice(-4)}`;
+  return cleaned;
 }
 
 function makeId() {

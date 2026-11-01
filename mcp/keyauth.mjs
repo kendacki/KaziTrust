@@ -1,3 +1,5 @@
+import { openModeEnabled } from "./security.mjs";
+
 const COOKIE = "kazitrust_key";
 const REMOTE_KEY = "kazitrust:api-key";
 
@@ -32,11 +34,12 @@ export async function saveRemoteKey(record, env = process.env) {
 }
 
 export async function apiKeyAllowed(token, reqHeaders = {}, env = process.env) {
-  if (!token.startsWith("kt_") || token.length > 80) return false;
+  if (!token || typeof token !== "string" || !token.startsWith("kt_") || token.length > 80) return false;
+  // Local/dev open mode only. Never bypass key checks on Vercel production.
+  if (openModeEnabled(env)) return true;
   const hash = await sha(token);
   const envHash = String(env.KAZITRUST_API_KEY_HASH || "").trim().toLowerCase();
   if (envHash && hash === envHash) return true;
-  if (String(env.KAZITRUST_MCP_OPEN || "").toLowerCase() === "1") return true;
 
   const remote = await loadRemoteKey(env);
   if (remote?.hash && remote.hash === hash) {

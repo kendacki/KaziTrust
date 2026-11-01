@@ -1,6 +1,7 @@
 import { track } from "../mcp/analytics.mjs";
 import { keyFromHeaders, keyFromUrl, withApiKey } from "../mcp/auth.mjs";
 import { handleMcpMessage, mcpHttpHeaders } from "../mcp/protocol.mjs";
+import { clientIp, publicError, rateLimit, redactSecrets } from "../mcp/security.mjs";
 
 export const config = { maxDuration: 30 };
 
@@ -15,7 +16,7 @@ export default async function handler(req, res) {
           name: "http",
           ok: result.status < 400,
           ms: Date.now() - started,
-          error: result.status >= 400 ? String(result.body?.error || result.status) : undefined,
+          error: result.status >= 400 ? redactSecrets(String(result.body?.error || result.status)) : undefined,
           meta: { route: "/mcp", status: result.status, method: (req?.method || "GET").toUpperCase() },
         },
         process.env,
@@ -29,12 +30,12 @@ export default async function handler(req, res) {
         name: "http",
         ok: false,
         ms: Date.now() - started,
-        error: error instanceof Error ? error.message : "MCP failed",
+        error: redactSecrets(error instanceof Error ? error.message : "MCP failed"),
         meta: { route: "/mcp" },
       },
       process.env,
     );
-    return write(res, 500, { error: error instanceof Error ? error.message : "MCP failed." }, mcpHttpHeaders());
+    return write(res, 500, { error: publicError(error, "MCP failed.") }, mcpHttpHeaders());
   }
 }
 
@@ -50,6 +51,10 @@ async function run(req) {
 
   if (method === "DELETE") {
     return { status: 405, body: { error: "This MCP server does not use client-managed sessions." }, headers };
+  }
+
+  if (!rateLimit(`mcp:${clientIp(req)}`, { limit: 120, windowMs: 60_000 })) {
+    return { status: 429, body: { error: "Too many MCP requests. Try again shortly." }, headers };
   }
 
   if (method === "GET") {
@@ -69,7 +74,7 @@ async function run(req) {
         auth: {
           header: "Authorization: Bearer kt_your_key",
           also: ["x-api-key", "path /mcp/kt_your_key", "tool arg api_key"],
-          note: "search, fetch, screen_address, and list_services work without a key.",
+          note: "search, fetch, screen_address, wallet_snapshot, and list_services work without a key. token_risk needs a valid issued kt_ key.",
         },
         connect: {
           claude:

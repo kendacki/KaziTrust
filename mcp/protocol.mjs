@@ -1,6 +1,8 @@
 import { track } from "./analytics.mjs";
 import { keyFromArgs, stripKeyArgs, withApiKey } from "./auth.mjs";
 import { callTool, INSTRUCTIONS, SERVER_INFO, TOOLS } from "./handlers.mjs";
+import { apiKeyAllowed } from "./keyauth.mjs";
+import { mcpCorsHeaders, openModeEnabled, publicError, redactSecrets, securityHeaders } from "./security.mjs";
 
 const SUPPORTED_PROTOCOL = new Set(["2024-11-05", "2025-03-26", "2025-06-18"]);
 
@@ -62,7 +64,7 @@ async function handleOne(message, env) {
       }
       const callEnv = withApiKey(env, keyFromArgs(rawArgs));
       const args = stripKeyArgs(rawArgs);
-      const gate = authorize(callEnv, name);
+      const gate = await authorize(callEnv, name);
       if (gate) {
         await track(
           {
@@ -70,7 +72,7 @@ async function handleOne(message, env) {
             name: "tools/call",
             ok: false,
             ms: Date.now() - started,
-            error: gate,
+            error: redactSecrets(gate),
             meta: { tool: name, reason: "auth" },
           },
           env,
@@ -85,7 +87,7 @@ async function handleOne(message, env) {
           name: "tools/call",
           ok: !failed,
           ms: Date.now() - started,
-          error: failed ? String(output?.content?.[0]?.text || "tool error").slice(0, 240) : undefined,
+          error: failed ? redactSecrets(String(output?.content?.[0]?.text || "tool error")).slice(0, 240) : undefined,
           meta: { tool: name },
         },
         env,
@@ -104,14 +106,14 @@ async function handleOne(message, env) {
     );
     return errorResponse(id, -32601, `Method not found: ${method}`);
   } catch (error) {
-    const messageText = error instanceof Error ? error.message : "Internal error";
+    const messageText = publicError(error, "Internal error");
     await track(
       {
         source: "mcp",
         name: typeof method === "string" ? method : "error",
         ok: false,
         ms: Date.now() - started,
-        error: messageText,
+        error: redactSecrets(error instanceof Error ? error.message : "Internal error"),
       },
       env,
     );
@@ -119,15 +121,19 @@ async function handleOne(message, env) {
   }
 }
 
-function authorize(env, toolName) {
-  const open = String(env.KAZITRUST_MCP_OPEN || "").toLowerCase() === "1" || String(env.MCP_OPEN || "").toLowerCase() === "1";
-  if (open) return null;
-  if (toolName === "search" || toolName === "fetch" || toolName === "list_services" || toolName === "screen_address") {
+async function authorize(env, toolName) {
+  if (openModeEnabled(env)) return null;
+  // Public reads: docs, list screening, and wallet snapshots via the open /rpc proxy.
+  if (toolName === "search" || toolName === "fetch" || toolName === "list_services" || toolName === "screen_address" || toolName === "wallet_snapshot") {
     return null;
   }
+  // Paid / credentialed upstreams (RugCheck, etc.) require a real issued kt_ key.
   const key = (env.KAZITRUST_API_KEY || env.MCP_API_KEY || "").trim();
   if (!key) {
-    return "wallet_snapshot and token_risk need a kt_ API key. In Claude: reconnect the connector with https://www.kazitrustai.fun/mcp/kt_YOUR_KEY (or add Request header Authorization = Bearer kt_YOUR_KEY if your plan shows that field). You can also pass api_key on the tool call.";
+    return "token_risk needs a kt_ API key. In Claude: reconnect with https://www.kazitrustai.fun/mcp/kt_YOUR_KEY (or Authorization: Bearer kt_YOUR_KEY). You can also pass api_key on the tool call.";
+  }
+  if (!(await apiKeyAllowed(key, {}, env))) {
+    return "API key is invalid or expired. Create a new kt_ key on https://www.kazitrustai.fun/api and reconnect the MCP connector.";
   }
   return null;
 }
@@ -143,9 +149,7 @@ function errorResponse(id, code, message) {
 export function mcpHttpHeaders() {
   return {
     "content-type": "application/json",
-    "cache-control": "no-store",
-    "access-control-allow-origin": "*",
-    "access-control-allow-headers": "content-type, authorization, x-api-key, x-auth-token, mcp-session-id, mcp-protocol-version",
-    "access-control-allow-methods": "GET, POST, OPTIONS",
+    ...securityHeaders(),
+    ...mcpCorsHeaders(),
   };
 }
