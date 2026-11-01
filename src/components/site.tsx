@@ -377,7 +377,7 @@ export function Home({ go }: { go: (to: string) => void }) {
           <header className="section-head">
             <p className="eyebrow">Developers</p>
             <h2>Add a wallet read to anything</h2>
-            <p className="lede">One key opens every hosted service. The same tools are available over MCP for ChatGPT and OpenAI. The written setup is in the docs. The npm package is not published yet.</p>
+            <p className="lede">One key opens every hosted service. You can also plug Kaz into ChatGPT with MCP. Setup is in the docs. The npm package is not published yet.</p>
           </header>
           <pre className="code">{`curl ${SITE}/api/v1 \\
   -H "Authorization: Bearer kt_your_key"`}</pre>
@@ -720,30 +720,35 @@ npm run dev`}</pre>
   -d "{\\"kind\\":\\"chat\\",\\"question\\":\\"What does a low score mean?\\"}"`}</pre>
       <h2 id="mcp">MCP for ChatGPT and OpenAI</h2>
       <p>
-        Kaz exposes a remote Model Context Protocol server at <span className="num">{SITE}/mcp</span>. ChatGPT, the OpenAI Responses API, and local MCP clients can call the same screening tools without building against each REST path.
+        Want Kaz inside ChatGPT or another AI client? Point the client at our MCP server. It gets the same wallet checks you use here, without wiring each API path yourself.
       </p>
       <p>
-        Transport is Streamable HTTP over JSON-RPC <span className="num">POST</span>. <span className="num">GET /mcp</span> returns a short discovery document. In ChatGPT, add a custom MCP server and use that URL. For hosted chain and RugCheck tools, send your <span className="num">kt_</span> key as a bearer token. <span className="num">search</span>, <span className="num">fetch</span>, <span className="num">screen_address</span>, and <span className="num">list_services</span> work without a key.
+        Server URL: <span className="num">{SITE}/mcp</span>
       </p>
+      <p>
+        In ChatGPT, open custom MCP / plugins, add that URL, and save. OpenAI Responses and other MCP clients use the same address. Ask something like “Screen this Solana wallet with KaziTrust,” and Kaz will call the tools for you.
+      </p>
+      <p>What Kaz can do over MCP:</p>
       <ul>
-        <li><strong>search / fetch. </strong>Method docs and published watchlist notes.</li>
-        <li><strong>screen_address. </strong>Exact match on OFAC SDN when reachable, Meteora Kelsier, and Binance hack 2026 Solana IOCs.</li>
-        <li><strong>wallet_snapshot. </strong>Live balance, owner, and recent signatures.</li>
-        <li><strong>token_risk. </strong>RugCheck mint report.</li>
-        <li><strong>list_services. </strong>API and MCP catalog.</li>
+        <li><strong>screen_address. </strong>Check an address against OFAC SDN (when available), the Meteora Kelsier list, and the Binance hack 2026 Solana watchlist.</li>
+        <li><strong>wallet_snapshot. </strong>Pull a live balance, owner, and recent signatures.</li>
+        <li><strong>token_risk. </strong>Fetch the RugCheck report for a mint.</li>
+        <li><strong>search / fetch. </strong>Look up how scoring works and what the published lists cover.</li>
+        <li><strong>list_services. </strong>See the full API and MCP catalog.</li>
       </ul>
-      <pre className="code">{`# ChatGPT / remote clients
+      <p>
+        Screening and docs tools work without a key. For live snapshots and token risk, create a <span className="num">kt_</span> key on the <button type="button" className="quiet-link" onClick={() => go("/api")}>API page</button> and send it as a Bearer token with the MCP connection.
+      </p>
+      <pre className="code">{`# Add this URL in ChatGPT or OpenAI
 ${SITE}/mcp
 
-# Local stdio (Cursor-style)
+# On your machine
 npm run mcp
-
-# Local HTTP
 npm run mcp:http`}</pre>
       <p>
-        Create a key from the <button type="button" className="quiet-link" onClick={() => go("/api")}>API page</button> when you need snapshot or token tools. Extra local and remote notes are in{" "}
+        More setup detail lives in{" "}
         <a className="quiet-link" href="https://github.com/kendacki/KaziTrust/blob/main/mcp/README.md" target="_blank" rel="noreferrer">
-          mcp/README.md
+          the MCP README
         </a>
         .
       </p>

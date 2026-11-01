@@ -217,7 +217,7 @@ function ApiPublic({ go }: { go: (to: string) => void }) {
           </div>
         </dl>
         <p className="quiet">
-          Add that URL as a custom MCP server. Tools: search, fetch, screen_address, wallet_snapshot, token_risk, list_services. Setup notes are in{" "}
+          Paste that URL into ChatGPT or OpenAI as a custom MCP server so Kaz can screen wallets from chat. Full steps are in{" "}
           <button type="button" className="quiet-link" onClick={() => go("/docs#mcp")}>
             Docs → MCP
           </button>
@@ -534,7 +534,7 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
               <dd>Not used on these calls</dd>
             </div>
           </dl>
-          <p className="quiet">Use the MCP URL in ChatGPT or OpenAI. Hosted tools need this key as Bearer.</p>
+          <p className="quiet">Paste the MCP URL into ChatGPT or OpenAI. Snapshot and token tools need this key as Bearer.</p>
         </section>
         <section className="api-key-block" aria-label="First call">
           <div className="api-meta">
