@@ -4,6 +4,7 @@ import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { groqPlugin } from "./src/server/groq";
 import { gatewayPlugin } from "./src/server/gateway";
+import { mcpPlugin } from "./src/server/mcp";
 import { restrictionsPlugin } from "./src/server/restrictions";
 import { tokenMetaPlugin } from "./src/server/tokenmeta";
 import { rpcPlugin } from "./src/server/rpc";
@@ -26,7 +27,7 @@ function spa404(): Plugin {
 
 export default defineConfig({
   appType: "spa",
-  plugins: [react(), spa404(), rpcPlugin(), groqPlugin(), solscanPlugin(), rugcheckPlugin(), restrictionsPlugin(), tokenMetaPlugin(), gatewayPlugin()],
+  plugins: [react(), spa404(), rpcPlugin(), groqPlugin(), solscanPlugin(), rugcheckPlugin(), restrictionsPlugin(), tokenMetaPlugin(), gatewayPlugin(), mcpPlugin()],
   server: {
     port: 5173,
     host: "127.0.0.1",

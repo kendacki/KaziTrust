@@ -16,6 +16,7 @@
 - [The score](#the-score)
 - [Sign in](#sign-in)
 - [The API](#the-api)
+- [MCP for ChatGPT and OpenAI](#mcp-for-chatgpt-and-openai)
 - [Run it locally](#run-it-locally)
 - [Limits](#limits)
 - [Privacy](#privacy)
@@ -88,6 +89,60 @@ For labels and activity, `path` is `account/metadata`, `account/portfolio`, or `
 For wording, send JSON. Use `kind` `chat` with a question, or `kind` `explain` with a question and a facts object. A chat answer comes back as text and followups. An explain answer comes back as summary, meaning, nextStep, and followups. The key does not change a score.
 
 Post bodies must be JSON and stay under 200,000 bytes.
+
+## MCP for ChatGPT and OpenAI
+
+KaziTrust exposes a remote Model Context Protocol server so ChatGPT, the OpenAI Responses API, and local MCP clients can call the same Solana screening tools.
+
+### Remote endpoint
+
+```
+https://kazitrustai.fun/mcp
+```
+
+Transport is Streamable HTTP over JSON-RPC `POST`. `GET /mcp` returns a short discovery document.
+
+In ChatGPT: Plugins → Add custom MCP server → Server URL `https://kazitrustai.fun/mcp`. For hosted chain and RugCheck tools, send a KaziTrust API key as a bearer token. `search`, `fetch`, `screen_address`, and `list_services` work without a key.
+
+OpenAI Responses API example:
+
+```bash
+curl https://api.openai.com/v1/responses \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $OPENAI_API_KEY" \
+  -d '{
+    "model": "gpt-5.4",
+    "tools": [{
+      "type": "mcp",
+      "server_label": "kazitrust",
+      "server_description": "Solana wallet risk, restriction lists, and token checks.",
+      "server_url": "https://kazitrustai.fun/mcp",
+      "authorization": "Bearer kt_your_key",
+      "require_approval": "never"
+    }],
+    "input": "Screen AffzFDKZbyMiU11zmVBoAqD25ugpr7xoWWyRyGigBEaU with KaziTrust."
+  }'
+```
+
+### Tools
+
+| Tool | Purpose |
+| --- | --- |
+| `search` / `fetch` | Method docs and published watchlist notes for ChatGPT research compatibility |
+| `screen_address` | Exact match on OFAC SDN (when reachable), Meteora Kelsier, and Binance hack 2026 Solana IOCs |
+| `wallet_snapshot` | Live balance, owner, and recent signatures |
+| `token_risk` | RugCheck mint report |
+| `list_services` | API and MCP catalog |
+
+### Local MCP
+
+```bash
+npm run test:mcp
+npm run mcp
+npm run mcp:http
+```
+
+`npm run mcp` speaks stdio for Cursor-style clients. `npm run mcp:http` listens on `http://127.0.0.1:8787/mcp`. Local Vite also mounts `/mcp` during `npm run dev`.
 
 ### Status codes
 

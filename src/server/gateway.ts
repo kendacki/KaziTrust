@@ -8,6 +8,7 @@ const SERVICES = [
   { method: "GET", path: "/api/v1/restrictions", about: "OFAC SDN Solana addresses, the Meteora Kelsier blacklist, and the Binance hack 2026 Solana watchlist." },
   { method: "GET", path: "/api/v1/solscan", about: "Label, portfolio, and recent DeFi activity. Pass path and address." },
   { method: "POST", path: "/api/v1/wording", about: "Sentences for a read. The key does not change a score." },
+  { method: "POST", path: "/mcp", about: "Model Context Protocol endpoint for ChatGPT and OpenAI tool use." },
 ];
 
 type NodeRequest = {

@@ -23,6 +23,7 @@
   ],
   "rewrites": [
     { "source": "/rpc", "destination": "/api/rpc" },
+    { "source": "/mcp", "destination": "/api/mcp" },
     { "source": "/((?!api/|.*\\..*).*)", "destination": "/index.html" }
   ]
 }
