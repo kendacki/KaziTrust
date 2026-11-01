@@ -117,7 +117,7 @@ export function ApiEntry({ go }: { go: (to: string) => void }) {
     if (import.meta.env.DEV) return <LeaveForKey go={go} />;
     return (
       <Chrome path="/api" go={go}>
-        <ApiPublic />
+        <ApiPublic go={go} />
       </Chrome>
     );
   }
@@ -151,12 +151,12 @@ function ApiEntrySession({ go }: { go: (to: string) => void }) {
   }
   return (
     <Chrome path="/api" go={go}>
-      <ApiPublic />
+      <ApiPublic go={go} />
     </Chrome>
   );
 }
 
-function ApiPublic() {
+function ApiPublic({ go }: { go: (to: string) => void }) {
   const [picked, setPicked] = useState(SERVICES[0].id);
   const [notice, setNotice] = useState("");
   const origin = window.location.origin;
@@ -199,6 +199,30 @@ function ApiPublic() {
           <li><span>2</span>Call a path under {origin}/api/v1.</li>
           <li><span>3</span>Read the status code and the JSON body.</li>
         </ol>
+      </section>
+
+      <section className="api-board" id="mcp" aria-label="MCP">
+        <dl className="api-facts">
+          <div>
+            <dt>MCP</dt>
+            <dd className="num">{origin}/mcp</dd>
+          </div>
+          <div>
+            <dt>For</dt>
+            <dd>ChatGPT, OpenAI, Cursor</dd>
+          </div>
+          <div>
+            <dt>Auth</dt>
+            <dd className="num">Bearer kt_... for hosted tools</dd>
+          </div>
+        </dl>
+        <p className="quiet">
+          Add that URL as a custom MCP server. Tools: search, fetch, screen_address, wallet_snapshot, token_risk, list_services. Setup notes are in{" "}
+          <button type="button" className="quiet-link" onClick={() => go("/docs#mcp")}>
+            Docs → MCP
+          </button>
+          .
+        </p>
       </section>
 
       <div className="api-work">
@@ -502,10 +526,15 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
               <dd className="num">{origin}/api/v1</dd>
             </div>
             <div>
+              <dt>MCP</dt>
+              <dd className="num">{origin}/mcp</dd>
+            </div>
+            <div>
               <dt>Session</dt>
               <dd>Not used on these calls</dd>
             </div>
           </dl>
+          <p className="quiet">Use the MCP URL in ChatGPT or OpenAI. Hosted tools need this key as Bearer.</p>
         </section>
         <section className="api-key-block" aria-label="First call">
           <div className="api-meta">

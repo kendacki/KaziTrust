@@ -382,7 +382,7 @@ export function Home({ go }: { go: (to: string) => void }) {
           <header className="section-head">
             <p className="eyebrow">Developers</p>
             <h2>Add a wallet read to anything</h2>
-            <p className="lede">One key opens every hosted service. Send it on each request. The written setup, the key, and every call are in the docs. The npm package is not published yet.</p>
+            <p className="lede">One key opens every hosted service. The same tools are available over MCP for ChatGPT and OpenAI. The written setup is in the docs. The npm package is not published yet.</p>
           </header>
           <pre className="code">{`curl ${SITE}/api/v1 \\
   -H "Authorization: Bearer kt_your_key"`}</pre>
@@ -390,11 +390,11 @@ export function Home({ go }: { go: (to: string) => void }) {
             <button type="button" className="btn ink" onClick={() => go("/api")}>
               API reference
             </button>
+            <button type="button" className="btn ghost" onClick={() => go("/docs#mcp")}>
+              MCP setup
+            </button>
             <button type="button" className="btn ghost" onClick={() => go("/docs#setup")}>
               Read the docs
-            </button>
-            <button type="button" className="btn ghost" onClick={() => go("/method")}>
-              Scoring method
             </button>
           </div>
         </Reveal>
@@ -672,6 +672,7 @@ export function Docs({ go }: { go: (to: string) => void }) {
         ["key", "The key"],
         ["call", "Calling the API"],
         ["services", "Services"],
+        ["mcp", "MCP"],
         ["errors", "Errors"],
         ["privacy", "Privacy"],
         ["disclaimer", "Disclaimer"],
@@ -681,7 +682,7 @@ export function Docs({ go }: { go: (to: string) => void }) {
       <header className="page-head">
         <p className="eyebrow">Docs</p>
         <h1>How to read a wallet</h1>
-        <p className="lede">Paste an address in the app, or call the same services with one API key.</p>
+        <p className="lede">Paste an address in the app, call the API with one key, or connect MCP from ChatGPT and OpenAI.</p>
       </header>
       <p>Paste any Solana address into the app. A quick read walks signatures back toward six months, up to 300, and opens 8 transactions spread across that window. A deep scan walks toward one year, up to 800, opens 16 transactions across that window, and reads the oldest funding address. Neither walks the entire chain. A balance of 0 SOL still receives a score.</p>
       <h2 id="comes-back">What comes back</h2>
@@ -722,6 +723,31 @@ npm run dev`}</pre>
   -H "Authorization: Bearer kt_your_key" \\
   -H "Content-Type: application/json" \\
   -d "{\\"kind\\":\\"chat\\",\\"question\\":\\"What does a low score mean?\\"}"`}</pre>
+      <h2 id="mcp">MCP for ChatGPT and OpenAI</h2>
+      <p>
+        Kaz exposes a remote Model Context Protocol server at <span className="num">{SITE}/mcp</span>. ChatGPT, the OpenAI Responses API, and local MCP clients can call the same screening tools without building against each REST path.
+      </p>
+      <p>
+        Transport is Streamable HTTP over JSON-RPC <span className="num">POST</span>. <span className="num">GET /mcp</span> returns a short discovery document. In ChatGPT, add a custom MCP server and use that URL. For hosted chain and RugCheck tools, send your <span className="num">kt_</span> key as a bearer token. <span className="num">search</span>, <span className="num">fetch</span>, <span className="num">screen_address</span>, and <span className="num">list_services</span> work without a key.
+      </p>
+      <ul>
+        <li><strong>search / fetch. </strong>Method docs and published watchlist notes.</li>
+        <li><strong>screen_address. </strong>Exact match on OFAC SDN when reachable, Meteora Kelsier, and Binance hack 2026 Solana IOCs.</li>
+        <li><strong>wallet_snapshot. </strong>Live balance, owner, and recent signatures.</li>
+        <li><strong>token_risk. </strong>RugCheck mint report.</li>
+        <li><strong>list_services. </strong>API and MCP catalog.</li>
+      </ul>
+      <pre className="code">{`# ChatGPT / remote clients
+${SITE}/mcp
+
+# Local stdio (Cursor-style)
+npm run mcp
+
+# Local HTTP
+npm run mcp:http`}</pre>
+      <p>
+        Create a key from the <button type="button" className="quiet-link" onClick={() => go("/api")}>API page</button> when you need snapshot or token tools. Full field notes also live in the repo under <span className="num">mcp/README.md</span>.
+      </p>
       <h2 id="errors">Errors</h2>
       <ul>
         <li><strong>401. </strong>The key is missing, retired, or not in the Authorization header. On a production build, creating a key without signing in also returns 401.</li>
