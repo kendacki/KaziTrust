@@ -30,6 +30,7 @@ const UI_EVENTS = new Set([
   "attach_file",
   "thread_create",
   "client_error",
+  "jailbreak_blocked",
 ]);
 
 export function isUiEventName(name) {

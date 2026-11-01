@@ -6,7 +6,7 @@ import { EXAMPLE_MINT, EXAMPLE_PROGRAM, lookupLabel, mintName, programName, SCOR
 import { consumeRead, readQuota } from "./quota";
 import { rpc, RpcError } from "./rpc";
 import { narrateReport, narrateText } from "./narrate";
-import { modelQuestion, OUT_OF_SCOPE, walletQuestionAllowed } from "./scope";
+import { isJailbreakAttempt, JAILBREAK_REFUSAL, modelQuestion, OUT_OF_SCOPE, walletQuestionAllowed } from "./scope";
 import { sampleDeployerReport } from "./sample";
 import { readRugcheck, type RugcheckReport } from "./rugcheck";
 import { readSolscan, type SolscanBook } from "./solscan";
@@ -114,7 +114,15 @@ export async function investigate(options: {
   const question = options.question.trim();
   const onStep = options.onStep ?? (() => undefined);
   if (!question) {
-    return { kind: "text", text: "Ask about a wallet, or paste a Solana address.", followups: [] };
+    return { kind: "text", text: "Ask Kaz about a wallet, or paste a Solana address.", followups: [] };
+  }
+  if (isJailbreakAttempt(question)) {
+    track({ name: "jailbreak_blocked", ok: false, meta: { route: "/app" } });
+    return {
+      kind: "text",
+      text: JAILBREAK_REFUSAL,
+      followups: ["Show the illustrative deployer read", "How is the score built?", "Who are you?"],
+    };
   }
   if (/illustrative|sample deployer/i.test(question)) {
     onStep("Preparing the sample read", "active");
@@ -125,6 +133,13 @@ export async function investigate(options: {
   const context = (options.contextAddresses ?? []).filter(isSolanaAddress);
   if (!walletQuestionAllowed(question, context.length > 0)) {
     return { kind: "text", text: OUT_OF_SCOPE, followups: ["Show the illustrative deployer read", "How is the score built?"] };
+  }
+  if (/\b(who are you|your name|what(?:'s| is) your name)\b/i.test(question) && extractAddresses(question).length === 0) {
+    return {
+      kind: "text",
+      text: "I am Kaz, the KaziTrust analyst. I read public Solana wallets, mints, and contracts, then explain the score and findings from what the tools returned.",
+      followups: ["Show the illustrative deployer read", "How is the score built?", "Read the Jupiter contract"],
+    };
   }
   if (/how is the score built|scoring method|how do you score/i.test(question) && extractAddresses(question).length === 0) {
     const fallback =

@@ -501,7 +501,7 @@ export function Chat({ go, api = false }: { go: (to: string) => void; api?: bool
               <motion.div variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }}>
                 <Lockup size={42} />
               </motion.div>
-              <motion.h2 variants={{ hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } }}>Which wallet are we looking at?</motion.h2>
+              <motion.h2 variants={{ hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } }}>Kaz here. Which wallet are we looking at?</motion.h2>
               <motion.div className="suggest" variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }}>
                 <button type="button" onClick={() => void submit("Show the illustrative deployer read")}>Show a sample deployer</button>
                 <button type="button" onClick={() => void submit("Read the Jupiter contract")}>Read the Jupiter contract</button>
@@ -575,8 +575,8 @@ export function Chat({ go, api = false }: { go: (to: string) => void; api?: bool
               ref={box}
               rows={1}
               value={draft}
-              placeholder="Ask about a Solana wallet, mint, or contract"
-              aria-label="Message"
+              placeholder="Ask Kaz about a Solana wallet, mint, or contract"
+              aria-label="Message to Kaz"
               onChange={(event) => {
                 setDraft(event.target.value);
                 event.target.style.height = "auto";
