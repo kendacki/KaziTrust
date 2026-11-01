@@ -108,7 +108,7 @@ export const TOKEN_2022 = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
 export const EXAMPLE_PROGRAM = "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4";
 export const EXAMPLE_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
-export const SCORING_VERSION = "0.4.2";
+export const SCORING_VERSION = "0.4.3";
 
 export const RULE_CATALOG: { title: string; detail: string }[] = [
   {
@@ -210,5 +210,13 @@ export const RULE_CATALOG: { title: string; detail: string }[] = [
   {
     title: "Meteora Kelsier counterparty",
     detail: "If an opened transaction, a token delegate, a funding address, or an authority names a different address on that Meteora list, add 16.",
+  },
+  {
+    title: "Binance hack 2026 list",
+    detail: "If the address is on the published Binance hack 2026 Solana watchlist, the score is set to at least 90. That watchlist is not an OFAC sanctions listing.",
+  },
+  {
+    title: "Binance hack 2026 counterparty",
+    detail: "If an opened transaction, a token delegate, a funding address, or an authority names a different address on that Binance hack watchlist, add 24.",
   },
 ];

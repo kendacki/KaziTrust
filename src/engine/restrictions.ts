@@ -46,7 +46,10 @@ export async function readRestrictions(signal: AbortSignal): Promise<Restriction
         address: entry.address,
         name: entry.name,
         programs: Array.isArray(entry.programs) ? entry.programs.filter((item): item is string => typeof item === "string").slice(0, 4) : [],
-        list: entry.list === "meteora-kelsier" ? "meteora-kelsier" : "ofac",
+        list:
+          entry.list === "meteora-kelsier" || entry.list === "binance-hack-2026"
+            ? entry.list
+            : "ofac",
         detail: typeof entry.detail === "string" ? entry.detail : undefined,
       });
     }

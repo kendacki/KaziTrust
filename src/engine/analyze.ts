@@ -8,7 +8,7 @@ import { sampleDeployerReport } from "./sample";
 import { readRugcheck, type RugcheckReport } from "./rugcheck";
 import { readSolscan, type SolscanBook } from "./solscan";
 import { readRestrictions, screenAddresses, type RestrictionFacts, type RestrictionIndex, type BlockedEntry } from "./restrictions";
-import { kelsierMeta, screenKelsier } from "./lists";
+import { binanceHackMeta, isOfacList, kelsierMeta, screenBinanceHack, screenKelsier } from "./lists";
 import { readTokenFaces } from "./tokenmeta";
 import { bandFromScore, clamp, formatNow, formatNumber, formatRawUnits, formatSol, formatTime, severityWord, shortAddress } from "../format";
 import type { Answer, ApprovalRow, Evidence, Finding, FlowRow, HoldingRow, ProgramSlice, Report, ScoreRule, Severity, TimelineEvent, Visual } from "../types";
@@ -402,7 +402,7 @@ async function loadFacts(
   }
   const ofacHits = restrictionIndex
     ? screenAddresses(restrictionIndex, watched)
-        .filter((hit) => hit.list !== "meteora-kelsier")
+        .filter((hit) => isOfacList(hit.list))
         .map((hit) => ({ ...hit, list: "ofac" as const }))
     : [];
   const kelsierHits: BlockedEntry[] = screenKelsier(watched).map((hit) => ({
@@ -412,17 +412,26 @@ async function loadFacts(
     list: hit.list,
     detail: hit.detail,
   }));
+  const binanceHits: BlockedEntry[] = screenBinanceHack(watched).map((hit) => ({
+    address: hit.address,
+    name: hit.name,
+    programs: hit.programs,
+    list: hit.list,
+    detail: hit.detail,
+  }));
   const ofacSelf = ofacHits.find((hit) => hit.address === address);
   const kelsierSelf = kelsierHits.find((hit) => hit.address === address);
-  const self = ofacSelf ?? kelsierSelf;
+  const binanceSelf = binanceHits.find((hit) => hit.address === address);
+  const self = ofacSelf ?? kelsierSelf ?? binanceSelf;
   const counterparties = mergeListHits(
-    [...ofacHits, ...kelsierHits].filter((hit) => hit.address !== address),
+    [...ofacHits, ...kelsierHits, ...binanceHits].filter((hit) => hit.address !== address),
   );
   const kel = kelsierMeta();
+  const binance = binanceHackMeta();
   const restrictions: RestrictionFacts = {
     source: restrictionIndex
-      ? `${restrictionIndex.source} and ${kel.source}`
-      : kel.source,
+      ? `${restrictionIndex.source}, ${kel.source}, and ${binance.source}`
+      : `${kel.source} and ${binance.source}`,
     fetchedAt: restrictionIndex?.fetchedAt || kel.asOf,
     self,
     counterparties,
@@ -458,7 +467,7 @@ async function loadFacts(
     restrictions,
     restrictionWarning: restrictionIndex
       ? undefined
-      : "The OFAC SDN list could not be checked. The Meteora Kelsier blacklist was still checked.",
+      : "The OFAC SDN list could not be checked. The Meteora Kelsier blacklist and Binance hack 2026 Solana list were still checked.",
   };
 }
 
@@ -1542,8 +1551,8 @@ function leadFindings(facts: WalletFacts, findings: Finding[]): Finding[] {
 function applyRestrictions(facts: WalletFacts, score: number, rules: ScoreRule[]): { score: number; rules: ScoreRule[] } {
   const screen = facts.restrictions;
   if (!screen) return { score, rules };
-  if (screen.self?.list === "ofac" || (screen.self && screen.self.list !== "meteora-kelsier")) {
-    const name = screen.self.name || "an SDN entry";
+  if (isOfacList(screen.self?.list)) {
+    const name = screen.self?.name || "an SDN entry";
     return {
       score: 96,
       rules: [{ id: "blocked", points: 96, detail: `${name} is on the OFAC SDN list, so the score is set to 96` }],
@@ -1563,12 +1572,40 @@ function applyRestrictions(facts: WalletFacts, score: number, rules: ScoreRule[]
       ],
     };
   }
-  const ofacOther = screen.counterparties.some((hit) => hit.list !== "meteora-kelsier");
+  if (screen.self?.list === "binance-hack-2026") {
+    const next = Math.max(score, 90);
+    return {
+      score: next,
+      rules: [
+        ...rules,
+        {
+          id: "binance-hack-listed",
+          points: next - score,
+          detail: "This address is on the Binance hack 2026 Solana watchlist, so the score is at least 90",
+        },
+      ],
+    };
+  }
+  const ofacOther = screen.counterparties.some((hit) => isOfacList(hit.list));
   if (ofacOther) {
     const next = clamp(score + 30, 0, 100);
     return {
       score: next,
       rules: [...rules, { id: "blocked-counterparty", points: next - score, detail: "An opened flow or a delegate names an OFAC SDN address" }],
+    };
+  }
+  if (screen.counterparties.some((hit) => hit.list === "binance-hack-2026")) {
+    const next = clamp(score + 24, 0, 100);
+    return {
+      score: next,
+      rules: [
+        ...rules,
+        {
+          id: "binance-hack-counterparty",
+          points: next - score,
+          detail: "An opened flow or a delegate names an address on the Binance hack 2026 Solana watchlist",
+        },
+      ],
     };
   }
   if (screen.counterparties.some((hit) => hit.list === "meteora-kelsier")) {
@@ -1591,6 +1628,18 @@ function applyRestrictions(facts: WalletFacts, score: number, rules: ScoreRule[]
 function restrictionFinding(facts: WalletFacts): Finding | null {
   const screen = facts.restrictions;
   if (!screen) return null;
+  if (screen.self?.list === "binance-hack-2026") {
+    return makeFinding(
+      facts,
+      "binance-hack-listed",
+      "This address is on the Binance hack 2026 Solana watchlist.",
+      "high",
+      0.95,
+      `${screen.self.detail ?? "Public reporting linked this wallet to the October 29, 2026 Binance drain on Solana."} That watchlist is not an OFAC sanctions listing.`,
+      [],
+      [screen.self.address],
+    );
+  }
   if (screen.self?.list === "meteora-kelsier") {
     return makeFinding(
       facts,
@@ -1603,7 +1652,7 @@ function restrictionFinding(facts: WalletFacts): Finding | null {
       [screen.self.address],
     );
   }
-  if (screen.self) {
+  if (isOfacList(screen.self?.list) && screen.self) {
     const programs = screen.self.programs.length ? ` Sanctions codes: ${screen.self.programs.join(", ")}.` : "";
     return makeFinding(
       facts,
@@ -1616,7 +1665,7 @@ function restrictionFinding(facts: WalletFacts): Finding | null {
       [screen.self.address],
     );
   }
-  const ofacOther = screen.counterparties.find((hit) => hit.list !== "meteora-kelsier");
+  const ofacOther = screen.counterparties.find((hit) => isOfacList(hit.list));
   if (ofacOther) {
     return makeFinding(
       facts,
@@ -1627,6 +1676,19 @@ function restrictionFinding(facts: WalletFacts): Finding | null {
       "The wallet itself is not on the list. The match comes from an opened transaction, a token delegate, or the Solscan funding address. Addresses outside this window are not covered.",
       [],
       [ofacOther.address],
+    );
+  }
+  const binanceOther = screen.counterparties.find((hit) => hit.list === "binance-hack-2026");
+  if (binanceOther) {
+    return makeFinding(
+      facts,
+      "binance-hack-counterparty",
+      "A scanned flow names an address on the Binance hack 2026 Solana watchlist.",
+      "high",
+      0.9,
+      "The wallet itself is not on that watchlist. The match comes from an opened transaction, a token delegate, a funding address, or an authority in this window. That watchlist is not an OFAC sanctions listing.",
+      [],
+      [binanceOther.address],
     );
   }
   const kelsierOther = screen.counterparties.find((hit) => hit.list === "meteora-kelsier");
@@ -1647,10 +1709,10 @@ function restrictionFinding(facts: WalletFacts): Finding | null {
   return makeFinding(
     facts,
     "blocked-clear",
-    "This address is not on the OFAC SDN list or the Meteora Kelsier blacklist.",
+    "This address is not on the OFAC SDN list, the Meteora Kelsier blacklist, or the Binance hack 2026 Solana watchlist.",
     "clean",
     0.9,
-    "The check is an exact match against the Solana addresses in the current OFAC SDN file and against the public Meteora Kelsier list. It does not cover every sanctions list or every community watchlist.",
+    "The check is an exact match against the Solana addresses in the current OFAC SDN file, the public Meteora Kelsier list, and the published Binance hack 2026 Solana IOCs. It does not cover every sanctions list or every community watchlist.",
   );
 }
 
@@ -1705,8 +1767,10 @@ function confidenceFor(facts: WalletFacts, degraded: boolean): Report["confidenc
 }
 
 function guessType(facts: WalletFacts, labelName: string | undefined, span: number): string {
-  if (facts.restrictions?.self?.list === "meteora-kelsier") return "Listed address";
-  if (facts.restrictions?.self) return "Blocked address";
+  if (facts.restrictions?.self?.list === "meteora-kelsier" || facts.restrictions?.self?.list === "binance-hack-2026") {
+    return "Listed address";
+  }
+  if (isOfacList(facts.restrictions?.self?.list)) return "Blocked address";
   if (labelName && facts.executable) return labelName;
   if (facts.executable) return "On-chain contract";
   if (facts.accountType === "mint") {
@@ -1780,8 +1844,11 @@ function meaningFrom(findings: Finding[], band: Report["band"], facts: WalletFac
 }
 
 function nextStep(facts: WalletFacts, intent: ReturnType<typeof detectIntent>): string {
-  if (facts.restrictions?.self?.list === "ofac" || (facts.restrictions?.self && facts.restrictions.self.list !== "meteora-kelsier")) {
+  if (isOfacList(facts.restrictions?.self?.list)) {
     return "Treat the OFAC listing as the fact to act on. The behaviour score does not override it.";
+  }
+  if (facts.restrictions?.self?.list === "binance-hack-2026") {
+    return "Treat the Binance hack 2026 listing as a hard warning. Confirm the public IOC before you send value to this address.";
   }
   if (facts.restrictions?.self?.list === "meteora-kelsier") {
     return "Treat the Meteora Kelsier listing as a hard warning. Confirm the public list entry before you send value to this address.";
@@ -1876,14 +1943,17 @@ function rugcheckVisual(facts: WalletFacts): Visual | null {
 function restrictionVisual(facts: WalletFacts): Visual {
   const screen = facts.restrictions;
   const frozen = facts.tokens.filter((token) => token.frozen);
-  const ofacSelf = screen?.self?.list === "meteora-kelsier" ? undefined : screen?.self;
+  const ofacSelf = isOfacList(screen?.self?.list) ? screen?.self : undefined;
   const kelsierSelf = screen?.self?.list === "meteora-kelsier" ? screen.self : undefined;
-  const ofacOther = screen?.counterparties.find((hit) => hit.list !== "meteora-kelsier");
+  const binanceSelf = screen?.self?.list === "binance-hack-2026" ? screen.self : undefined;
+  const ofacOther = screen?.counterparties.find((hit) => isOfacList(hit.list));
   const kelsierOther = screen?.counterparties.find((hit) => hit.list === "meteora-kelsier");
+  const binanceOther = screen?.counterparties.find((hit) => hit.list === "binance-hack-2026");
   const kel = kelsierMeta();
+  const binance = binanceHackMeta();
   return {
     type: "restrictions",
-    caption: "Blocked means an OFAC SDN match. Listed means a match on the public Meteora Kelsier blacklist. Restricted means a token account is frozen on chain.",
+    caption: "Blocked means an OFAC SDN match. Listed means a match on the Meteora Kelsier blacklist or the Binance hack 2026 Solana watchlist. Restricted means a token account is frozen on chain.",
     rows: [
       {
         label: "OFAC SDN list",
@@ -1902,13 +1972,22 @@ function restrictionVisual(facts: WalletFacts): Visual {
           : `No exact match in the ${kel.count} addresses published by ${kel.source}.`,
       },
       {
+        label: "Binance hack 2026",
+        state: binanceSelf ? "Listed" : "Clear",
+        detail: binanceSelf
+          ? binanceSelf.detail || "Exact match on the Binance hack 2026 Solana watchlist."
+          : `No exact match in the ${binance.count} published Solana IOCs.`,
+      },
+      {
         label: "Opened activity",
-        state: ofacOther ? "Blocked" : kelsierOther ? "Listed" : "Clear",
+        state: ofacOther ? "Blocked" : binanceOther || kelsierOther ? "Listed" : "Clear",
         detail: ofacOther
           ? `${ofacOther.name} appears in the scanned flows, a delegate, or the funding address.`
-          : kelsierOther
-            ? "A Meteora Kelsier-listed address appears in the scanned flows, a delegate, or the funding address."
-            : "No listed counterparty in the opened window.",
+          : binanceOther
+            ? "A Binance hack 2026 Solana address appears in the scanned flows, a delegate, or the funding address."
+            : kelsierOther
+              ? "A Meteora Kelsier-listed address appears in the scanned flows, a delegate, or the funding address."
+              : "No listed counterparty in the opened window.",
       },
       {
         label: "Token accounts",

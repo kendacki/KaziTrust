@@ -1,6 +1,7 @@
 import { inflateRawSync } from "node:zlib";
 import { loadEnv, type Connect, type Plugin } from "vite";
 import { permit } from "./apikey";
+import binanceHack from "../engine/lists/binance-hack-2026.json";
 import kelsier from "../engine/lists/kelsier.json";
 
 const SDN_ZIP = "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/SDN_ADVANCED.ZIP";
@@ -10,7 +11,7 @@ type BlockedEntry = {
   address: string;
   name: string;
   programs: string[];
-  list?: "ofac" | "meteora-kelsier";
+  list?: "ofac" | "meteora-kelsier" | "binance-hack-2026";
   detail?: string;
 };
 
@@ -20,6 +21,14 @@ const KELSIER_ENTRIES: BlockedEntry[] = kelsier.addresses.map((address) => ({
   programs: [],
   list: "meteora-kelsier",
   detail: `Published by Meteora Operations as associated with Kelsier Ventures. Source: ${kelsier.url}. As of ${kelsier.asOf}.`,
+}));
+
+const BINANCE_HACK_ENTRIES: BlockedEntry[] = binanceHack.addresses.map((address) => ({
+  address,
+  name: "Binance hack 2026 Solana wallet",
+  programs: [],
+  list: "binance-hack-2026",
+  detail: `Publicly linked to the October 29, 2026 Binance drain on Solana. Source: ${binanceHack.url}. As of ${binanceHack.asOf}. Not an OFAC sanctions listing.`,
 }));
 
 type Cache = {
@@ -89,9 +98,9 @@ async function handle(
     const list = await loadList();
     const ofac = list.entries.map((entry) => ({ ...entry, list: entry.list ?? ("ofac" as const) }));
     send(res, 200, {
-      source: `OFAC SDN list and ${kelsier.source}`,
+      source: `OFAC SDN list, ${kelsier.source}, and ${binanceHack.source}`,
       fetchedAt: new Date(list.fetchedAt).toISOString(),
-      entries: [...ofac, ...KELSIER_ENTRIES],
+      entries: [...ofac, ...KELSIER_ENTRIES, ...BINANCE_HACK_ENTRIES],
       lists: {
         ofac: { source: "OFAC SDN list", count: ofac.length },
         "meteora-kelsier": {
@@ -99,6 +108,12 @@ async function handle(
           url: kelsier.url,
           asOf: kelsier.asOf,
           count: KELSIER_ENTRIES.length,
+        },
+        "binance-hack-2026": {
+          source: binanceHack.source,
+          url: binanceHack.url,
+          asOf: binanceHack.asOf,
+          count: BINANCE_HACK_ENTRIES.length,
         },
       },
     });
