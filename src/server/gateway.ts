@@ -1,4 +1,5 @@
 import { loadEnv, type Connect, type Plugin } from "vite";
+import { track } from "../../mcp/analytics.mjs";
 import { bearer, bindKeyStore, issueKey, keyMatches, keyRecord } from "./apikey";
 import { signedIn } from "./session";
 
@@ -71,21 +72,45 @@ async function handle(
   url: URL,
   auth: { origin: string; appId: string; appSecret: string; local: boolean },
 ) {
+  const started = Date.now();
   if (url.pathname === "/api/keys") {
     await keys(req, res, auth);
     return;
   }
   const token = bearer(req.headers?.authorization);
   if (!(await keyMatches(token))) {
+    await track({
+      source: "api",
+      name: "api_v1",
+      ok: false,
+      ms: Date.now() - started,
+      error: "unauthorized",
+      meta: { route: url.pathname, status: 401 },
+    });
     send(res, 401, { error: "Send the API key in the Authorization header." });
     return;
   }
   if (req.method === "GET" && url.pathname === "/api/v1") {
+    await track({
+      source: "api",
+      name: "api_v1",
+      ok: true,
+      ms: Date.now() - started,
+      meta: { route: "/api/v1", status: 200 },
+    });
     send(res, 200, { name: "KaziTrust", base: "/api/v1", services: SERVICES });
     return;
   }
   const target = forward(url.pathname);
   if (!target || req.method !== target.method) {
+    await track({
+      source: "api",
+      name: "api_v1",
+      ok: false,
+      ms: Date.now() - started,
+      error: "not found",
+      meta: { route: url.pathname, status: 404 },
+    });
     send(res, 404, { error: "That service is not on this key." });
     return;
   }
@@ -99,10 +124,26 @@ async function handle(
       body,
     });
     const text = await response.text();
+    await track({
+      source: "api",
+      name: "api_v1",
+      ok: response.status < 400,
+      ms: Date.now() - started,
+      error: response.status >= 400 ? `status ${response.status}` : undefined,
+      meta: { route: url.pathname, status: response.status },
+    });
     res.statusCode = response.status;
     res.setHeader("content-type", "application/json");
     res.end(text.slice(0, 2_000_000));
-  } catch {
+  } catch (error) {
+    await track({
+      source: "api",
+      name: "api_v1",
+      ok: false,
+      ms: Date.now() - started,
+      error: error instanceof Error ? error.message : "gateway failed",
+      meta: { route: url.pathname, status: 502 },
+    });
     send(res, 502, { error: "The service did not answer." });
   }
 }

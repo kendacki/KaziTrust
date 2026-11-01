@@ -39,6 +39,10 @@ Remote and local Model Context Protocol server for ChatGPT, OpenAI, and stdio cl
 }
 ```
 
+## Analytics
+
+MCP tool calls are timed and recorded through `mcp/analytics.mjs` (success, failure, latency, tool name). The same store powers UI and API events at `/api/analytics`.
+
 ## Test
 
 ```bash

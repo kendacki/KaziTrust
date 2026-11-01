@@ -1,3 +1,5 @@
+import { track } from "../mcp/analytics.mjs";
+
 const PUBLIC_NODES = ["https://solana-rpc.publicnode.com", "https://api.mainnet-beta.solana.com", "https://api.mainnet.solana.com"];
 
 const METHODS = new Set([
@@ -13,10 +15,33 @@ const FAIL = "The public Solana nodes did not answer. Try the read again.";
 export const config = { maxDuration: 30 };
 
 export default async function handler(req, res) {
+  const started = Date.now();
   try {
     const result = await run(req);
+    await track(
+      {
+        source: "api",
+        name: "rpc",
+        ok: result.status < 400,
+        ms: Date.now() - started,
+        error: result.status >= 400 ? "rpc failed" : undefined,
+        meta: { route: "/api/rpc", status: result.status },
+      },
+      process.env,
+    );
     return write(res, result.status, result.body);
-  } catch {
+  } catch (error) {
+    await track(
+      {
+        source: "api",
+        name: "rpc",
+        ok: false,
+        ms: Date.now() - started,
+        error: error instanceof Error ? error.message : "rpc failed",
+        meta: { route: "/api/rpc" },
+      },
+      process.env,
+    );
     return write(res, 502, envelope(FAIL));
   }
 }

@@ -1,13 +1,28 @@
+import { saveRemoteKey } from "../mcp/keyauth.mjs";
+import { track } from "../mcp/analytics.mjs";
+
 const COOKIE = "kazitrust_key";
 const LIFETIMES = [1, 6, 24, 168, 720];
 let current = null;
 let cachedKey = "";
 
 export default async function handler(req, res) {
+  const started = Date.now();
   try {
     const request = asRequest(req);
     const raw = request.method === "POST" ? await nodeBody(req) : "";
     const result = await run(request, raw);
+    await track(
+      {
+        source: "api",
+        name: request.method === "POST" ? "api_key_create" : "api_key_view",
+        ok: result.status < 400,
+        ms: Date.now() - started,
+        error: result.status >= 400 ? String(result.body?.error || result.status) : undefined,
+        meta: { route: "/api/keys", status: result.status },
+      },
+      process.env,
+    );
     if (res && typeof res.end === "function") {
       writeNode(res, result);
       return;
@@ -16,7 +31,18 @@ export default async function handler(req, res) {
       status: result.status,
       headers: { "content-type": "application/json" },
     });
-  } catch {
+  } catch (error) {
+    await track(
+      {
+        source: "api",
+        name: "api_key",
+        ok: false,
+        ms: Date.now() - started,
+        error: error instanceof Error ? error.message : "key service failed",
+        meta: { route: "/api/keys" },
+      },
+      process.env,
+    );
     const body = JSON.stringify({ error: "The key service did not answer." });
     if (res && typeof res.end === "function") {
       res.statusCode = 500;
@@ -50,6 +76,7 @@ async function run(request, raw) {
   if (!LIFETIMES.includes(hours)) return { status: 400, body: { error: "Choose how long the key stays active." } };
   const issued = mint(hours);
   current = { hash: await sha(issued.key), prefix: issued.prefix, createdAt: issued.createdAt, expiresAt: issued.expiresAt };
+  await saveRemoteKey(current, process.env);
   const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
   const maxAge = Math.max(1, Math.ceil((Date.parse(issued.expiresAt) - Date.now()) / 1000));
   return { status: 200, body: issued, cookie: await seal(current, secret, host, maxAge) };

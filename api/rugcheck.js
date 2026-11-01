@@ -1,3 +1,6 @@
+import { apiKeyAllowed, bearer } from "../mcp/keyauth.mjs";
+import { track } from "../mcp/analytics.mjs";
+
 const MINT = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
 let cachedKey = "";
@@ -5,10 +8,33 @@ let cachedKey = "";
 export const config = { maxDuration: 20 };
 
 export default async function handler(req, res) {
+  const started = Date.now();
   try {
     const result = await run(req);
+    await track(
+      {
+        source: "api",
+        name: "rugcheck",
+        ok: result.status < 400,
+        ms: Date.now() - started,
+        error: result.status >= 400 ? String(result.body?.error || result.status) : undefined,
+        meta: { route: "/api/rugcheck", status: result.status },
+      },
+      process.env,
+    );
     return write(res, result.status, result.body);
-  } catch {
+  } catch (error) {
+    await track(
+      {
+        source: "api",
+        name: "rugcheck",
+        ok: false,
+        ms: Date.now() - started,
+        error: error instanceof Error ? error.message : "RugCheck failed",
+        meta: { route: "/api/rugcheck" },
+      },
+      process.env,
+    );
     return write(res, 502, { error: "RugCheck did not return a token report." });
   }
 }
@@ -17,14 +43,16 @@ async function run(req) {
   if ((req?.method || "GET") !== "GET") return { status: 405, body: { error: "Use GET." } };
   const appId = env("PRIVY_APP_ID") || env("VITE_PRIVY_APP_ID");
   const secret = env("PRIVY_APP_SECRET");
-  if (!appId || !secret) return { status: 503, body: { error: "Sign-in is not configured." } };
   const request = asRequest(req);
-  const token = (request.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").trim();
-  let allowed = false;
-  try {
-    allowed = await signedIn(appId, secret, token);
-  } catch {
-    return { status: 503, body: { error: "Sign-in is not configured." } };
+  const token = bearer(request.headers.get("authorization") || "");
+  let allowed = await apiKeyAllowed(token, request.headers, process.env);
+  if (!allowed) {
+    if (!appId || !secret) return { status: 503, body: { error: "Sign-in is not configured." } };
+    try {
+      allowed = await signedIn(appId, secret, token);
+    } catch {
+      return { status: 503, body: { error: "Sign-in is not configured." } };
+    }
   }
   if (!allowed) return { status: 401, body: { error: "Sign in before a query." } };
   const mint = new URL(request.url).searchParams.get("mint") || "";

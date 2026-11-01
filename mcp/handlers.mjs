@@ -274,12 +274,22 @@ async function tokenRisk(mint, env) {
   if (!ADDRESS_RE.test(mint)) return toolError("Pass a valid Solana mint address.");
   const base = apiBase(env);
   const headers = authHeaders(env);
-  const response = await fetch(`${base}/api/v1/rugcheck?mint=${encodeURIComponent(mint)}`, {
-    headers,
-    signal: AbortSignal.timeout(20000),
-  });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) {
+  const paths = [`/api/v1/rugcheck?mint=${encodeURIComponent(mint)}`, `/api/rugcheck?mint=${encodeURIComponent(mint)}`];
+  let body = {};
+  let ok = false;
+  for (const path of paths) {
+    const response = await fetch(`${base}${path}`, {
+      headers,
+      signal: AbortSignal.timeout(20000),
+    });
+    body = await response.json().catch(() => ({}));
+    if (response.ok) {
+      ok = true;
+      break;
+    }
+    if (response.status !== 401 && response.status !== 404) break;
+  }
+  if (!ok) {
     return toolError(typeof body.error === "string" ? body.error : "RugCheck did not return a token report.");
   }
   return toolResult({
@@ -310,17 +320,23 @@ function listServices(env) {
 async function fetchRestrictions(address, env) {
   const base = apiBase(env);
   const headers = authHeaders(env);
-  const response = await fetch(`${base}/api/v1/restrictions`, {
-    headers,
-    signal: AbortSignal.timeout(20000),
-  });
-  if (response.status === 401) {
-    // Fall back to local static lists only when the hosted OFAC route needs a key.
+  const paths = ["/api/v1/restrictions", "/api/restrictions"];
+  let lastStatus = 0;
+  for (const path of paths) {
+    const response = await fetch(`${base}${path}`, {
+      headers,
+      signal: AbortSignal.timeout(20000),
+    });
+    lastStatus = response.status;
+    if (response.ok) return await response.json();
+    if (response.status === 401 || response.status === 404) continue;
+    throw new Error("The OFAC SDN list could not be checked.");
+  }
+  if (lastStatus === 401 || lastStatus === 404) {
+    // Fall back to local static lists when the hosted OFAC route needs a key or is unavailable.
     return { entries: [] };
   }
-  if (!response.ok) throw new Error("The OFAC SDN list could not be checked.");
-  const body = await response.json();
-  return body;
+  throw new Error("The OFAC SDN list could not be checked.");
 }
 
 async function rpc(method, params, env) {

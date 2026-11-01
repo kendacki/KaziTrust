@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, type ReactNode } from "react";
 import { PrivyProvider, useLogin, usePrivy } from "@privy-io/react-auth";
+import { track } from "./analytics";
 import { Lockup } from "./components/mark";
 
 const appId = import.meta.env.VITE_PRIVY_APP_ID ?? "";
@@ -121,7 +122,10 @@ function AuthGate({ go, children }: { go: (to: string) => void; children: ReactN
   }, [clearTimers]);
 
   useEffect(() => {
-    if (authenticated) signedInBefore = true;
+    if (authenticated) {
+      if (!signedInBefore) track({ name: "auth_login", meta: { route: "/app" } });
+      signedInBefore = true;
+    }
   }, [authenticated]);
 
   useEffect(() => {

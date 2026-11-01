@@ -1,3 +1,6 @@
+import { track } from "../analytics";
+import { bandFromScore, clamp, formatNow, formatNumber, formatRawUnits, formatSol, formatTime, severityWord, shortAddress } from "../format";
+import type { Answer, ApprovalRow, Evidence, Finding, FlowRow, HoldingRow, ProgramSlice, Report, ScoreRule, Severity, TimelineEvent, Visual } from "../types";
 import { extractAddresses, isSolanaAddress, ungroundedAddresses } from "./address";
 import { EXAMPLE_MINT, EXAMPLE_PROGRAM, lookupLabel, mintName, programName, SCORING_VERSION, TOKEN_2022, TOKEN_PROGRAM } from "./labels";
 import { consumeRead, readQuota } from "./quota";
@@ -10,8 +13,6 @@ import { readSolscan, type SolscanBook } from "./solscan";
 import { readRestrictions, screenAddresses, type RestrictionFacts, type RestrictionIndex, type BlockedEntry } from "./restrictions";
 import { binanceHackMeta, isOfacList, kelsierMeta, screenBinanceHack, screenKelsier } from "./lists";
 import { readTokenFaces } from "./tokenmeta";
-import { bandFromScore, clamp, formatNow, formatNumber, formatRawUnits, formatSol, formatTime, severityWord, shortAddress } from "../format";
-import type { Answer, ApprovalRow, Evidence, Finding, FlowRow, HoldingRow, ProgramSlice, Report, ScoreRule, Severity, TimelineEvent, Visual } from "../types";
 
 type Stepper = (label: string, state: "active" | "done") => void;
 
@@ -147,6 +148,7 @@ export async function investigate(options: {
 
   const quota = consumeRead();
   if (!quota.ok) {
+    track({ name: "investigate_quota", ok: false, meta: { mode: options.mode, limit: quota.limit } });
     return {
       kind: "text",
       text: `This browser has used its ${quota.limit} live reads for today. The sample deployer read still works, and the counter resets tomorrow.`,
@@ -155,6 +157,8 @@ export async function investigate(options: {
   }
 
   const intent = detectIntent(question);
+  const started = Date.now();
+  track({ name: "investigate_start", meta: { mode: options.mode, addresses: addresses.length, intent } });
   try {
     if (addresses.length > 2) {
       const reports: Report[] = [];
@@ -166,6 +170,11 @@ export async function investigate(options: {
       }
       const report = batchReport(reports);
       assertGrounded(report);
+      track({
+        name: "investigate_complete",
+        ms: Date.now() - started,
+        meta: { mode: options.mode, kind: report.kind, score: report.riskScore ?? -1, band: report.band, addresses: addresses.length },
+      });
       return voiceReport(question, report, ["How is the score built?"], options.signal, onStep);
     }
     if (intent === "compare" || addresses.length >= 2) {
@@ -180,6 +189,11 @@ export async function investigate(options: {
       const report = compareReports(buildReport(a, intent), buildReport(b, intent));
       onStep("Comparing the two reads", "done");
       assertGrounded(report);
+      track({
+        name: "investigate_complete",
+        ms: Date.now() - started,
+        meta: { mode: options.mode, kind: report.kind, score: report.riskScore ?? -1, band: report.band, addresses: 2 },
+      });
       return voiceReport(question, report, followupsFor(report), options.signal, onStep);
     }
     onStep("Checking the address", "active");
@@ -192,12 +206,19 @@ export async function investigate(options: {
     }
     onStep("Scoring the public record", "done");
     assertGrounded(report);
+    track({
+      name: "investigate_complete",
+      ms: Date.now() - started,
+      meta: { mode: options.mode, kind: report.kind, score: report.riskScore ?? -1, band: report.band, addresses: 1 },
+    });
     return voiceReport(question, report, followupsFor(report), options.signal, onStep);
   } catch (error) {
     if (options.signal.aborted) {
+      track({ name: "investigate_error", ok: false, ms: Date.now() - started, error: "aborted", meta: { mode: options.mode } });
       return { kind: "text", text: "Stopped. Nothing after this point was scored.", followups: [] };
     }
     const message = error instanceof RpcError ? error.message : "The read failed before a score could be made.";
+    track({ name: "investigate_error", ok: false, ms: Date.now() - started, error: message, meta: { mode: options.mode } });
     const remaining = readQuota();
     return {
       kind: "text",

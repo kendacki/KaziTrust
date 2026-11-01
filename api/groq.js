@@ -1,3 +1,6 @@
+import { apiKeyAllowed, bearer } from "../mcp/keyauth.mjs";
+import { track } from "../mcp/analytics.mjs";
+
 const MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b"];
 const OUT_OF_SCOPE =
   "KaziTrust only reads Solana wallets, mints, and contracts, and explains those reads. Ask for one of those, or about how a score is built.";
@@ -34,10 +37,33 @@ let cachedKey = "";
 export const config = { maxDuration: 30 };
 
 export default async function handler(req, res) {
+  const started = Date.now();
   try {
     const result = await run(req);
+    await track(
+      {
+        source: "api",
+        name: "wording",
+        ok: result.status < 400,
+        ms: Date.now() - started,
+        error: result.status >= 400 ? String(result.body?.error || result.status) : undefined,
+        meta: { route: "/api/groq", status: result.status },
+      },
+      process.env,
+    );
     return write(res, result.status, result.body);
-  } catch {
+  } catch (error) {
+    await track(
+      {
+        source: "api",
+        name: "wording",
+        ok: false,
+        ms: Date.now() - started,
+        error: error instanceof Error ? error.message : "wording failed",
+        meta: { route: "/api/groq" },
+      },
+      process.env,
+    );
     return write(res, 502, { error: "The wording service did not answer." });
   }
 }
@@ -48,14 +74,16 @@ async function run(req) {
   const appId = env("PRIVY_APP_ID") || env("VITE_PRIVY_APP_ID");
   const secret = env("PRIVY_APP_SECRET");
   if (!apiKey) return { status: 503, body: { error: "The wording service is not configured." } };
-  if (!appId || !secret) return { status: 503, body: { error: "Sign-in is not configured." } };
   const request = asRequest(req);
-  const token = (request.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").trim();
-  let allowed = false;
-  try {
-    allowed = await signedIn(appId, secret, token);
-  } catch {
-    return { status: 503, body: { error: "Sign-in is not configured." } };
+  const token = bearer(request.headers.get("authorization") || "");
+  let allowed = await apiKeyAllowed(token, request.headers, process.env);
+  if (!allowed) {
+    if (!appId || !secret) return { status: 503, body: { error: "Sign-in is not configured." } };
+    try {
+      allowed = await signedIn(appId, secret, token);
+    } catch {
+      return { status: 503, body: { error: "Sign-in is not configured." } };
+    }
   }
   if (!allowed) return { status: 401, body: { error: "Sign in before a query." } };
   let body;

@@ -1,6 +1,7 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { track } from "../analytics";
 import { readAttachment } from "../engine/attach";
 import { extractAddresses } from "../engine/address";
 import { investigate } from "../engine/analyze";
@@ -237,6 +238,7 @@ export function Chat({ go, api = false }: { go: (to: string) => void; api?: bool
 
   async function attachFile(file: File) {
     const result = await readAttachment(file);
+    track({ name: "attach_file", ok: result.ok, meta: { addresses: result.ok ? result.addresses.length : 0 } });
     if (!result.ok) {
       say("Attached a file", result.message);
       return;
@@ -264,6 +266,7 @@ export function Chat({ go, api = false }: { go: (to: string) => void; api?: bool
     const address = report.watchAddress;
     const threadId = activeId;
     const saved = watch.some((item) => item.address === address);
+    track({ name: saved ? "watch_unpin" : "watch_pin", meta: { score: report.riskScore ?? -1, band: report.band } });
     setWatch((current) => {
       if (saved) return current.filter((item) => item.address !== address);
       const previous = current.find((item) => item.address === address);
@@ -435,7 +438,10 @@ export function Chat({ go, api = false }: { go: (to: string) => void; api?: bool
               if (next) setUsername(next);
               setEditingName(false);
             }}
-            onSignOut={() => void logout()}
+            onSignOut={() => {
+              track({ name: "auth_logout" });
+              void logout();
+            }}
           />
         </footer>
       </aside>
@@ -479,7 +485,10 @@ export function Chat({ go, api = false }: { go: (to: string) => void; api?: bool
                 type="button"
                 className="icon-btn"
                 aria-label="Download PDF"
-                onClick={() => void downloadChatPdf(active)}
+                onClick={() => {
+                  track({ name: "pdf_export", meta: { messages: active.messages.length } });
+                  void downloadChatPdf(active);
+                }}
               >
                 <IconExport size={20} />
               </button>
@@ -598,10 +607,24 @@ export function Chat({ go, api = false }: { go: (to: string) => void; api?: bool
                 }}
               />
               <div className="mode" role="group" aria-label="Scan mode">
-                <button type="button" aria-pressed={mode === "quick"} onClick={() => setMode("quick")}>
+                <button
+                  type="button"
+                  aria-pressed={mode === "quick"}
+                  onClick={() => {
+                    setMode("quick");
+                    track({ name: "mode_change", meta: { mode: "quick" } });
+                  }}
+                >
                   Quick read
                 </button>
-                <button type="button" aria-pressed={mode === "deep"} onClick={() => setMode("deep")}>
+                <button
+                  type="button"
+                  aria-pressed={mode === "deep"}
+                  onClick={() => {
+                    setMode("deep");
+                    track({ name: "mode_change", meta: { mode: "deep" } });
+                  }}
+                >
                   Deep scan
                 </button>
               </div>

@@ -1,3 +1,4 @@
+import { track } from "./analytics.mjs";
 import { callTool, INSTRUCTIONS, SERVER_INFO, TOOLS } from "./handlers.mjs";
 
 export async function handleMcpMessage(message, env = process.env) {
@@ -22,9 +23,10 @@ async function handleOne(message, env) {
 
   if (method.startsWith("notifications/")) return null;
 
+  const started = Date.now();
   try {
     if (method === "initialize") {
-      return result(id, {
+      const payload = result(id, {
         protocolVersion: "2024-11-05",
         capabilities: { tools: { listChanged: false } },
         serverInfo: {
@@ -35,21 +37,78 @@ async function handleOne(message, env) {
         },
         instructions: INSTRUCTIONS,
       });
+      await track({ source: "mcp", name: "initialize", ok: true, ms: Date.now() - started }, env);
+      return payload;
     }
     if (method === "ping") return result(id, {});
-    if (method === "tools/list") return result(id, { tools: TOOLS });
+    if (method === "tools/list") {
+      await track({ source: "mcp", name: "tools/list", ok: true, ms: Date.now() - started }, env);
+      return result(id, { tools: TOOLS });
+    }
     if (method === "tools/call") {
       const name = message.params?.name;
       const args = message.params?.arguments ?? {};
-      if (typeof name !== "string") return errorResponse(id, -32602, "Tool name required");
+      if (typeof name !== "string") {
+        await track(
+          { source: "mcp", name: "tools/call", ok: false, ms: Date.now() - started, error: "Tool name required" },
+          env,
+        );
+        return errorResponse(id, -32602, "Tool name required");
+      }
       const gate = authorize(env, name);
-      if (gate) return errorResponse(id, -32001, gate);
+      if (gate) {
+        await track(
+          {
+            source: "mcp",
+            name: "tools/call",
+            ok: false,
+            ms: Date.now() - started,
+            error: gate,
+            meta: { tool: name, reason: "auth" },
+          },
+          env,
+        );
+        return errorResponse(id, -32001, gate);
+      }
       const output = await callTool(name, args, env);
+      const failed = Boolean(output?.isError);
+      await track(
+        {
+          source: "mcp",
+          name: "tools/call",
+          ok: !failed,
+          ms: Date.now() - started,
+          error: failed ? String(output?.content?.[0]?.text || "tool error").slice(0, 240) : undefined,
+          meta: { tool: name },
+        },
+        env,
+      );
       return result(id, output);
     }
+    await track(
+      {
+        source: "mcp",
+        name: method,
+        ok: false,
+        ms: Date.now() - started,
+        error: `Method not found: ${method}`,
+      },
+      env,
+    );
     return errorResponse(id, -32601, `Method not found: ${method}`);
   } catch (error) {
-    return errorResponse(id, -32603, error instanceof Error ? error.message : "Internal error");
+    const messageText = error instanceof Error ? error.message : "Internal error";
+    await track(
+      {
+        source: "mcp",
+        name: typeof method === "string" ? method : "error",
+        ok: false,
+        ms: Date.now() - started,
+        error: messageText,
+      },
+      env,
+    );
+    return errorResponse(id, -32603, messageText);
   }
 }
 

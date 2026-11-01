@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { ingestClientEvents, summarize, track } from "../analytics.mjs";
 import { callTool } from "../handlers.mjs";
 import { handleMcpMessage } from "../protocol.mjs";
 
@@ -61,6 +62,13 @@ const services = await callTool("list_services", {}, env);
 assert.equal(services.structuredContent.scoringVersion, "0.4.3");
 assert.ok(services.structuredContent.mcp.includes("/mcp"));
 
+await track({ source: "api", name: "smoke_api", ok: true, meta: { route: "/api/v1" } }, env);
+await ingestClientEvents([{ name: "page_view", meta: { route: "/app" } }], env);
+const stats = await summarize(env, { limit: 20 });
+assert.equal(stats.ok, true);
+assert.ok(Number(stats.totals?.events || 0) >= 1);
+assert.ok(stats.byName?.["tools/call"] || stats.byName?.initialize || stats.totals.mcp >= 1);
+
 console.log("mcp smoke ok");
 console.log(
   JSON.stringify(
@@ -68,6 +76,8 @@ console.log(
       tools: names,
       binanceListed: screened.structuredContent.listed,
       scoringVersion: services.structuredContent.scoringVersion,
+      analyticsEvents: stats.totals.events,
+      analyticsFailed: stats.totals.failed,
     },
     null,
     2,

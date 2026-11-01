@@ -1,5 +1,6 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { useEffect, useRef, useState } from "react";
+import { track } from "../analytics";
 import { formatKeyRemaining, KEY_LIFETIMES, keyActive, keyLifetime } from "../engine/keylife";
 import { clearApiKey, loadApiKey, saveApiKey } from "../storage";
 import { Chrome } from "./site";
@@ -379,7 +380,9 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
       setNow(Date.now());
       setConfirm(false);
       setNotice(`Key created. It stops after ${life.label}. Copy it now.`);
+      track({ name: "api_key_create", meta: { hours: life.hours } });
     } catch (caught) {
+      track({ name: "api_key_create", ok: false, error: caught instanceof Error ? caught.message : "key failed" });
       setError(caught instanceof Error ? caught.message : "The key service did not answer.");
     } finally {
       setWorking(false);

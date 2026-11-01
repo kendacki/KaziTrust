@@ -1,12 +1,38 @@
+import { track } from "../mcp/analytics.mjs";
 import { handleMcpMessage, mcpHttpHeaders } from "../mcp/protocol.mjs";
 
 export const config = { maxDuration: 30 };
 
 export default async function handler(req, res) {
+  const started = Date.now();
   try {
     const result = await run(req);
+    if ((req?.method || "GET").toUpperCase() !== "GET") {
+      await track(
+        {
+          source: "mcp",
+          name: "http",
+          ok: result.status < 400,
+          ms: Date.now() - started,
+          error: result.status >= 400 ? String(result.body?.error || result.status) : undefined,
+          meta: { route: "/mcp", status: result.status },
+        },
+        process.env,
+      );
+    }
     return write(res, result.status, result.body, result.headers);
   } catch (error) {
+    await track(
+      {
+        source: "mcp",
+        name: "http",
+        ok: false,
+        ms: Date.now() - started,
+        error: error instanceof Error ? error.message : "MCP failed",
+        meta: { route: "/mcp" },
+      },
+      process.env,
+    );
     return write(res, 500, { error: error instanceof Error ? error.message : "MCP failed." }, mcpHttpHeaders());
   }
 }

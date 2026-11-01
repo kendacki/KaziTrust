@@ -17,6 +17,7 @@
 - [Sign in](#sign-in)
 - [The API](#the-api)
 - [MCP for ChatGPT and OpenAI](#mcp-for-chatgpt-and-openai)
+- [Analytics](#analytics)
 - [Run it locally](#run-it-locally)
 - [Limits](#limits)
 - [Privacy](#privacy)
@@ -144,6 +145,27 @@ npm run mcp:http
 
 `npm run mcp` speaks stdio for Cursor-style clients. `npm run mcp:http` listens on `http://127.0.0.1:8787/mcp`. Local Vite also mounts `/mcp` during `npm run dev`.
 
+## Analytics
+
+KaziTrust records product, API, and MCP usage so successes and failures are visible without blocking a read.
+
+| Source | What is captured |
+| --- | --- |
+| UI | Page views, sign-in/out, wallet reads (start/complete/error/quota), watchlist pins, mode changes, PDF export, file attach, API key create, client errors |
+| API | `/api/v1` gateway calls, RPC, RugCheck, restrictions, Solscan, wording, key issue |
+| MCP | `initialize`, `tools/list`, `tools/call` with tool name, latency, and error text |
+
+Events POST to `/api/analytics`. They always emit a structured `kazitrust_analytics` log line. Locally they append to `data/analytics.jsonl` (gitignored). With Upstash/Vercel KV env vars set, counters and recent failures persist across serverless cold starts.
+
+```bash
+curl "https://kazitrustai.fun/api/analytics?limit=40" \
+  -H "Authorization: Bearer $ANALYTICS_TOKEN"
+```
+
+The summary returns totals, counts by event/tool/route, and recent failures so broken MCP or API calls are easy to spot.
+
+Also fixed for production reliability: `/api/v1/*` now exists on Vercel, `/api/solscan` is hosted, MCP falls back from `/api/v1` to `/api/*` and `/rpc` when needed, and `kt_` keys are accepted on hosted tool routes (with optional Upstash key hash persistence).
+
 ### Status codes
 
 | Status | Meaning |
@@ -171,6 +193,9 @@ Copy `.env.example` to `.env`. Fill only the lines you intend to use. An empty l
 | `SOLSCAN_API_KEY` | Labels, portfolio, and recent DeFi activity. |
 | `RUGCHECK_API_KEY` | Token risk for a mint. That number stays separate from the KaziTrust score. |
 | `FLUX_RPC_URL` | The first Solana node. Public nodes are the fallback. |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Durable analytics counters and API key hash storage. |
+| `ANALYTICS_TOKEN` | Required to read `GET /api/analytics` summaries. |
+| `KAZITRUST_API_KEY_HASH` | Optional sha256 hex of a fixed `kt_` key for gateway checks. |
 
 ```bash
 npm run dev

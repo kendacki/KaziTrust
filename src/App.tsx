@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion, MotionConfig } from "framer-motion";
+import { trackPage } from "./analytics";
 import { RequireAuth } from "./auth";
 import { Chat } from "./components/chat";
 import { Lost } from "./components/lost";
@@ -50,6 +51,10 @@ export function App() {
   const missing = !KNOWN.has(path);
   useEffect(() => {
     document.title = !online ? "Offline · KaziTrust" : missing ? "Page not found · KaziTrust" : path === "/app" ? "App · KaziTrust" : path === "/docs" ? "Docs · KaziTrust" : path === "/method" ? "Method · KaziTrust" : path === "/api" || path === "/app/api" ? "API · KaziTrust" : "KaziTrust AI";
+  }, [path, online, missing]);
+
+  useEffect(() => {
+    trackPage(!online ? "offline" : missing ? "missing" : path);
   }, [path, online, missing]);
 
   let body;
