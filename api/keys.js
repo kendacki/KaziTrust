@@ -1,6 +1,6 @@
 import { dailyReadLimit, issueApiKey, keyQuota, saveRemoteKey } from "../mcp/keyauth.mjs";
 import { track } from "../mcp/analytics.mjs";
-import { rateLimitAllow, securityHeaders } from "../mcp/security.mjs";
+import { publicError, rateLimitAllow, redactSecrets, securityHeaders } from "../mcp/security.mjs";
 
 const COOKIE = "kazitrust_key";
 const LIFETIMES = [1, 6, 24, 168, 720];
@@ -19,7 +19,7 @@ export default async function handler(req, res) {
         name: request.method === "POST" ? "api_key_create" : "api_key_view",
         ok: result.status < 400,
         ms: Date.now() - started,
-        error: result.status >= 400 ? String(result.body?.error || result.status) : undefined,
+        error: result.status >= 400 ? redactSecrets(String(result.body?.error || result.status)) : undefined,
         meta: { route: "/api/keys", status: result.status },
       },
       process.env,
@@ -39,12 +39,12 @@ export default async function handler(req, res) {
         name: "api_key",
         ok: false,
         ms: Date.now() - started,
-        error: error instanceof Error ? error.message : "key service failed",
+        error: redactSecrets(error instanceof Error ? error.message : "key service failed"),
         meta: { route: "/api/keys" },
       },
       process.env,
     );
-    const body = JSON.stringify({ error: "The key service did not answer." });
+    const body = JSON.stringify({ error: publicError(error, "The key service did not answer.") });
     const headers = { "content-type": "application/json", ...securityHeaders() };
     if (res && typeof res.end === "function") {
       res.statusCode = 500;

@@ -1,3 +1,5 @@
+import { rateLimitAllow } from "../mcp/security.mjs";
+
 let cachedKey = "";
 
 export const config = { maxDuration: 20 };
@@ -5,7 +7,7 @@ export const config = { maxDuration: 20 };
 export default async function handler(req, res) {
   try {
     const result = await run(req);
-    return write(res, result.status, result.body);
+    return write(res, result.status, result.body, result.headers);
   } catch {
     return write(res, 502, { error: "Token metadata could not be read." });
   }
@@ -13,6 +15,10 @@ export default async function handler(req, res) {
 
 async function run(req) {
   if ((req?.method || "GET") !== "POST") return { status: 405, body: { error: "Use POST." } };
+  const limit = rateLimitAllow(req, "meta");
+  if (!limit.ok) {
+    return { status: 429, body: { error: "Too many metadata reads. Try again shortly." }, headers: limit.headers };
+  }
   const appId = env("PRIVY_APP_ID") || env("VITE_PRIVY_APP_ID");
   const secret = env("PRIVY_APP_SECRET");
   if (!appId || !secret) return { status: 503, body: { error: "Sign-in is not configured." } };
@@ -101,13 +107,25 @@ function safeHttps(value) {
   }
   if (url.protocol !== "https:" || url.username || url.password) return false;
   const host = url.hostname.toLowerCase();
-  if (!host.includes(".") || host.endsWith(".local") || host.endsWith(".internal") || host.endsWith(".localhost")) return false;
+  if (
+    !host.includes(".") ||
+    host.endsWith(".local") ||
+    host.endsWith(".internal") ||
+    host.endsWith(".localhost") ||
+    host === "metadata.google.internal" ||
+    host === "metadata" ||
+    host.endsWith(".nip.io") ||
+    host.endsWith(".sslip.io")
+  ) {
+    return false;
+  }
   return !privateHost(host);
 }
 
 function privateHost(host) {
   const bare = host.startsWith("[") ? host.slice(1, -1) : host;
   if (bare === "::1" || bare.startsWith("fe80:") || bare.startsWith("fc") || bare.startsWith("fd")) return true;
+  if (bare === "0.0.0.0" || bare === "::") return true;
   const match = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
   if (!match) return false;
   const parts = match.slice(1).map(Number);
@@ -160,15 +178,16 @@ async function bodyOf(req) {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-function write(res, status, body) {
+function write(res, status, body, extraHeaders = {}) {
   const text = JSON.stringify(body);
+  const headers = { "content-type": "application/json", ...extraHeaders };
   if (res && typeof res.end === "function") {
     res.statusCode = status;
-    res.setHeader("content-type", "application/json");
+    for (const [key, value] of Object.entries(headers)) res.setHeader(key, value);
     res.end(text);
     return;
   }
-  return new Response(text, { status, headers: { "content-type": "application/json" } });
+  return new Response(text, { status, headers });
 }
 
 async function signedIn(appId, appSecret, token) {

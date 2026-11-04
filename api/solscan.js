@@ -1,5 +1,6 @@
 import { apiKeyAllowed, bearer } from "../mcp/keyauth.mjs";
 import { track } from "../mcp/analytics.mjs";
+import { publicError, rateLimitAllow, redactSecrets } from "../mcp/security.mjs";
 
 const ALLOWED = new Set(["account/portfolio", "account/metadata", "account/defi/activities"]);
 const ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
@@ -17,12 +18,12 @@ export default async function handler(req, res) {
         name: "solscan",
         ok: result.status < 400,
         ms: Date.now() - started,
-        error: result.status >= 400 ? String(result.body?.error || result.status) : undefined,
+        error: result.status >= 400 ? redactSecrets(String(result.body?.error || result.status)) : undefined,
         meta: { route: "/api/solscan", status: result.status },
       },
       process.env,
     );
-    return write(res, result.status, result.body);
+    return write(res, result.status, result.body, result.headers);
   } catch (error) {
     await track(
       {
@@ -30,17 +31,21 @@ export default async function handler(req, res) {
         name: "solscan",
         ok: false,
         ms: Date.now() - started,
-        error: error instanceof Error ? error.message : "Solscan failed",
+        error: redactSecrets(error instanceof Error ? error.message : "Solscan failed"),
         meta: { route: "/api/solscan" },
       },
       process.env,
     );
-    return write(res, 502, { error: "Solscan did not answer." });
+    return write(res, 502, { error: publicError(error, "Solscan did not answer.") });
   }
 }
 
 async function run(req) {
   if ((req?.method || "GET") !== "GET") return { status: 405, body: { error: "Use GET." } };
+  const limit = rateLimitAllow(req, "heavy");
+  if (!limit.ok) {
+    return { status: 429, body: { error: "Too many Solscan reads. Try again shortly." }, headers: limit.headers };
+  }
   const request = asRequest(req);
   const url = new URL(request.url);
   const path = url.searchParams.get("path") || "";
@@ -154,12 +159,14 @@ function base64Url(value) {
   return Uint8Array.from(atob(padded), (char) => char.charCodeAt(0));
 }
 
-function write(res, status, body) {
+function write(res, status, body, extraHeaders = {}) {
+  const headers = { "content-type": "application/json", ...extraHeaders };
   if (typeof res?.status === "function" && typeof res?.json === "function") {
+    for (const [key, value] of Object.entries(headers)) res.setHeader(key, value);
     if (typeof body === "string") return res.status(status).send(body);
     return res.status(status).json(body);
   }
   res.statusCode = status;
-  res.setHeader("content-type", "application/json");
+  for (const [key, value] of Object.entries(headers)) res.setHeader(key, value);
   res.end(typeof body === "string" ? body : JSON.stringify(body));
 }

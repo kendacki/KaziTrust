@@ -1,5 +1,6 @@
 import { apiKeyAllowed, bearer } from "../mcp/keyauth.mjs";
 import { track } from "../mcp/analytics.mjs";
+import { publicError, rateLimitAllow, redactSecrets } from "../mcp/security.mjs";
 
 const MINT = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
@@ -17,12 +18,12 @@ export default async function handler(req, res) {
         name: "rugcheck",
         ok: result.status < 400,
         ms: Date.now() - started,
-        error: result.status >= 400 ? String(result.body?.error || result.status) : undefined,
+        error: result.status >= 400 ? redactSecrets(String(result.body?.error || result.status)) : undefined,
         meta: { route: "/api/rugcheck", status: result.status },
       },
       process.env,
     );
-    return write(res, result.status, result.body);
+    return write(res, result.status, result.body, result.headers);
   } catch (error) {
     await track(
       {
@@ -30,17 +31,21 @@ export default async function handler(req, res) {
         name: "rugcheck",
         ok: false,
         ms: Date.now() - started,
-        error: error instanceof Error ? error.message : "RugCheck failed",
+        error: redactSecrets(error instanceof Error ? error.message : "RugCheck failed"),
         meta: { route: "/api/rugcheck" },
       },
       process.env,
     );
-    return write(res, 502, { error: "RugCheck did not return a token report." });
+    return write(res, 502, { error: publicError(error, "RugCheck did not return a token report.") });
   }
 }
 
 async function run(req) {
   if ((req?.method || "GET") !== "GET") return { status: 405, body: { error: "Use GET." } };
+  const limit = rateLimitAllow(req, "heavy");
+  if (!limit.ok) {
+    return { status: 429, body: { error: "Too many token reports. Try again shortly." }, headers: limit.headers };
+  }
   const appId = env("PRIVY_APP_ID") || env("VITE_PRIVY_APP_ID");
   const secret = env("PRIVY_APP_SECRET");
   const request = asRequest(req);
@@ -196,15 +201,16 @@ function asRequest(input) {
   return new Request(path.startsWith("http") ? path : `${host}${path}`, { method: input?.method || "GET", headers });
 }
 
-function write(res, status, body) {
+function write(res, status, body, extraHeaders = {}) {
   const text = JSON.stringify(body);
+  const headers = { "content-type": "application/json", ...extraHeaders };
   if (res && typeof res.end === "function") {
     res.statusCode = status;
-    res.setHeader("content-type", "application/json");
+    for (const [key, value] of Object.entries(headers)) res.setHeader(key, value);
     res.end(text);
     return;
   }
-  return new Response(text, { status, headers: { "content-type": "application/json" } });
+  return new Response(text, { status, headers });
 }
 
 async function signedIn(appId, appSecret, token) {

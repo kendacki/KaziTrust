@@ -1,6 +1,12 @@
 import { track } from "../../mcp/analytics.mjs";
 import { bearer, consumeKeyRead, resolveApiKey } from "../../mcp/keyauth.mjs";
-import { publicError, rateLimitAllow, redactSecrets, securityHeaders } from "../../mcp/security.mjs";
+import {
+  publicError,
+  rateLimitAllow,
+  redactSecrets,
+  securityHeaders,
+  trustedBaseUrl,
+} from "../../mcp/security.mjs";
 
 export const config = { maxDuration: 30 };
 
@@ -93,15 +99,19 @@ async function run(req, url, route) {
     };
   }
 
-  const next = new URL(target.path, `${url.protocol}//${url.host}`);
-  url.searchParams.forEach((value, key) => next.searchParams.set(key, value));
+  // Never build the upstream URL from X-Forwarded-Host (host injection / SSRF).
+  const next = new URL(target.path, `${trustedBaseUrl(req, process.env)}/`);
+  url.searchParams.forEach((value, key) => {
+    if (/^(authorization|cookie|token|api[_-]?key)$/i.test(key)) return;
+    next.searchParams.set(key, value);
+  });
 
   const init = {
     method,
     headers: {
       authorization: header(req, "authorization"),
       "content-type": "application/json",
-      cookie: header(req, "cookie"),
+      // Do not forward browser cookies into internal service calls.
     },
   };
   if (method === "POST") init.body = await bodyOf(req);
@@ -148,9 +158,10 @@ function header(req, name) {
 }
 
 async function bodyOf(req) {
+  const max = 64_000;
   if (req && typeof req.text === "function" && req.headers && typeof req.headers.get === "function") {
     const text = await req.text();
-    if (text.length > 200_000) throw new Error("too large");
+    if (text.length > max) throw new Error("too large");
     return text;
   }
   const chunks = [];
@@ -158,7 +169,7 @@ async function bodyOf(req) {
   for await (const chunk of req) {
     const bytes = typeof chunk === "string" ? Buffer.from(chunk) : chunk;
     size += bytes.length;
-    if (size > 200_000) throw new Error("too large");
+    if (size > max) throw new Error("too large");
     chunks.push(bytes);
   }
   return Buffer.concat(chunks).toString("utf8");

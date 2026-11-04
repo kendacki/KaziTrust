@@ -433,7 +433,17 @@ async function rpc(method, params, env) {
 
 function apiBase(env) {
   const raw = (env.KAZITRUST_BASE_URL || env.MCP_BASE_URL || "https://www.kazitrustai.fun").trim().replace(/\/$/, "");
-  return raw || "https://www.kazitrustai.fun";
+  try {
+    const url = new URL(raw || "https://www.kazitrustai.fun");
+    const host = url.hostname.toLowerCase();
+    const prod = host === "www.kazitrustai.fun" || host === "kazitrustai.fun";
+    const local = host === "127.0.0.1" || host === "localhost";
+    if (url.protocol === "https:" && prod) return url.origin;
+    if (url.protocol === "http:" && local) return url.origin;
+  } catch {
+    /* fall through */
+  }
+  return "https://www.kazitrustai.fun";
 }
 
 function authHeaders(env) {

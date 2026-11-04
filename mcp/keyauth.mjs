@@ -1,4 +1,4 @@
-import { openModeEnabled } from "./security.mjs";
+import { openModeEnabled, trustedRedisConfig } from "./security.mjs";
 
 const COOKIE = "kazitrust_key";
 const LEGACY_REMOTE_KEY = "kazitrust:api-key";
@@ -49,16 +49,25 @@ export async function saveRemoteKey(record, env = process.env) {
   const redis = redisConfig(env);
   if (!redis) return true;
   try {
+    const ttlSec = ttlSeconds(payload.expiresAt);
     const commands = [
-      ["SET", `${KEY_PREFIX}${payload.hash}`, JSON.stringify(payload)],
-      ["SET", LEGACY_REMOTE_KEY, JSON.stringify(payload)],
+      ttlSec > 0
+        ? ["SET", `${KEY_PREFIX}${payload.hash}`, JSON.stringify(payload), "EX", String(ttlSec)]
+        : ["SET", `${KEY_PREFIX}${payload.hash}`, JSON.stringify(payload)],
+      ttlSec > 0
+        ? ["SET", LEGACY_REMOTE_KEY, JSON.stringify(payload), "EX", String(ttlSec)]
+        : ["SET", LEGACY_REMOTE_KEY, JSON.stringify(payload)],
     ];
-    if (payload.ownerId) {
+    if (payload.ownerId && /^did:privy:[A-Za-z0-9_-]{6,100}$/.test(payload.ownerId)) {
       const previous = await getOwnerKeyHash(payload.ownerId, env);
-      if (previous && previous !== payload.hash) {
+      if (previous && previous !== payload.hash && /^[a-f0-9]{64}$/i.test(previous)) {
         commands.push(["DEL", `${KEY_PREFIX}${previous}`]);
       }
-      commands.push(["SET", `${OWNER_PREFIX}${payload.ownerId}`, payload.hash]);
+      commands.push(
+        ttlSec > 0
+          ? ["SET", `${OWNER_PREFIX}${payload.ownerId}`, payload.hash, "EX", String(ttlSec)]
+          : ["SET", `${OWNER_PREFIX}${payload.ownerId}`, payload.hash],
+      );
     }
     const response = await fetch(`${redis.url}/pipeline`, {
       method: "POST",
@@ -339,12 +348,12 @@ async function readReads(hash, day, env) {
 
 async function loadKeyByHash(hash, env) {
   const normalized = String(hash || "").toLowerCase();
-  if (!normalized) return null;
+  if (!/^[a-f0-9]{64}$/.test(normalized)) return null;
   if (memoryKeys.has(normalized)) return memoryKeys.get(normalized);
   const redis = redisConfig(env);
   if (!redis) return null;
   try {
-    const response = await fetch(`${redis.url}/get/${KEY_PREFIX}${normalized}`, {
+    const response = await fetch(`${redis.url}/get/${encodeURIComponent(`${KEY_PREFIX}${normalized}`)}`, {
       headers: { authorization: `Bearer ${redis.token}` },
       signal: AbortSignal.timeout(3000),
     });
@@ -377,27 +386,33 @@ async function loadLegacyKey(env) {
 }
 
 async function getOwnerKeyHash(ownerId, env) {
+  if (!ownerId || !/^did:privy:[A-Za-z0-9_-]{6,100}$/.test(ownerId)) return null;
   if (memoryOwners.has(ownerId)) return memoryOwners.get(ownerId);
   const redis = redisConfig(env);
   if (!redis) return null;
   try {
-    const response = await fetch(`${redis.url}/get/${OWNER_PREFIX}${ownerId}`, {
+    const response = await fetch(`${redis.url}/get/${encodeURIComponent(`${OWNER_PREFIX}${ownerId}`)}`, {
       headers: { authorization: `Bearer ${redis.token}` },
       signal: AbortSignal.timeout(3000),
     });
     if (!response.ok) return null;
     const body = await response.json();
-    return typeof body?.result === "string" ? body.result : null;
+    const value = typeof body?.result === "string" ? body.result : null;
+    return value && /^[a-f0-9]{64}$/i.test(value) ? value.toLowerCase() : null;
   } catch {
     return null;
   }
 }
 
 function redisConfig(env) {
-  const url = String(env.UPSTASH_REDIS_REST_URL || env.KV_REST_API_URL || "").trim().replace(/\/$/, "");
-  const token = String(env.UPSTASH_REDIS_REST_TOKEN || env.KV_REST_API_TOKEN || "").trim();
-  if (!url || !token) return null;
-  return { url, token };
+  return trustedRedisConfig(env);
+}
+
+function ttlSeconds(expiresAt) {
+  if (!expiresAt) return 0;
+  const ends = Date.parse(String(expiresAt));
+  if (!Number.isFinite(ends)) return 0;
+  return Math.max(60, Math.ceil((ends - Date.now()) / 1000));
 }
 
 async function readKeyCookie(cookie, secret) {

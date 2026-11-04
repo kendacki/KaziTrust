@@ -27,6 +27,8 @@ const PROFILES = {
   analytics: { capacity: 24, refillPerSec: 0.5 },
   auth: { capacity: 12, refillPerSec: 0.25 },
   heavy: { capacity: 30, refillPerSec: 1 },
+  wording: { capacity: 24, refillPerSec: 0.5 },
+  meta: { capacity: 36, refillPerSec: 1 },
 };
 
 export function isProduction(env = process.env) {
@@ -124,6 +126,69 @@ export function browserOriginAllowed(req, env = process.env) {
   const origin = headerValue(req, "origin").trim();
   if (!origin) return true;
   return allowedOrigins(env).has(origin);
+}
+
+/**
+ * Never trust X-Forwarded-Host for outbound API base URLs (SSRF / host injection).
+ * Production always pins to the live origin unless KAZITRUST_BASE_URL is set.
+ */
+export function trustedBaseUrl(req, env = process.env) {
+  const configured = String(env.KAZITRUST_BASE_URL || env.MCP_BASE_URL || "")
+    .trim()
+    .replace(/\/$/, "");
+  if (configured) {
+    try {
+      const url = new URL(configured);
+      if (url.protocol === "https:" || (!isProduction(env) && url.protocol === "http:")) {
+        return url.origin;
+      }
+    } catch {
+      /* fall through */
+    }
+  }
+  if (isProduction(env)) return "https://www.kazitrustai.fun";
+  const host = (headerValue(req, "host") || "127.0.0.1:5173").split(",")[0].trim().toLowerCase();
+  if (host.startsWith("127.0.0.1") || host.startsWith("localhost")) {
+    return `http://${host}`;
+  }
+  return "https://www.kazitrustai.fun";
+}
+
+/** Only allow known Redis REST hosts so a bad env cannot turn Redis calls into SSRF. */
+export function trustedRedisConfig(env = process.env) {
+  const url = String(env.UPSTASH_REDIS_REST_URL || env.KV_REST_API_URL || "").trim().replace(/\/$/, "");
+  const token = String(env.UPSTASH_REDIS_REST_TOKEN || env.KV_REST_API_TOKEN || "").trim();
+  if (!url || !token) return null;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:") return null;
+    const host = parsed.hostname.toLowerCase();
+    const ok =
+      host.endsWith(".upstash.io") ||
+      host.endsWith(".kv.vercel-storage.com") ||
+      host.endsWith(".redis.cloud.redislabs.com");
+    if (!ok) return null;
+    return { url: parsed.origin, token };
+  } catch {
+    return null;
+  }
+}
+
+/** Strip common prompt-injection scaffolding from untrusted model inputs. */
+export function sanitizeModelInput(value, max = 4000) {
+  let text = String(value || "")
+    .replace(/\u0000/g, "")
+    .replace(/[\u200B-\u200F\u202A-\u202E]/g, "")
+    .slice(0, max);
+  text = text.replace(
+    /(?:^|\n)\s*(?:system|assistant|developer)\s*:/gi,
+    "\n[blocked]:",
+  );
+  text = text.replace(
+    /\b(?:ignore|disregard|forget|override)\b.{0,40}\b(?:instructions?|rules?|guardrails?|prompt|system)\b/gi,
+    "[blocked]",
+  );
+  return text.trim();
 }
 
 /**

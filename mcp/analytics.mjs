@@ -1,7 +1,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { corsHeaders, redactSecrets, securityHeaders } from "./security.mjs";
+import { corsHeaders, redactSecrets, securityHeaders, trustedRedisConfig } from "./security.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const FILE = join(ROOT, "data", "analytics.jsonl");
@@ -162,7 +162,7 @@ export async function timed(base, work, env = process.env) {
         ...base,
         ok: false,
         ms: Date.now() - started,
-        error: error instanceof Error ? error.message : "failed",
+        error: redactSecrets(error instanceof Error ? error.message : "failed"),
       },
       env,
     );
@@ -257,17 +257,16 @@ function appendLocal(event) {
 }
 
 function redisConfig(env) {
-  const url = String(env.UPSTASH_REDIS_REST_URL || env.KV_REST_API_URL || "").trim().replace(/\/$/, "");
-  const token = String(env.UPSTASH_REDIS_REST_TOKEN || env.KV_REST_API_TOKEN || "").trim();
-  if (!url || !token) return null;
-  return { url, token };
+  return trustedRedisConfig(env);
 }
 
 async function persistRemote(event, env) {
   const redis = redisConfig(env);
   if (!redis) return;
+  const payload = JSON.stringify(event);
+  if (payload.length > 4000) return;
   const pipeline = [
-    ["LPUSH", EVENTS_KEY, JSON.stringify(event)],
+    ["LPUSH", EVENTS_KEY, payload],
     ["LTRIM", EVENTS_KEY, "0", String(RING_MAX - 1)],
     ["HINCRBY", COUNTER_KEY, "total", "1"],
     ["HINCRBY", COUNTER_KEY, event.ok ? "ok" : "failed", "1"],

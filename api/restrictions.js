@@ -2,6 +2,7 @@ import { inflateRawSync } from "node:zlib";
 import kelsier from "./kelsier.json" with { type: "json" };
 import { apiKeyAllowed, bearer } from "../mcp/keyauth.mjs";
 import { track } from "../mcp/analytics.mjs";
+import { publicError, rateLimitAllow, redactSecrets } from "../mcp/security.mjs";
 
 const SDN_ZIP = "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/SDN_ADVANCED.ZIP";
 const TTL = 6 * 60 * 60 * 1000;
@@ -37,12 +38,12 @@ export default async function handler(req, res) {
         name: "restrictions",
         ok: result.status < 400,
         ms: Date.now() - started,
-        error: result.status >= 400 ? String(result.body?.error || result.status) : undefined,
+        error: result.status >= 400 ? redactSecrets(String(result.body?.error || result.status)) : undefined,
         meta: { route: "/api/restrictions", status: result.status },
       },
       process.env,
     );
-    return write(res, result.status, result.body);
+    return write(res, result.status, result.body, result.headers);
   } catch (error) {
     await track(
       {
@@ -50,17 +51,21 @@ export default async function handler(req, res) {
         name: "restrictions",
         ok: false,
         ms: Date.now() - started,
-        error: error instanceof Error ? error.message : "restrictions failed",
+        error: redactSecrets(error instanceof Error ? error.message : "restrictions failed"),
         meta: { route: "/api/restrictions" },
       },
       process.env,
     );
-    return write(res, 503, { error: "The OFAC SDN list could not be read." });
+    return write(res, 503, { error: publicError(error, "The OFAC SDN list could not be read.") });
   }
 }
 
 async function run(req) {
   if ((req?.method || "GET") !== "GET") return { status: 405, body: { error: "Use GET." } };
+  const limit = rateLimitAllow(req, "heavy");
+  if (!limit.ok) {
+    return { status: 429, body: { error: "Too many restriction reads. Try again shortly." }, headers: limit.headers };
+  }
   const appId = env("PRIVY_APP_ID") || env("VITE_PRIVY_APP_ID");
   const secret = env("PRIVY_APP_SECRET");
   const request = asRequest(req);
@@ -195,15 +200,16 @@ function asRequest(input) {
   return new Request("https://kazitrustai.fun/api/restrictions", { method: input?.method || "GET", headers });
 }
 
-function write(res, status, body) {
+function write(res, status, body, extraHeaders = {}) {
   const text = JSON.stringify(body);
+  const headers = { "content-type": "application/json", ...extraHeaders };
   if (res && typeof res.end === "function") {
     res.statusCode = status;
-    res.setHeader("content-type", "application/json");
+    for (const [key, value] of Object.entries(headers)) res.setHeader(key, value);
     res.end(text);
     return;
   }
-  return new Response(text, { status, headers: { "content-type": "application/json" } });
+  return new Response(text, { status, headers });
 }
 
 async function signedIn(appId, appSecret, token) {

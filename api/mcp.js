@@ -1,7 +1,7 @@
 import { track } from "../mcp/analytics.mjs";
 import { keyFromHeaders, keyFromUrl, normalizeApiKey, withApiKey } from "../mcp/auth.mjs";
 import { handleMcpMessage, mcpHttpHeaders } from "../mcp/protocol.mjs";
-import { publicError, rateLimitAllow, redactSecrets } from "../mcp/security.mjs";
+import { publicError, rateLimitAllow, redactSecrets, trustedBaseUrl } from "../mcp/security.mjs";
 
 export const config = { maxDuration: 30 };
 
@@ -107,11 +107,8 @@ async function run(req) {
     keyFromUrl(requestUrl) ||
     normalizeFromQuery(req);
   env = withApiKey(env, key);
-  if (!env.KAZITRUST_BASE_URL) {
-    const host = header(req, "x-forwarded-host") || header(req, "host") || "www.kazitrustai.fun";
-    const proto = header(req, "x-forwarded-proto") || "https";
-    env.KAZITRUST_BASE_URL = `${proto}://${host}`;
-  }
+  // Pin outbound tool calls to a trusted origin — never X-Forwarded-Host.
+  env.KAZITRUST_BASE_URL = trustedBaseUrl(req, env);
 
   const reply = await handleMcpMessage(message, env);
   if (reply == null) return { status: 202, body: "", headers };
