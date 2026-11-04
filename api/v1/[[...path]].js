@@ -1,6 +1,6 @@
 import { track } from "../../mcp/analytics.mjs";
 import { bearer, consumeKeyRead, resolveApiKey } from "../../mcp/keyauth.mjs";
-import { clientIp, publicError, rateLimit, redactSecrets, securityHeaders } from "../../mcp/security.mjs";
+import { publicError, rateLimitAllow, redactSecrets, securityHeaders } from "../../mcp/security.mjs";
 
 export const config = { maxDuration: 30 };
 
@@ -30,7 +30,7 @@ export default async function handler(req, res) {
       },
       process.env,
     );
-    return write(res, result.status, result.body);
+    return write(res, result.status, result.body, result.headers);
   } catch (error) {
     await track(
       {
@@ -51,8 +51,9 @@ async function run(req, url, route) {
   const method = (req?.method || "GET").toUpperCase();
   if (method === "OPTIONS") return { status: 204, body: "" };
 
-  if (!rateLimit(`api_v1:${clientIp(req)}`, { limit: 90, windowMs: 60_000 })) {
-    return { status: 429, body: { error: "Too many API requests. Try again shortly." } };
+  const limit = rateLimitAllow(req, "api");
+  if (!limit.ok) {
+    return { status: 429, body: { error: "Too many API requests. Try again shortly." }, headers: limit.headers };
   }
 
   const token = bearer(header(req, "authorization"));
@@ -163,8 +164,8 @@ async function bodyOf(req) {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-function write(res, status, body) {
-  const headers = { "content-type": "application/json", ...securityHeaders() };
+function write(res, status, body, extraHeaders = {}) {
+  const headers = { "content-type": "application/json", ...securityHeaders(), ...extraHeaders };
   if (typeof res?.status === "function" && typeof res?.json === "function") {
     for (const [key, value] of Object.entries(headers)) res.setHeader(key, value);
     if (body === "") return res.status(status).end();

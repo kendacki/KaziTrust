@@ -1,5 +1,5 @@
 import { track } from "../mcp/analytics.mjs";
-import { clientIp, rateLimit, redactSecrets, securityHeaders } from "../mcp/security.mjs";
+import { browserOriginAllowed, rateLimitAllow, redactSecrets, securityHeaders } from "../mcp/security.mjs";
 
 const PUBLIC_NODES = ["https://solana-rpc.publicnode.com", "https://api.mainnet-beta.solana.com", "https://api.mainnet.solana.com"];
 
@@ -30,7 +30,7 @@ export default async function handler(req, res) {
       },
       process.env,
     );
-    return write(res, result.status, result.body);
+    return write(res, result.status, result.body, result.headers);
   } catch (error) {
     await track(
       {
@@ -49,8 +49,16 @@ export default async function handler(req, res) {
 
 async function run(req) {
   if ((req?.method || "GET") !== "POST") return { status: 405, body: envelope("Use POST.") };
-  if (!rateLimit(`rpc:${clientIp(req)}`, { limit: 120, windowMs: 60_000 })) {
-    return { status: 429, body: envelope("Too many chain reads. Try again shortly.") };
+  if (!browserOriginAllowed(req, process.env)) {
+    return { status: 403, body: envelope("This origin cannot call the open chain proxy.") };
+  }
+  const limit = rateLimitAllow(req, "rpc");
+  if (!limit.ok) {
+    return {
+      status: 429,
+      body: envelope("Too many chain reads. Try again shortly."),
+      headers: limit.headers,
+    };
   }
   const raw = await bodyOf(req);
   let parsed;
@@ -59,7 +67,16 @@ async function run(req) {
   } catch {
     return { status: 400, body: envelope("The chain request was not readable.") };
   }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { status: 400, body: envelope("The chain request was not readable.") };
+  }
   if (!METHODS.has(parsed?.method)) return { status: 400, body: envelope("That chain method is not used by a read.") };
+  if (parsed.params != null && !Array.isArray(parsed.params)) {
+    return { status: 400, body: envelope("Chain params must be an array.") };
+  }
+  if (Array.isArray(parsed.params) && parsed.params.length > 8) {
+    return { status: 400, body: envelope("That chain request is too large.") };
+  }
   const flux = (globalThis.process?.env?.FLUX_RPC_URL || "").trim();
   const nodes = flux.startsWith("https://") ? [flux, ...PUBLIC_NODES] : PUBLIC_NODES;
   for (const url of nodes) {
@@ -106,8 +123,8 @@ async function bodyOf(req) {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-function write(res, status, body) {
-  const headers = { "content-type": "application/json", ...securityHeaders() };
+function write(res, status, body, extraHeaders = {}) {
+  const headers = { "content-type": "application/json", ...securityHeaders(), ...extraHeaders };
   if (res && typeof res.end === "function") {
     res.statusCode = status;
     for (const [key, value] of Object.entries(headers)) res.setHeader(key, value);

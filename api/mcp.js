@@ -1,7 +1,7 @@
 import { track } from "../mcp/analytics.mjs";
 import { keyFromHeaders, keyFromUrl, normalizeApiKey, withApiKey } from "../mcp/auth.mjs";
 import { handleMcpMessage, mcpHttpHeaders } from "../mcp/protocol.mjs";
-import { clientIp, publicError, rateLimit, redactSecrets } from "../mcp/security.mjs";
+import { publicError, rateLimitAllow, redactSecrets } from "../mcp/security.mjs";
 
 export const config = { maxDuration: 30 };
 
@@ -53,7 +53,9 @@ async function run(req) {
     return { status: 405, body: { error: "This MCP server does not use client-managed sessions." }, headers };
   }
 
-  if (!rateLimit(`mcp:${clientIp(req)}`, { limit: 120, windowMs: 60_000 })) {
+  const limit = rateLimitAllow(req, "mcp");
+  Object.assign(headers, limit.headers);
+  if (!limit.ok) {
     return { status: 429, body: { error: "Too many MCP requests. Try again shortly." }, headers };
   }
 

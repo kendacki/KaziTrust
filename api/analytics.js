@@ -5,7 +5,7 @@ import {
   summarize,
   track,
 } from "../mcp/analytics.mjs";
-import { clientIp, publicError, rateLimit } from "../mcp/security.mjs";
+import { publicError, rateLimitAllow } from "../mcp/security.mjs";
 
 export const config = { maxDuration: 10 };
 
@@ -29,7 +29,9 @@ async function run(req) {
 
   if (method === "OPTIONS") return { status: 204, body: "", headers };
 
-  if (!rateLimit(`analytics:${clientIp(req)}:${method}`, { limit: method === "GET" ? 20 : 30, windowMs: 60_000 })) {
+  const limit = rateLimitAllow(req, "analytics", { suffix: method });
+  Object.assign(headers, limit.headers);
+  if (!limit.ok) {
     return { status: 429, body: { error: "Too many analytics requests from this client." }, headers };
   }
 

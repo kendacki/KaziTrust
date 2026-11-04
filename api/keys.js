@@ -1,5 +1,6 @@
 import { dailyReadLimit, issueApiKey, keyQuota, saveRemoteKey } from "../mcp/keyauth.mjs";
 import { track } from "../mcp/analytics.mjs";
+import { rateLimitAllow, securityHeaders } from "../mcp/security.mjs";
 
 const COOKIE = "kazitrust_key";
 const LIFETIMES = [1, 6, 24, 168, 720];
@@ -29,7 +30,7 @@ export default async function handler(req, res) {
     }
     return new Response(JSON.stringify(result.body), {
       status: result.status,
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...securityHeaders(), ...(result.headers || {}) },
     });
   } catch (error) {
     await track(
@@ -44,17 +45,22 @@ export default async function handler(req, res) {
       process.env,
     );
     const body = JSON.stringify({ error: "The key service did not answer." });
+    const headers = { "content-type": "application/json", ...securityHeaders() };
     if (res && typeof res.end === "function") {
       res.statusCode = 500;
-      res.setHeader("content-type", "application/json");
+      for (const [key, value] of Object.entries(headers)) res.setHeader(key, value);
       res.end(body);
       return;
     }
-    return new Response(body, { status: 500, headers: { "content-type": "application/json" } });
+    return new Response(body, { status: 500, headers });
   }
 }
 
 async function run(request, raw) {
+  const limit = rateLimitAllow(request, "auth");
+  if (!limit.ok) {
+    return { status: 429, body: { error: "Too many key requests. Try again shortly." }, headers: limit.headers };
+  }
   const appId = env("PRIVY_APP_ID") || env("VITE_PRIVY_APP_ID");
   const secret = env("PRIVY_APP_SECRET");
   if (!appId || !secret) return { status: 503, body: { error: "Sign-in is not configured." } };
@@ -180,7 +186,8 @@ function nodeBody(req) {
 
 function writeNode(res, result) {
   res.statusCode = result.status;
-  res.setHeader("content-type", "application/json");
+  const headers = { "content-type": "application/json", ...securityHeaders(), ...(result.headers || {}) };
+  for (const [key, value] of Object.entries(headers)) res.setHeader(key, value);
   if (result.cookie) res.setHeader("set-cookie", result.cookie);
   res.end(JSON.stringify(result.body));
 }
