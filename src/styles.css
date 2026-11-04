@@ -2710,14 +2710,6 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   display: grid;
   gap: 4px;
 }
-.consent-kicker {
-  margin: 0;
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--mute);
-  font-weight: 500;
-}
 .consent-panel h2 {
   margin: 0;
   font-size: clamp(22px, 5vw, 28px);

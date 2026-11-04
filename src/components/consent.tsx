@@ -48,7 +48,6 @@ export function ConsentRoot({ go }: { go: (to: string) => void }) {
       <div className="consent-scrim" aria-hidden="true" />
       <div className="consent-panel">
         <header className="consent-head">
-          <p className="consent-kicker">Privacy choices</p>
           <h2 id="consent-title">{prefs ? "Data preferences" : "How we use data"}</h2>
         </header>
 
