@@ -54,22 +54,10 @@ export function ConsentRoot({ go }: { go: (to: string) => void }) {
 
         {!prefs ? (
           <ul className="consent-points">
-            <li>
-              <span className="consent-tag">Necessary</span>
-              <span>Sign-in, security, and API key session storage. Always on.</span>
-            </li>
-            <li>
-              <span className="consent-tag optional">Optional</span>
-              <span>Product analytics stay off until you accept.</span>
-            </li>
-            <li>
-              <span className="consent-tag">On-chain</span>
-              <span>Wallet addresses you look up are public Solana data.</span>
-            </li>
-            <li>
-              <span className="consent-tag">No sale</span>
-              <span>We do not sell your personal information.</span>
-            </li>
+            <li>Sign-in, security, and API key session storage stay on. They are required for the product.</li>
+            <li>Product analytics stay off until you accept.</li>
+            <li>Wallet addresses you look up are public Solana data.</li>
+            <li>We do not sell your personal information.</li>
           </ul>
         ) : (
           <div className="consent-prefs" role="group" aria-label="Data preferences">
