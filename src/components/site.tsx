@@ -5,6 +5,7 @@ import { shortAddress } from "../format";
 import { Card, CardGrid, Line, Reveal, ease, rise, stagger } from "../motion";
 import { Lockup } from "./mark";
 import { IconAgent, IconApproval, IconArrow, IconAttach, IconBook, IconBuilding, IconChat, IconCite, IconClose, IconCompose, IconKey, IconLock, IconMenu, IconPackage, IconPeople, IconPlus, IconSearch, IconSend, IconSidebar, IconToken, IconWallet } from "./icons";
+import { openConsentPreferences } from "./consent";
 import { EvidenceList } from "./report";
 import type { Finding } from "../types";
 
@@ -115,6 +116,12 @@ export function Chrome({
                 <button type="button" onClick={() => go("/api")}>API</button>
                 <button type="button" onClick={() => go("/docs#mcp")}>MCP</button>
               </div>
+              <div className="footer-col">
+                <p className="eyebrow">Privacy</p>
+                <button type="button" onClick={() => go("/privacy")}>Privacy policy</button>
+                <button type="button" onClick={() => openConsentPreferences()}>Cookie choices</button>
+                <button type="button" onClick={() => go("/privacy/choices")}>Do Not Sell or Share</button>
+              </div>
             </div>
           </div>
           <div className="frame footer-meta">
@@ -123,7 +130,8 @@ export function Chrome({
             </p>
             <nav aria-label="Legal">
               <button type="button" onClick={() => go("/docs#disclaimer")}>Disclaimer</button>
-              <button type="button" onClick={() => go("/docs#privacy")}>Privacy</button>
+              <button type="button" onClick={() => go("/privacy")}>Privacy</button>
+              <button type="button" onClick={() => openConsentPreferences()}>Cookies</button>
             </nav>
           </div>
           <div className="footer-plate">
@@ -773,7 +781,17 @@ npm run mcp:http`}</pre>
         <li><strong>503. </strong>Sign-in, labels, wording, or the blocked list is not configured on this server.</li>
       </ul>
       <h2 id="privacy">Privacy</h2>
-      <p>Chats, the watchlist, the daily counter, and the full API key stay in this browser. The server keeps a hash of the active key and does not keep an account system in this version. Chain queries contain the address you asked about.</p>
+      <p>
+        Chats, the watchlist, the daily counter, and the full API key stay in this browser. The server keeps a hash of the active key. Chain queries contain the address you asked about. Optional analytics stay off until you accept them in the privacy panel. Full notice for Nigeria (NDPA), Europe (GDPR), and the United States (CCPA/CPRA):{" "}
+        <button type="button" className="quiet-link" onClick={() => go("/privacy")}>
+          Privacy policy
+        </button>
+        . Manage consent anytime via{" "}
+        <button type="button" className="quiet-link" onClick={() => openConsentPreferences()}>
+          Cookie choices
+        </button>
+        .
+      </p>
       <h2 id="disclaimer">Disclaimer</h2>
       <p>Scores are indicators. They are a probabilistic read of public data under a published method. They are not a finding of fact about any person, and they are not financial, legal, or tax advice. Full terms will be drafted before a public launch. $KTRUST, if issued, is a utility for limits and label voting, not a promise of value.</p>
       <h2 id="rules">The rules, in short</h2>

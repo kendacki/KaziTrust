@@ -3,12 +3,14 @@ import { AnimatePresence, motion, MotionConfig } from "framer-motion";
 import { trackPage } from "./analytics";
 import { RequireAuth } from "./auth";
 import { Chat } from "./components/chat";
+import { ConsentRoot } from "./components/consent";
 import { Lost } from "./components/lost";
+import { PrivacyChoicesPage, PrivacyPage } from "./components/privacy";
 import { Chrome, Docs, Home, Method } from "./components/site";
 import { ApiEntry } from "./components/api";
 import { ease } from "./motion";
 
-const KNOWN = new Set(["/", "/app", "/app/api", "/docs", "/method", "/api"]);
+const KNOWN = new Set(["/", "/app", "/app/api", "/docs", "/method", "/api", "/privacy", "/privacy/choices"]);
 
 function useOnline() {
   const [online, setOnline] = useState(() => navigator.onLine);
@@ -47,7 +49,23 @@ export function App() {
   const online = useOnline();
   const missing = !KNOWN.has(path);
   useEffect(() => {
-    document.title = !online ? "Offline · KaziTrust" : missing ? "Page not found · KaziTrust" : path === "/app" ? "App · KaziTrust" : path === "/docs" ? "Docs · KaziTrust" : path === "/method" ? "Method · KaziTrust" : path === "/api" || path === "/app/api" ? "API · KaziTrust" : "KaziTrust AI";
+    document.title = !online
+      ? "Offline · KaziTrust"
+      : missing
+        ? "Page not found · KaziTrust"
+        : path === "/app"
+          ? "App · KaziTrust"
+          : path === "/docs"
+            ? "Docs · KaziTrust"
+            : path === "/method"
+              ? "Method · KaziTrust"
+              : path === "/api" || path === "/app/api"
+                ? "API · KaziTrust"
+                : path === "/privacy/choices"
+                  ? "Do Not Sell or Share · KaziTrust"
+                  : path === "/privacy"
+                    ? "Privacy · KaziTrust"
+                    : "KaziTrust AI";
   }, [path, online, missing]);
 
   useEffect(() => {
@@ -82,6 +100,8 @@ export function App() {
   else if (path === "/app" || path === "/app/api") body = <RequireAuth go={go}><Chat go={go} api={path === "/app/api"} /></RequireAuth>;
   else if (path === "/docs") body = <Chrome path={path} go={go}><Docs go={go} /></Chrome>;
   else if (path === "/method") body = <Chrome path={path} go={go}><Method go={go} /></Chrome>;
+  else if (path === "/privacy/choices") body = <PrivacyChoicesPage go={go} />;
+  else if (path === "/privacy") body = <PrivacyPage go={go} />;
   else if (path === "/api") body = <ApiEntry go={go} />;
   else body = <Chrome path={path} go={go}><Home go={go} /></Chrome>;
 
@@ -98,6 +118,7 @@ export function App() {
           {body}
         </motion.div>
       </AnimatePresence>
+      <ConsentRoot go={go} />
     </MotionConfig>
   );
 }

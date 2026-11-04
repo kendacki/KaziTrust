@@ -1,3 +1,5 @@
+import { analyticsAllowed } from "./privacy/consent";
+
 type TrackInput = {
   name: string;
   ok?: boolean;
@@ -29,6 +31,8 @@ function sessionId() {
 
 export function track(input: TrackInput) {
   if (typeof window === "undefined") return;
+  // NDPA / GDPR: no optional product analytics until the visitor consents.
+  if (!analyticsAllowed()) return;
   queue.push({
     ...input,
     meta: {
@@ -50,6 +54,10 @@ export function track(input: TrackInput) {
 
 export async function flush() {
   if (!queue.length || typeof window === "undefined") return;
+  if (!analyticsAllowed()) {
+    queue.splice(0, queue.length);
+    return;
+  }
   const events = queue.splice(0, queue.length).map((item) => ({
     name: item.name,
     ok: item.ok !== false,
