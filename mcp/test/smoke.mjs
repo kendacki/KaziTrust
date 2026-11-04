@@ -137,11 +137,13 @@ const screened = await callTool("screen_address", { address: "AffzFDKZbyMiU11zmV
 assert.equal(screened.isError, undefined);
 assert.equal(screened.structuredContent.listed, true);
 assert.ok(screened.structuredContent.matches.some((item) => item.list === "binance-hack-2026"));
-assert.match(String(screened.content?.[0]?.text || ""), /Screening \(KaziTrust v0\.4\.3\): listed/);
+assert.match(String(screened.content?.[0]?.text || ""), /status: listed/);
+assert.match(String(screened.content?.[0]?.text || ""), /KaziTrust screen_address result/);
 
 const clear = await callTool("screen_address", { address: "11111111111111111111111111111111" }, env);
 assert.equal(clear.structuredContent.listed, false);
-assert.match(String(clear.content?.[0]?.text || ""), /clear on checked lists/);
+assert.match(String(clear.content?.[0]?.text || ""), /status: clear/);
+assert.doesNotMatch(String(clear.content?.[0]?.text || ""), /You are Kaz|follow this structure|kazitrustai\.fun/i);
 
 const services = await callTool("list_services", {}, env);
 assert.equal(services.structuredContent.scoringVersion, "0.4.3");
