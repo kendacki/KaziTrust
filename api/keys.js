@@ -1,10 +1,18 @@
 import { dailyReadLimit, issueApiKey, keyQuota, saveRemoteKey } from "../mcp/keyauth.mjs";
 import { track } from "../mcp/analytics.mjs";
-import { publicError, rateLimitAllow, redactSecrets, securityHeaders } from "../mcp/security.mjs";
+import {
+  browserOriginAllowed,
+  publicError,
+  rateLimitAllow,
+  redactSecrets,
+  securityHeaders,
+  timingSafeEqual,
+} from "../mcp/security.mjs";
 
-const COOKIE = "kazitrust_key";
+/** Host-only cookie name (__Host- requires Secure + Path=/ + no Domain). */
+const COOKIE = "__Host-kazitrust_key";
+const LEGACY_COOKIE = "kazitrust_key";
 const LIFETIMES = [1, 6, 24, 168, 720];
-let current = null;
 let cachedKey = "";
 
 export default async function handler(req, res) {
@@ -28,10 +36,17 @@ export default async function handler(req, res) {
       writeNode(res, result);
       return;
     }
-    return new Response(JSON.stringify(result.body), {
-      status: result.status,
-      headers: { "content-type": "application/json", ...securityHeaders(), ...(result.headers || {}) },
+    const headers = new Headers({
+      "content-type": "application/json",
+      ...securityHeaders(),
+      ...(result.headers || {}),
     });
+    if (result.cookie) {
+      for (const cookie of Array.isArray(result.cookie) ? result.cookie : [result.cookie]) {
+        headers.append("set-cookie", cookie);
+      }
+    }
+    return new Response(JSON.stringify(result.body), { status: result.status, headers });
   } catch (error) {
     await track(
       {
@@ -61,11 +76,16 @@ async function run(request, raw) {
   if (!limit.ok) {
     return { status: 429, body: { error: "Too many key requests. Try again shortly." }, headers: limit.headers };
   }
+
+  // Cookie-bearing key routes must come from our origin (blocks cross-site session use).
+  if (!browserOriginAllowed(request, process.env) && headerHasCookie(request)) {
+    return { status: 403, body: { error: "This origin cannot use the signed-in key session." } };
+  }
+
   const appId = env("PRIVY_APP_ID") || env("VITE_PRIVY_APP_ID");
   const secret = env("PRIVY_APP_SECRET");
   if (!appId || !secret) return { status: 503, body: { error: "Sign-in is not configured." } };
-  const restored = await readCookie(request.headers.get("cookie") || "", secret);
-  if (restored) current = restored;
+
   const token = (request.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").trim();
   let session;
   try {
@@ -73,11 +93,37 @@ async function run(request, raw) {
   } catch {
     return { status: 503, body: { error: "Sign-in is not configured." } };
   }
-  if (!session?.ok || !session.ownerId) return { status: 401, body: { error: "Sign in before creating a key." } };
+  if (!session?.ok || !session.ownerId) {
+    return {
+      status: 401,
+      body: { error: "Sign in before creating a key." },
+      cookie: clearCookies(),
+    };
+  }
+
+  // Per-request only — never reuse module state across warm serverless invocations.
+  const restored = await readCookie(request.headers.get("cookie") || "", secret);
+  let record = null;
+  let clearStale = false;
+  if (restored) {
+    if (restored.ownerId && restored.ownerId === session.ownerId) {
+      record = restored;
+    } else {
+      // Stolen or leftover cookie bound to another account — drop it.
+      clearStale = true;
+    }
+  }
+
   if (request.method === "GET") {
-    const view = viewOf(current);
-    if (!view) return { status: 200, body: { key: null, quota: null } };
-    const quota = current?.hash ? await keyQuota(current.hash, {}, process.env) : null;
+    const view = viewOf(record);
+    if (!view) {
+      return {
+        status: 200,
+        body: { key: null, quota: null },
+        cookie: clearStale ? clearCookies() : undefined,
+      };
+    }
+    const quota = record?.hash ? await keyQuota(record.hash, {}, process.env) : null;
     return {
       status: 200,
       body: {
@@ -86,6 +132,7 @@ async function run(request, raw) {
           ? { used: quota.used, limit: quota.limit, remaining: quota.remaining }
           : { used: 0, limit: dailyReadLimit(process.env), remaining: dailyReadLimit(process.env) },
       },
+      cookie: clearStale ? clearCookies() : undefined,
     };
   }
   if (request.method !== "POST") return { status: 405, body: { error: "Use GET or POST." } };
@@ -96,7 +143,6 @@ async function run(request, raw) {
   if (purpose !== "development" && purpose !== "production") {
     return { status: 400, body: { error: "Choose production or development for this key." } };
   }
-  // Development keys are short-lived test keys for MCP / local clients.
   if (purpose === "development" && hours > 168) {
     return { status: 400, body: { error: "Development keys can stay active for at most 7 days." } };
   }
@@ -105,7 +151,7 @@ async function run(request, raw) {
     { hours, purpose, ownerId: session.ownerId, readLimit },
     process.env,
   );
-  current = {
+  const next = {
     hash: issued.hash,
     prefix: issued.prefix,
     createdAt: issued.createdAt,
@@ -114,8 +160,7 @@ async function run(request, raw) {
     readLimit: issued.readLimit,
     purpose: issued.purpose,
   };
-  await saveRemoteKey(current, process.env);
-  const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
+  await saveRemoteKey(next, process.env);
   const maxAge = Math.max(1, Math.ceil((Date.parse(issued.expiresAt) - Date.now()) / 1000));
   return {
     status: 200,
@@ -129,7 +174,7 @@ async function run(request, raw) {
       ownerBound: true,
       quota: { used: 0, limit: issued.readLimit, remaining: issued.readLimit },
     },
-    cookie: await seal(current, secret, host, maxAge),
+    cookie: [...clearCookies(), await seal(next, secret, maxAge)],
   };
 }
 
@@ -188,7 +233,10 @@ function writeNode(res, result) {
   res.statusCode = result.status;
   const headers = { "content-type": "application/json", ...securityHeaders(), ...(result.headers || {}) };
   for (const [key, value] of Object.entries(headers)) res.setHeader(key, value);
-  if (result.cookie) res.setHeader("set-cookie", result.cookie);
+  if (result.cookie) {
+    const cookies = Array.isArray(result.cookie) ? result.cookie : [result.cookie];
+    res.setHeader("set-cookie", cookies);
+  }
   res.end(JSON.stringify(result.body));
 }
 
@@ -207,6 +255,11 @@ function asRequest(input) {
 
 function env(name) {
   return globalThis.process?.env?.[name] || "";
+}
+
+function headerHasCookie(request) {
+  const cookie = request.headers.get("cookie") || "";
+  return cookie.includes(COOKIE) || cookie.includes(LEGACY_COOKIE);
 }
 
 async function signedIn(appId, appSecret, token) {
@@ -262,27 +315,52 @@ function base64Url(value) {
   return Uint8Array.from(atob(padded), (char) => char.charCodeAt(0));
 }
 
-async function seal(record, secret, host, maxAge) {
-  const payload = b64(JSON.stringify(record));
+async function seal(record, secret, maxAge) {
+  // Store only session binding fields — never the raw kt_ secret.
+  const sealed = {
+    hash: String(record.hash || "").toLowerCase(),
+    prefix: String(record.prefix || "").slice(0, 12),
+    createdAt: record.createdAt,
+    expiresAt: record.expiresAt || null,
+    ownerId: String(record.ownerId || "").slice(0, 120),
+    readLimit: Number(record.readLimit) || dailyReadLimit(process.env),
+    purpose: record.purpose === "development" ? "development" : "production",
+  };
+  if (!sealed.hash || !sealed.ownerId) throw new Error("Cannot seal key session without owner.");
+  const payload = b64(JSON.stringify(sealed));
   const sig = await mac(secret, payload);
-  const name = host.split(":")[0];
-  const domain = name === "kazitrustai.fun" || name.endsWith(".kazitrustai.fun") ? "; Domain=.kazitrustai.fun" : "";
   const age = Number.isFinite(maxAge) ? Math.max(1, Math.floor(maxAge)) : 3600;
-  return `${COOKIE}=${payload}.${sig}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${age}${domain}`;
+  // __Host- + Strict + no Domain: stops subdomain / cross-site cookie theft reuse.
+  return `${COOKIE}=${payload}.${sig}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${age}`;
+}
+
+function clearCookies() {
+  return [
+    `${COOKIE}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`,
+    `${LEGACY_COOKIE}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`,
+    `${LEGACY_COOKIE}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0; Domain=.kazitrustai.fun`,
+  ];
 }
 
 async function readCookie(cookie, secret) {
   try {
-    const pair = cookie.split(";").map((part) => part.trim()).find((part) => part.startsWith(`${COOKIE}=`));
+    const parts = cookie.split(";").map((part) => part.trim());
+    const pair =
+      parts.find((part) => part.startsWith(`${COOKIE}=`)) ||
+      parts.find((part) => part.startsWith(`${LEGACY_COOKIE}=`));
     if (!pair) return null;
-    const value = decodeURIComponent(pair.slice(COOKIE.length + 1));
+    const name = pair.startsWith(`${COOKIE}=`) ? COOKIE : LEGACY_COOKIE;
+    const value = decodeURIComponent(pair.slice(name.length + 1));
     const dot = value.lastIndexOf(".");
     if (dot <= 0) return null;
     const payload = value.slice(0, dot);
-    if ((await mac(secret, payload)) !== value.slice(dot + 1)) return null;
+    const sig = value.slice(dot + 1);
+    if (!timingSafeEqual(await mac(secret, payload), sig)) return null;
     const body = JSON.parse(unb64(payload));
     if (!body.hash || !body.prefix || !body.createdAt) return null;
     if (body.expiresAt && !Number.isFinite(Date.parse(body.expiresAt))) return null;
+    if (body.expiresAt && Date.parse(body.expiresAt) <= Date.now()) return null;
+    if (body.ownerId && !/^did:privy:[A-Za-z0-9_-]{6,100}$/.test(String(body.ownerId))) return null;
     return body;
   } catch {
     return null;

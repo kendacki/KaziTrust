@@ -89,6 +89,9 @@ export function securityHeaders(extra = {}) {
     "x-frame-options": "DENY",
     "permissions-policy": "camera=(), microphone=(), geolocation=()",
     "cache-control": "no-store",
+    // Reduce opener / embed session theft (tabnabbing, clickjacking adjacent).
+    "cross-origin-opener-policy": "same-origin-allow-popups",
+    "cross-origin-resource-policy": "same-site",
     ...extra,
   };
 }
@@ -172,6 +175,18 @@ export function trustedRedisConfig(env = process.env) {
   } catch {
     return null;
   }
+}
+
+/** Constant-time string compare for MACs / tokens (length leak only). */
+export function timingSafeEqual(a, b) {
+  const left = String(a || "");
+  const right = String(b || "");
+  const len = Math.max(left.length, right.length);
+  let diff = left.length ^ right.length;
+  for (let i = 0; i < len; i += 1) {
+    diff |= (left.charCodeAt(i) || 0) ^ (right.charCodeAt(i) || 0);
+  }
+  return diff === 0;
 }
 
 /** Strip common prompt-injection scaffolding from untrusted model inputs. */

@@ -1,6 +1,7 @@
-import { openModeEnabled, trustedRedisConfig } from "./security.mjs";
+import { openModeEnabled, timingSafeEqual, trustedRedisConfig } from "./security.mjs";
 
-const COOKIE = "kazitrust_key";
+const COOKIE = "__Host-kazitrust_key";
+const LEGACY_COOKIE = "kazitrust_key";
 const LEGACY_REMOTE_KEY = "kazitrust:api-key";
 const KEY_PREFIX = "kazitrust:key:";
 const OWNER_PREFIX = "kazitrust:owner-key:";
@@ -418,18 +419,22 @@ function ttlSeconds(expiresAt) {
 async function readKeyCookie(cookie, secret) {
   if (!cookie || !secret) return null;
   try {
-    const pair = cookie
-      .split(";")
-      .map((part) => part.trim())
-      .find((part) => part.startsWith(`${COOKIE}=`));
+    const parts = cookie.split(";").map((part) => part.trim());
+    const pair =
+      parts.find((part) => part.startsWith(`${COOKIE}=`)) ||
+      parts.find((part) => part.startsWith(`${LEGACY_COOKIE}=`));
     if (!pair) return null;
-    const value = decodeURIComponent(pair.slice(COOKIE.length + 1));
+    const name = pair.startsWith(`${COOKIE}=`) ? COOKIE : LEGACY_COOKIE;
+    const value = decodeURIComponent(pair.slice(name.length + 1));
     const dot = value.lastIndexOf(".");
     if (dot <= 0) return null;
     const payload = value.slice(0, dot);
-    if ((await mac(secret, payload)) !== value.slice(dot + 1)) return null;
+    const sig = value.slice(dot + 1);
+    if (!timingSafeEqual(await mac(secret, payload), sig)) return null;
     const body = JSON.parse(unb64(payload));
     if (!body.hash || !body.prefix) return null;
+    if (body.expiresAt && Date.parse(String(body.expiresAt)) <= Date.now()) return null;
+    if (body.ownerId && !/^did:privy:[A-Za-z0-9_-]{6,100}$/.test(String(body.ownerId))) return null;
     return body;
   } catch {
     return null;
