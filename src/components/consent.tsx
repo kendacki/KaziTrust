@@ -47,36 +47,51 @@ export function ConsentRoot({ go }: { go: (to: string) => void }) {
     <div className="consent-layer" role="dialog" aria-modal="true" aria-labelledby="consent-title">
       <div className="consent-scrim" aria-hidden="true" />
       <div className="consent-panel">
-        <p className="eyebrow">Privacy choices</p>
-        <h2 id="consent-title">{prefs ? "Manage data preferences" : "How we use data on this site"}</h2>
-        <p className="consent-copy">
-          KaziTrust uses necessary cookies and local storage so sign-in and your API key session work. Optional product
-          analytics help us see which pages and features fail. Analytics stay off until you accept. Public Solana
-          addresses you look up are queried on-chain; we do not sell your personal information.
-        </p>
-        {gpc ? (
-          <p className="consent-note">
-            Your browser sent a Global Privacy Control signal. Optional analytics stay off, and we treat that as a Do
-            Not Sell or Share request.
-          </p>
-        ) : null}
+        <header className="consent-head">
+          <p className="consent-kicker">Privacy choices</p>
+          <h2 id="consent-title">{prefs ? "Data preferences" : "How we use data"}</h2>
+        </header>
 
-        {prefs ? (
-          <div className="consent-prefs">
+        {!prefs ? (
+          <ul className="consent-points">
+            <li>
+              <span className="consent-tag">Necessary</span>
+              <span>Sign-in, security, and API key session storage. Always on.</span>
+            </li>
+            <li>
+              <span className="consent-tag optional">Optional</span>
+              <span>Product analytics stay off until you accept.</span>
+            </li>
+            <li>
+              <span className="consent-tag">On-chain</span>
+              <span>Wallet addresses you look up are public Solana data.</span>
+            </li>
+            <li>
+              <span className="consent-tag">No sale</span>
+              <span>We do not sell your personal information.</span>
+            </li>
+          </ul>
+        ) : (
+          <div className="consent-prefs" role="group" aria-label="Data preferences">
             <label className="consent-row">
-              <span>
+              <span className="consent-row-copy">
                 <strong>Necessary</strong>
-                <span className="quiet">Sign-in, security, and key-session cookies. Always on.</span>
+                <span>Sign-in and key-session cookies</span>
               </span>
-              <input type="checkbox" checked disabled readOnly aria-label="Necessary storage always on" />
+              <span className="consent-state on">On</span>
+              <input type="checkbox" checked disabled readOnly className="consent-check" aria-label="Necessary storage always on" />
             </label>
             <label className="consent-row">
-              <span>
+              <span className="consent-row-copy">
                 <strong>Analytics</strong>
-                <span className="quiet">Anonymous product events and Vercel Analytics. Requires your consent.</span>
+                <span>Anonymous product events</span>
+              </span>
+              <span className={`consent-state ${choice.analytics && !gpc ? "on" : ""}`}>
+                {choice.analytics && !gpc ? "On" : "Off"}
               </span>
               <input
                 type="checkbox"
+                className="consent-check"
                 checked={choice.analytics && !gpc}
                 disabled={gpc}
                 onChange={(event) => setChoice((prev) => ({ ...prev, analytics: event.target.checked }))}
@@ -84,12 +99,16 @@ export function ConsentRoot({ go }: { go: (to: string) => void }) {
               />
             </label>
             <label className="consent-row">
-              <span>
+              <span className="consent-row-copy">
                 <strong>Do Not Sell or Share</strong>
-                <span className="quiet">California / CPRA opt-out. We do not sell data; this keeps sharing off.</span>
+                <span>California / CPRA preference</span>
+              </span>
+              <span className={`consent-state ${(choice.doNotSellOrShare || gpc) ? "on" : ""}`}>
+                {choice.doNotSellOrShare || gpc ? "On" : "Off"}
               </span>
               <input
                 type="checkbox"
+                className="consent-check"
                 checked={choice.doNotSellOrShare || gpc}
                 disabled={gpc}
                 onChange={(event) => setChoice((prev) => ({ ...prev, doNotSellOrShare: event.target.checked }))}
@@ -97,51 +116,64 @@ export function ConsentRoot({ go }: { go: (to: string) => void }) {
               />
             </label>
           </div>
+        )}
+
+        {gpc ? (
+          <p className="consent-note" role="status">
+            Global Privacy Control detected — analytics stay off.
+          </p>
         ) : null}
 
         <div className="consent-actions">
           {prefs ? (
-            <button
-              type="button"
-              className="btn"
-              onClick={() =>
-                finish(
-                  saveConsent({
-                    analytics: choice.analytics,
-                    doNotSellOrShare: choice.doNotSellOrShare,
-                  }),
-                )
-              }
-            >
-              Save choices
-            </button>
+            <>
+              <button
+                type="button"
+                className="consent-btn primary"
+                onClick={() =>
+                  finish(
+                    saveConsent({
+                      analytics: choice.analytics,
+                      doNotSellOrShare: choice.doNotSellOrShare,
+                    }),
+                  )
+                }
+              >
+                Save
+              </button>
+              <button type="button" className="consent-btn" onClick={() => setPrefs(false)}>
+                Back
+              </button>
+            </>
           ) : (
             <>
-              <button type="button" className="btn" onClick={() => finish(acceptAllConsent())} disabled={gpc}>
-                Accept optional analytics
+              <button
+                type="button"
+                className="consent-btn primary"
+                onClick={() => finish(acceptAllConsent())}
+                disabled={gpc}
+              >
+                Accept analytics
               </button>
-              <button type="button" className="btn ghost" onClick={() => finish(rejectOptionalConsent())}>
-                Reject optional analytics
+              <button type="button" className="consent-btn" onClick={() => finish(rejectOptionalConsent())}>
+                Reject analytics
+              </button>
+              <button type="button" className="consent-btn quiet" onClick={() => setPrefs(true)}>
+                Manage
               </button>
             </>
           )}
-          <button type="button" className="btn ghost" onClick={() => setPrefs((value) => !value)}>
-            {prefs ? "Back" : "Manage choices"}
-          </button>
         </div>
-        <p className="consent-links">
-          <button type="button" className="quiet-link" onClick={() => go("/privacy")}>
+
+        <nav className="consent-links" aria-label="Privacy links">
+          <button type="button" onClick={() => go("/privacy")}>
             Privacy policy
           </button>
-          <span aria-hidden="true">·</span>
-          <button type="button" className="quiet-link" onClick={() => go("/privacy#your-rights")}>
+          <button type="button" onClick={() => go("/privacy#your-rights")}>
             Your rights
           </button>
-          <span aria-hidden="true">·</span>
-          <a className="quiet-link" href={`mailto:${privacyContact()}`}>
-            {privacyContact()}
-          </a>
-        </p>
+          <a href={`mailto:${privacyContact()}`}>{privacyContact()}</a>
+        </nav>
       </div>
     </div>
   );
