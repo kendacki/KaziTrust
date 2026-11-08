@@ -495,7 +495,6 @@ function WalletDeskLive() {
       <section className="wallet-section">
         <div className="wallet-section-head">
           <h3>Assets</h3>
-          <p className="quiet">{holdings.length ? `${holdings.length} holding${holdings.length === 1 ? "" : "s"}` : "Loading"}</p>
         </div>
         {loading && !portfolio ? (
           <p className="quiet">Reading balances from Solana…</p>
@@ -524,7 +523,7 @@ function WalletDeskLive() {
         <div className="wallet-section-head">
           <h3>Recent activity</h3>
           <a className="quiet-link" href={explorerAddress(address)} target="_blank" rel="noreferrer">
-            Explorer
+            Hash
           </a>
         </div>
         {portfolio?.activity.length ? (
