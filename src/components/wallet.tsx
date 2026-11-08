@@ -924,7 +924,8 @@ function WalletDeskLive() {
                   <h3>Settings</h3>
                   <button
                     type="button"
-                    className="text-btn"
+                    className="icon-btn"
+                    aria-label="Close"
                     onClick={() => {
                       setSheet("none");
                       setKeyStep("idle");
@@ -932,7 +933,7 @@ function WalletDeskLive() {
                       setCodeInput("");
                     }}
                   >
-                    Close
+                    <IconClose size={18} />
                   </button>
                 </header>
                 <div className="wallet-settings-card">
@@ -1054,8 +1055,8 @@ function WalletDeskLive() {
               <div className="wallet-send">
                 <header className="wallet-sheet-head">
                   <h3>Send</h3>
-                  <button type="button" className="text-btn" onClick={() => setSheet("none")}>
-                    Close
+                  <button type="button" className="icon-btn" aria-label="Close" onClick={() => setSheet("none")}>
+                    <IconClose size={18} />
                   </button>
                 </header>
 
