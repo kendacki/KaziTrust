@@ -70,15 +70,33 @@ export function cleanUsername(value: string | null | undefined): string {
   return (value ?? "").replace(/[\u0000-\u001f]/g, "").replace(/\s+/g, " ").trim().slice(0, 32);
 }
 
-export function loadUsername(): string | null {
-  const saved = read<{ name?: string } | null>(PROFILE, null);
+function profileKey(userId: string): string {
+  return `${PROFILE}.${userId}`;
+}
+
+export function loadUsername(userId: string | null | undefined): string | null {
+  if (!userId) return null;
+  try {
+    // Drop the old shared profile key so one account's name cannot stick to another.
+    localStorage.removeItem(PROFILE);
+  } catch {
+    /* Best-effort cleanup. */
+  }
+  const saved = read<{ name?: string } | null>(profileKey(userId), null);
   const name = cleanUsername(saved?.name);
   return name || null;
 }
 
-export function saveUsername(name: string) {
+export function saveUsername(userId: string | null | undefined, name: string) {
+  if (!userId) return;
   const clean = cleanUsername(name);
-  if (clean) write(PROFILE, { name: clean });
+  if (!clean) return;
+  write(profileKey(userId), { name: clean });
+  try {
+    localStorage.removeItem(PROFILE);
+  } catch {
+    /* Legacy shared profile key is best-effort to clear. */
+  }
 }
 
 const API_KEY = "kazitrust.apikey";

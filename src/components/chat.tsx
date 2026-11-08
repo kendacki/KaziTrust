@@ -71,7 +71,8 @@ export function Chat({ go, api = false, wallet = false }: { go: (to: string) => 
   const [menu, setMenu] = useState<string | null>(null);
   const [rename, setRename] = useState<string | null>(null);
   const [quota, setQuota] = useState(() => readQuota());
-  const [username, setUsername] = useState(() => loadUsername() ?? "");
+  const userId = user?.id ?? null;
+  const [username, setUsername] = useState("");
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
   const abortRef = useRef<AbortController | null>(null);
@@ -84,8 +85,9 @@ export function Chat({ go, api = false, wallet = false }: { go: (to: string) => 
   useEffect(() => saveThreads(threads), [threads]);
   useEffect(() => saveWatch(watch), [watch]);
   useEffect(() => {
-    if (username) saveUsername(username);
-  }, [username]);
+    setUsername(loadUsername(userId) ?? "");
+    setEditingName(false);
+  }, [userId]);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") setPanel(null);
@@ -443,7 +445,10 @@ export function Chat({ go, api = false, wallet = false }: { go: (to: string) => 
             }}
             onCancel={() => setEditingName(false)}
             onSave={(next) => {
-              if (next) setUsername(next);
+              if (next && userId) {
+                setUsername(next);
+                saveUsername(userId, next);
+              }
               setEditingName(false);
             }}
             onSignOut={() => {
