@@ -104,6 +104,17 @@ export const IconKey = (p: IconProps) => (
     <path d="M9.8 10H16.2M13.6 10v2.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
   </Svg>
 );
+export const IconSettings = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="10" cy="10" r="2.4" stroke="currentColor" strokeWidth="1.5" />
+    <path
+      d="M10 3.2v1.6M10 15.2v1.6M3.2 10h1.6M15.2 10h1.6M5.2 5.2l1.1 1.1M13.7 13.7l1.1 1.1M5.2 14.8l1.1-1.1M13.7 6.3l1.1-1.1"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+    />
+  </Svg>
+);
 export const IconSidebar = (p: IconProps) => <Pen {...p} d="M4 4.5h12v11H4zM8 4.5v11" />;
 export const IconSignOut = (p: IconProps) => (
   <Svg {...p}>

@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { usePrivy, type User } from "@privy-io/react-auth";
-import { useCreateWallet, useSignAndSendTransaction, useWallets } from "@privy-io/react-auth/solana";
+import { useCreateWallet, useExportWallet, useSignAndSendTransaction, useWallets } from "@privy-io/react-auth/solana";
 import { track } from "../analytics";
 import {
   applyOptimisticSend,
@@ -38,7 +38,9 @@ import {
   IconClose,
   IconCopy,
   IconFilter,
+  IconKey,
   IconSend,
+  IconSettings,
   IconSpinner,
   IconXCircle,
 } from "./icons";
@@ -51,9 +53,10 @@ const CREATE_MIN_MS = 2200;
 const READY_HOLD_MS = 2800;
 const ACTIVITY_STACK = 7;
 
-type Sheet = "none" | "receive" | "send" | "review" | "status";
+type Sheet = "none" | "receive" | "send" | "review" | "status" | "settings";
 type CreatePhase = "idle" | "creating" | "ready" | "error";
 type ActivityFilter = "all" | "in" | "out" | "failed";
+type KeyRevealStep = "idle" | "code" | "exporting";
 
 type SendStatus = {
   phase: "signing" | "confirming" | "confirmed" | "pending" | "failed";
@@ -284,6 +287,7 @@ function WalletDeskLive() {
   const { ready, wallet, creating, createError, ensureWallet } = useSolanaWallet();
   const { user } = usePrivy();
   const { signAndSendTransaction } = useSignAndSendTransaction();
+  const { exportWallet } = useExportWallet();
   const address = wallet?.address ?? "";
   const userId = user?.id ?? null;
 
@@ -299,6 +303,10 @@ function WalletDeskLive() {
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>("all");
   const [activityExpanded, setActivityExpanded] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [keyStep, setKeyStep] = useState<KeyRevealStep>("idle");
+  const [walletCode, setWalletCode] = useState("");
+  const [codeInput, setCodeInput] = useState("");
+  const [codeCopied, setCodeCopied] = useState(false);
   const filterRef = useRef<HTMLDivElement | null>(null);
 
   const holdings = portfolio?.holdings ?? [];
@@ -466,6 +474,58 @@ function WalletDeskLive() {
     setSheet("receive");
   }
 
+  function openSettings() {
+    setError("");
+    setKeyStep("idle");
+    setWalletCode("");
+    setCodeInput("");
+    setCodeCopied(false);
+    setSheet("settings");
+  }
+
+  function startPrivateKeyReveal() {
+    setError("");
+    const bytes = new Uint32Array(1);
+    crypto.getRandomValues(bytes);
+    const code = String(100000 + (bytes[0]! % 900000));
+    setWalletCode(code);
+    setCodeInput("");
+    setCodeCopied(false);
+    setKeyStep("code");
+  }
+
+  async function copyWalletCode() {
+    if (!walletCode) return;
+    try {
+      await navigator.clipboard.writeText(walletCode);
+      setCodeCopied(true);
+      window.setTimeout(() => setCodeCopied(false), 1600);
+    } catch {
+      setError("Clipboard is blocked in this browser. Copy the code manually.");
+    }
+  }
+
+  async function confirmPrivateKeyReveal() {
+    if (!walletCode || codeInput.trim() !== walletCode) {
+      setError("Enter the exact verification code shown in your wallet settings.");
+      return;
+    }
+    setError("");
+    setKeyStep("exporting");
+    try {
+      await exportWallet({ address });
+      track({ name: "wallet_export_key", ok: true });
+      setKeyStep("idle");
+      setWalletCode("");
+      setCodeInput("");
+    } catch (caught) {
+      const message = explainWalletError(caught);
+      setError(message);
+      setKeyStep("code");
+      track({ name: "wallet_export_key", ok: false, error: message });
+    }
+  }
+
   function goReview() {
     if (!draft) return;
     if (!isSolanaAddress(draft.to)) {
@@ -586,9 +646,14 @@ function WalletDeskLive() {
       <header className="wallet-hero">
         <div className="wallet-hero-top">
           <p className="eyebrow">Available balance</p>
-          <button type="button" className="text-btn" disabled={refreshing || loading} onClick={() => void refresh("soft")}>
-            Refresh
-          </button>
+          <div className="wallet-hero-actions">
+            <button type="button" className="icon-btn tiny" aria-label="Wallet settings" onClick={openSettings}>
+              <IconSettings size={15} />
+            </button>
+            <button type="button" className="text-btn" disabled={refreshing || loading} onClick={() => void refresh("soft")}>
+              Refresh
+            </button>
+          </div>
         </div>
         <p className="wallet-balance">
           {loading && !portfolio ? "…" : `${portfolio?.totalSolValueText ?? "0"} SOL`}
@@ -602,6 +667,11 @@ function WalletDeskLive() {
           </button>
           {copied ? <span className="wallet-copied">Copied</span> : null}
         </div>
+        <p className="wallet-onchain-note quiet">
+          {(portfolio?.lamports ?? 0) > 0
+            ? "This address is funded on Solana."
+            : "Explorers may say the account does not exist until the first SOL arrives. Receiving still works."}
+        </p>
         <div className="wallet-actions">
           <button type="button" className="wallet-action" onClick={openReceive}>
             Receive
@@ -752,8 +822,114 @@ function WalletDeskLive() {
 
       {sheet !== "none" ? (
         <div className="wallet-sheet" role="dialog" aria-modal="true">
-          <button type="button" className="wallet-sheet-scrim" aria-label="Close" onClick={() => setSheet("none")} />
+          <button
+            type="button"
+            className="wallet-sheet-scrim"
+            aria-label="Close"
+            onClick={() => {
+              setSheet("none");
+              setKeyStep("idle");
+              setWalletCode("");
+              setCodeInput("");
+            }}
+          />
           <div className="wallet-sheet-panel">
+            {sheet === "settings" ? (
+              <div className="wallet-settings">
+                <header className="wallet-sheet-head">
+                  <h3>Settings</h3>
+                  <button
+                    type="button"
+                    className="text-btn"
+                    onClick={() => {
+                      setSheet("none");
+                      setKeyStep("idle");
+                      setWalletCode("");
+                      setCodeInput("");
+                    }}
+                  >
+                    Close
+                  </button>
+                </header>
+                <div className="wallet-settings-card">
+                  <p className="eyebrow">On-chain account</p>
+                  <p>
+                    Your Privy Solana address is already real. Explorers show “Account does not exist” only while it has
+                    never held rent-exempt SOL. Receiving SOL or SPL tokens still works, and the first credit creates
+                    the account on-chain. Sending needs a little SOL for fees.
+                  </p>
+                  <p className="num wallet-settings-address">{address}</p>
+                  <button type="button" className="btn" onClick={() => void copyAddress()}>
+                    <IconCopy size={16} />
+                    {copied ? "Copied address" : "Copy address"}
+                  </button>
+                </div>
+                <div className="wallet-settings-card">
+                  <p className="eyebrow">Private key</p>
+                  <p>
+                    Reveal only on a device you trust. A verification code appears here in your wallet first. After you
+                    enter it, Privy opens a secure window where you can view and copy the key.
+                  </p>
+                  {keyStep === "idle" ? (
+                    <button type="button" className="btn ink" onClick={startPrivateKeyReveal}>
+                      <IconKey size={16} />
+                      Show private key
+                    </button>
+                  ) : null}
+                  {keyStep === "code" || keyStep === "exporting" ? (
+                    <div className="wallet-settings-verify">
+                      <span className="wallet-receive-label">Code in your wallet</span>
+                      <div className="wallet-settings-code-row">
+                        <strong className="num wallet-settings-code">{walletCode}</strong>
+                        <button type="button" className="icon-btn tiny" aria-label="Copy verification code" onClick={() => void copyWalletCode()}>
+                          <IconCopy size={14} />
+                        </button>
+                        {codeCopied ? <span className="wallet-copied">Copied</span> : null}
+                      </div>
+                      <label className="wallet-field">
+                        <span>Enter the code to continue</span>
+                        <input
+                          value={codeInput}
+                          onChange={(event) => setCodeInput(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                          inputMode="numeric"
+                          autoComplete="one-time-code"
+                          placeholder="6-digit code"
+                          disabled={keyStep === "exporting"}
+                        />
+                      </label>
+                      <div className="wallet-settings-actions">
+                        <button
+                          type="button"
+                          className="btn ink"
+                          disabled={keyStep === "exporting" || codeInput.length !== 6}
+                          onClick={() => void confirmPrivateKeyReveal()}
+                        >
+                          {keyStep === "exporting" ? "Opening secure key window…" : "Verify and show key"}
+                        </button>
+                        <button
+                          type="button"
+                          className="text-btn"
+                          disabled={keyStep === "exporting"}
+                          onClick={() => {
+                            setKeyStep("idle");
+                            setWalletCode("");
+                            setCodeInput("");
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+                {error ? (
+                  <p className="wallet-error" role="alert">
+                    {error}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
             {sheet === "receive" ? (
               <div className="wallet-receive">
                 <header className="wallet-sheet-head">

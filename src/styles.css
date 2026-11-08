@@ -2995,8 +2995,18 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   align-items: center;
   gap: 12px;
 }
+.wallet-hero-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
 .wallet-hero-top .text-btn {
   font-size: 12px;
+}
+.wallet-onchain-note {
+  margin: 0;
+  font-size: 12px;
+  max-width: 46ch;
 }
 .wallet-balance {
   margin: 0;
@@ -3381,6 +3391,60 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
+}
+.wallet-settings {
+  display: grid;
+  gap: 16px;
+}
+.wallet-settings-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.wallet-settings-card > p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--soft);
+}
+.wallet-settings-card .eyebrow {
+  color: var(--mute);
+}
+.wallet-settings-address {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  word-break: break-all;
+  color: var(--text);
+}
+.wallet-settings-card .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+}
+.wallet-settings-verify {
+  display: grid;
+  gap: 10px;
+}
+.wallet-settings-code-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.wallet-settings-code {
+  font-size: 28px;
+  letter-spacing: 0.18em;
+  font-weight: 550;
+  color: var(--text);
+}
+.wallet-settings-actions {
+  display: grid;
+  gap: 8px;
 }
 .wallet-receive {
   display: grid;
