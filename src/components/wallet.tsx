@@ -558,7 +558,17 @@ function WalletDeskLive() {
                 <header className="wallet-sheet-head">
                   <div className="wallet-receive-heading">
                     <h3>Receive</h3>
-                    <p className="quiet">Solana network · SOL and SPL tokens</p>
+                    <p className="quiet">Send only tokens on Solana Network</p>
+                    <ul className="wallet-receive-assets">
+                      <li>
+                        <img src="/logos/solana.svg" alt="" width={18} height={18} />
+                        <span>Solana</span>
+                      </li>
+                      <li>
+                        <img src="/logos/usdc.svg" alt="" width={18} height={18} />
+                        <span>USDC on Solana</span>
+                      </li>
+                    </ul>
                   </div>
                   <button type="button" className="icon-btn" aria-label="Close" onClick={() => setSheet("none")}>
                     <IconClose size={18} />

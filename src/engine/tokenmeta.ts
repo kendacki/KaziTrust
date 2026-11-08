@@ -56,9 +56,9 @@ export async function readTokenFaces(mints: string[], signal: AbortSignal): Prom
 
 const KNOWN_FACES: Record<string, TokenFace> = {
   EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v: {
-    name: "USD Coin",
+    name: "USDC on Solana",
     symbol: "USDC",
-    image: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png",
+    image: "/logos/usdc.svg",
   },
   Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB: {
     name: "USDT",

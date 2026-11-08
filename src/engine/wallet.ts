@@ -21,6 +21,7 @@ import { formatRawUnits, shortAddress } from "../format";
 const ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const FEE_BUFFER_LAMPORTS = 10_000;
 const WSOL_MINT = "So11111111111111111111111111111111111111112";
+const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
 export type WalletHolding = {
   id: string;
@@ -143,7 +144,31 @@ export async function loadWalletPortfolio(address: string, signal: AbortSignal):
   const usdPrices = await readUsdPrices(priceMints, signal).catch(() => new Map<string, number>());
   const solUsd = usdPrices.get(WSOL_MINT) || 0;
 
-  const holdings: WalletHolding[] = [
+  const splHoldings: WalletHolding[] = splRows.map((row) => {
+    const face = faces.get(row.mint);
+    const tokenUsd = usdPrices.get(row.mint);
+    const solValue = tokenUsd && solUsd > 0 ? (row.amount * tokenUsd) / solUsd : undefined;
+    const isUsdc = row.mint === USDC_MINT;
+    return {
+      id: row.tokenAccount,
+      kind: "spl" as const,
+      mint: row.mint,
+      symbol: face?.symbol || shortAddress(row.mint),
+      name: isUsdc ? "USDC on Solana" : face?.name || "Token",
+      amount: row.amount,
+      amountText: row.amountText,
+      decimals: row.decimals,
+      raw: row.raw,
+      tokenAccount: row.tokenAccount,
+      programId: row.programId,
+      image: isUsdc ? "/logos/usdc.svg" : face?.image,
+      ...(solValue != null
+        ? { solValue, solValueText: formatSolValue(solValue) }
+        : {}),
+    };
+  });
+
+  const holdings: WalletHolding[] = withPinnedUsdc([
     {
       id: "sol",
       kind: "sol",
@@ -159,29 +184,8 @@ export async function loadWalletPortfolio(address: string, signal: AbortSignal):
       solValue: sol,
       solValueText: formatSolValue(sol),
     },
-    ...splRows.map((row) => {
-      const face = faces.get(row.mint);
-      const tokenUsd = usdPrices.get(row.mint);
-      const solValue = tokenUsd && solUsd > 0 ? (row.amount * tokenUsd) / solUsd : undefined;
-      return {
-        id: row.tokenAccount,
-        kind: "spl" as const,
-        mint: row.mint,
-        symbol: face?.symbol || shortAddress(row.mint),
-        name: face?.name || "Token",
-        amount: row.amount,
-        amountText: row.amountText,
-        decimals: row.decimals,
-        raw: row.raw,
-        tokenAccount: row.tokenAccount,
-        programId: row.programId,
-        image: face?.image,
-        ...(solValue != null
-          ? { solValue, solValueText: formatSolValue(solValue) }
-          : {}),
-      };
-    }),
-  ];
+    ...splHoldings,
+  ]);
 
   const totalSolValue = holdings.reduce((sum, holding) => sum + (holding.solValue ?? 0), 0);
   const activity = await readWalletActivity(address, signatures || [], faces, signal).catch(() =>
@@ -248,6 +252,32 @@ async function readUsdPrices(mints: string[], signal: AbortSignal): Promise<Map<
     }
   }
   return prices;
+}
+
+function withPinnedUsdc(holdings: WalletHolding[]): WalletHolding[] {
+  const sol = holdings.filter((holding) => holding.kind === "sol");
+  const usdc = holdings.filter((holding) => holding.mint === USDC_MINT);
+  const rest = holdings.filter((holding) => holding.kind !== "sol" && holding.mint !== USDC_MINT);
+  if (usdc.length) return [...sol, ...usdc, ...rest];
+  return [
+    ...sol,
+    {
+      id: "usdc",
+      kind: "spl",
+      mint: USDC_MINT,
+      symbol: "USDC",
+      name: "USDC on Solana",
+      amount: 0,
+      amountText: "0",
+      decimals: 6,
+      raw: "0",
+      programId: TOKEN_PROGRAM,
+      image: "/logos/usdc.svg",
+      solValue: 0,
+      solValueText: "0",
+    },
+    ...rest,
+  ];
 }
 
 function formatSolValue(value: number): string {
