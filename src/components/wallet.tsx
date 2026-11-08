@@ -609,7 +609,7 @@ function WalletDeskLive() {
 
   function feeLabel(fee: NetworkFeeEstimate | null): string {
     if (!fee) return feeLoading ? "Estimating…" : "Calculating…";
-    return fee.usdText ? `${fee.solText} SOL · ${fee.usdText}` : `${fee.solText} SOL`;
+    return fee.usdText ? `${fee.solText} SOL ${fee.usdText}` : `${fee.solText} SOL`;
   }
 
   function openReceive() {
