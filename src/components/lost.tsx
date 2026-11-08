@@ -1,8 +1,22 @@
+import { useEffect, useState } from "react";
 import { IconArrow } from "./icons";
 import { Lockup } from "./mark";
+import { readCachedLostFigure, warmLostFigure } from "../lost-figure";
 
 export function Lost({ go, mode }: { go: (to: string) => void; mode: "missing" | "offline" }) {
   const offline = mode === "offline";
+  const [figure, setFigure] = useState(() => readCachedLostFigure());
+
+  useEffect(() => {
+    let live = true;
+    void warmLostFigure().then((src) => {
+      if (live && src) setFigure(src);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+
   return (
     <section className="lost">
       <header className="lost-bar frame">
@@ -22,7 +36,17 @@ export function Lost({ go, mode }: { go: (to: string) => void; mode: "missing" |
           <p className="lost-num" aria-hidden="true">
             404
           </p>
-          <img className="lost-figure" src="/lost.png" alt="" />
+          <img
+            className="lost-figure"
+            src={figure}
+            alt=""
+            decoding="async"
+            fetchPriority="high"
+            onError={() => {
+              const cached = readCachedLostFigure();
+              if (cached !== figure && cached.startsWith("data:image/")) setFigure(cached);
+            }}
+          />
         </div>
         <div className="lost-copy">
           <h1>{offline ? "The connection dropped." : "This page is not here."}</h1>

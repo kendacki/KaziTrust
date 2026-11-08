@@ -1552,10 +1552,11 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
 .lost-figure {
   position: relative;
   z-index: 1;
-  height: 100%;
+  height: auto;
   width: auto;
   max-width: min(360px, 46vw);
-  max-height: 100%;
+  max-height: min(52vh, 100%);
+  min-height: 160px;
   margin: 0;
   object-fit: contain;
   object-position: center;
