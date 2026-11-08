@@ -3285,8 +3285,9 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   margin: 0;
   padding: 10px 12px;
   border-radius: 10px;
-  background: #fef3f2;
-  color: #b42318;
+  border: 1px solid #f0c7c3;
+  background: #fff8f7;
+  color: var(--text);
   font-size: 13px;
 }
 .wallet-state {
@@ -3532,9 +3533,9 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   margin: 0;
   padding: 10px 12px;
   border-radius: 12px;
-  border: 1px solid #f0c7c3;
-  background: #fff8f7;
-  color: #9b1c1c;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
   font-size: 13px;
   line-height: 1.35;
 }
