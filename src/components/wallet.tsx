@@ -28,6 +28,7 @@ import {
 import { formatTime, shortAddress } from "../format";
 import { QRCodeSVG } from "qrcode.react";
 import { IconAlertCircle, IconCheckCircle, IconClose, IconCopy, IconSend, IconSpinner } from "./icons";
+import { Mark } from "./mark";
 
 const PRIVY_APP_ID = import.meta.env.VITE_PRIVY_APP_ID ?? "";
 const autoCreateTried = new Set<string>();
@@ -284,10 +285,10 @@ function WalletDeskLive() {
   );
 
   const refresh = useCallback(
-    async (soft = false) => {
+    async (mode: "hard" | "soft" | "quiet" = "hard") => {
       if (!address) return;
-      if (soft) setRefreshing(true);
-      else setLoading(true);
+      if (mode === "soft") setRefreshing(true);
+      else if (mode === "hard") setLoading(true);
       setError("");
       const controller = new AbortController();
       try {
@@ -311,8 +312,8 @@ function WalletDeskLive() {
       setLoading(false);
       return;
     }
-    void refresh(false);
-    const timer = window.setInterval(() => void refresh(true), 45_000);
+    void refresh("hard");
+    const timer = window.setInterval(() => void refresh("quiet"), 45_000);
     return () => window.clearInterval(timer);
   }, [address, refresh]);
 
@@ -409,8 +410,8 @@ function WalletDeskLive() {
       });
       if (outcome !== "failed") {
         setPortfolio((current) => (current ? applyOptimisticSend(current, draft) : current));
-        void refresh(true);
-        window.setTimeout(() => void refresh(true), 2200);
+        void refresh("quiet");
+        window.setTimeout(() => void refresh("quiet"), 2200);
       }
     } catch (caught) {
       const message = explainWalletError(caught);
@@ -419,14 +420,10 @@ function WalletDeskLive() {
     }
   }
 
-  if (!ready || (!wallet && creating)) {
+  if (!ready || (!wallet && creating) || refreshing || (loading && !portfolio)) {
     return (
-      <div className="wallet-desk">
-        <div className="wallet-state">
-          <p className="eyebrow">Wallet</p>
-          <h2>{creating ? "Creating your Solana wallet" : "Preparing your Solana wallet"}</h2>
-          <p className="quiet">Privy is finishing sign-in and embedded wallet setup.</p>
-        </div>
+      <div className="wallet-desk wallet-desk-wait">
+        <WalletLogoWait label={!ready || creating ? "Preparing wallet" : "Updating wallet"} />
       </div>
     );
   }
@@ -454,8 +451,8 @@ function WalletDeskLive() {
       <header className="wallet-hero">
         <div className="wallet-hero-top">
           <p className="eyebrow">Available balance</p>
-          <button type="button" className="text-btn" disabled={refreshing || loading} onClick={() => void refresh(true)}>
-            {refreshing ? "Updating…" : "Refresh"}
+          <button type="button" className="text-btn" disabled={refreshing || loading} onClick={() => void refresh("soft")}>
+            Refresh
           </button>
         </div>
         <p className="wallet-balance">
@@ -735,6 +732,16 @@ function WalletDeskLive() {
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function WalletLogoWait({ label }: { label: string }) {
+  return (
+    <div className="wallet-logo-wait" role="status" aria-live="polite" aria-label={label}>
+      <span className="wallet-logo-wait-mark" aria-hidden="true">
+        <Mark size={64} />
+      </span>
     </div>
   );
 }

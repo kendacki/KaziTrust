@@ -3216,6 +3216,33 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   margin: 0;
   font-size: clamp(28px, 5vw, 40px);
 }
+.wallet-desk-wait {
+  min-height: min(70dvh, 640px);
+  place-items: center;
+  align-content: center;
+}
+.wallet-logo-wait {
+  width: 120px;
+  height: 120px;
+  display: grid;
+  place-items: center;
+  background: none;
+  border: 0;
+  box-shadow: none;
+}
+.wallet-logo-wait-mark {
+  display: grid;
+  place-items: center;
+  color: var(--text);
+  animation: wallet-logo-breathe 1.7s ease-in-out infinite;
+}
+@keyframes wallet-logo-breathe {
+  0%, 100% { transform: scale(0.88) rotate(-4deg); opacity: 0.5; }
+  50% { transform: scale(1.1) rotate(4deg); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wallet-logo-wait-mark { animation: none; opacity: 1; transform: none; }
+}
 
 .wallet-sheet {
   position: fixed;
