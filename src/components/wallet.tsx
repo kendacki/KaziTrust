@@ -891,13 +891,9 @@ function WalletDeskLive() {
               </button>
             ) : null}
           </>
-        ) : (
-          <p className="quiet wallet-activity-empty">
-            {activityFilter === "all"
-              ? "Received and failed transfers will stay here after you sign in again."
-              : "No transfers match this filter."}
-          </p>
-        )}
+        ) : activityFilter !== "all" ? (
+          <p className="quiet wallet-activity-empty">No transfers match this filter.</p>
+        ) : null}
       </section>
 
       {sheet !== "none" ? (
