@@ -26,9 +26,24 @@ function spa404(): Plugin {
   };
 }
 
+/** Keep the stylesheet off the critical path so first paint is not blocked by CSS. */
+function deferCss(): Plugin {
+  return {
+    name: "kazitrust-defer-css",
+    apply: "build",
+    transformIndexHtml(html) {
+      return html.replace(/<link rel="stylesheet"([^>]*href="[^"]+\.css"[^>]*)>/g, (_match, attrs: string) => {
+        const preload = `<link rel="preload" as="style"${attrs} onload="this.onload=null;this.rel='stylesheet'">`;
+        const fallback = `<noscript><link rel="stylesheet"${attrs}></noscript>`;
+        return `${preload}${fallback}`;
+      });
+    },
+  };
+}
+
 export default defineConfig({
   appType: "spa",
-  plugins: [react(), spa404(), rpcPlugin(), groqPlugin(), solscanPlugin(), rugcheckPlugin(), restrictionsPlugin(), tokenMetaPlugin(), gatewayPlugin(), mcpPlugin(), analyticsPlugin()],
+  plugins: [react(), spa404(), deferCss(), rpcPlugin(), groqPlugin(), solscanPlugin(), rugcheckPlugin(), restrictionsPlugin(), tokenMetaPlugin(), gatewayPlugin(), mcpPlugin(), analyticsPlugin()],
   define: {
     global: "globalThis",
   },

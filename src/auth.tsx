@@ -98,7 +98,11 @@ function GateScreen({
       </div>
       <div className="gate-plate">
         <picture>
-          <source type="image/webp" srcSet="/crowd-800.webp 800w, /crowd.webp 1280w" sizes="(max-width: 720px) 100vw, 640px" />
+          <source
+            type="image/webp"
+            srcSet="/crowd-800.webp 800w, /crowd.webp 1280w"
+            sizes="(max-width: 720px) 100vw, min(1120px, 100vw)"
+          />
           <img
             src="/crowd.jpg"
             alt="People standing together, seen from behind, in a bright field"
