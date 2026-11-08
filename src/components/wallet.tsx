@@ -513,9 +513,7 @@ function WalletDeskLive() {
             Explorer
           </a>
         </div>
-        {!portfolio?.activity.length ? (
-          <p className="quiet">No recent signatures yet. Receive SOL or a token to see activity here.</p>
-        ) : (
+        {portfolio?.activity.length ? (
           <ul className="wallet-activity">
             {portfolio.activity.map((item) => (
               <li key={item.signature}>
@@ -530,13 +528,8 @@ function WalletDeskLive() {
               </li>
             ))}
           </ul>
-        )}
+        ) : null}
       </section>
-
-      <p className="wallet-footnote quiet">
-        Transfers on Solana cannot be reversed. Keep a little SOL for fees. This embedded wallet is created by Privy for
-        your signed-in account.
-      </p>
 
       {sheet !== "none" ? (
         <div className="wallet-sheet" role="dialog" aria-modal="true">
