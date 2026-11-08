@@ -154,7 +154,7 @@ export async function loadWalletPortfolio(address: string, signal: AbortSignal):
       kind: "spl" as const,
       mint: row.mint,
       symbol: face?.symbol || shortAddress(row.mint),
-      name: isUsdc ? "USDC on Solana" : face?.name || "Token",
+      name: isUsdc ? "USDC" : face?.name || "Token",
       amount: row.amount,
       amountText: row.amountText,
       decimals: row.decimals,

@@ -943,7 +943,7 @@ function WalletDeskLive() {
                       </li>
                       <li>
                         <img src="/logos/usdc.svg" alt="" width={18} height={18} />
-                        <span>USDC on Solana</span>
+                        <span>USDC</span>
                       </li>
                     </ul>
                   </div>

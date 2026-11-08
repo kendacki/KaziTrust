@@ -56,7 +56,7 @@ export async function readTokenFaces(mints: string[], signal: AbortSignal): Prom
 
 const KNOWN_FACES: Record<string, TokenFace> = {
   EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v: {
-    name: "USDC on Solana",
+    name: "USDC",
     symbol: "USDC",
     image: "/logos/usdc.svg",
   },
