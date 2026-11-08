@@ -3392,6 +3392,117 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   gap: 8px;
   align-items: center;
 }
+.wallet-send {
+  display: grid;
+  gap: 16px;
+}
+.wallet-send-asset {
+  display: grid;
+  gap: 8px;
+}
+.wallet-send-asset-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.wallet-send-asset-row select {
+  width: 100%;
+  min-height: 36px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 550;
+  padding: 0;
+}
+.wallet-send-amount {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.92), rgba(243, 244, 245, 0.96)),
+    var(--surface);
+}
+.wallet-send-amount-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.wallet-send-amount-main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+.wallet-send-prefix {
+  font-size: clamp(28px, 6vw, 40px);
+  font-weight: 300;
+  letter-spacing: -0.03em;
+  color: var(--mute);
+  line-height: 1;
+}
+.wallet-send-amount-main input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: clamp(34px, 8vw, 48px);
+  font-weight: 300;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+  color: var(--text);
+}
+.wallet-send-amount-main input:focus {
+  outline: none;
+}
+.wallet-send-unit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+}
+.wallet-send-unit:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.wallet-send-equiv,
+.wallet-send-available {
+  margin: 0;
+  font-size: 13px;
+}
+.wallet-review-hero {
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  text-align: center;
+  padding: 18px 12px;
+  border-radius: 16px;
+  background: var(--surface);
+}
+.wallet-review-hero strong {
+  font-size: clamp(28px, 6vw, 36px);
+  font-weight: 350;
+  letter-spacing: -0.03em;
+}
 .wallet-settings {
   display: grid;
   gap: 16px;

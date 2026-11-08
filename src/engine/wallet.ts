@@ -38,6 +38,7 @@ export type WalletHolding = {
   image?: string;
   solValue?: number;
   solValueText?: string;
+  usdPrice?: number;
 };
 
 export type WalletActivity = {
@@ -58,6 +59,7 @@ export type WalletPortfolio = {
   address: string;
   lamports: number;
   sol: number;
+  solUsd: number;
   totalSolValue: number;
   totalSolValueText: string;
   holdings: WalletHolding[];
@@ -162,6 +164,7 @@ export async function loadWalletPortfolio(address: string, signal: AbortSignal):
       tokenAccount: row.tokenAccount,
       programId: row.programId,
       image: isUsdc ? "/logos/usdc.svg" : face?.image,
+      ...(tokenUsd != null ? { usdPrice: tokenUsd } : {}),
       ...(solValue != null
         ? { solValue, solValueText: formatSolValue(solValue) }
         : {}),
@@ -183,6 +186,7 @@ export async function loadWalletPortfolio(address: string, signal: AbortSignal):
       image: "/logos/solana.svg",
       solValue: sol,
       solValueText: formatSolValue(sol),
+      ...(solUsd > 0 ? { usdPrice: solUsd } : {}),
     },
     ...splHoldings,
   ]);
@@ -196,6 +200,7 @@ export async function loadWalletPortfolio(address: string, signal: AbortSignal):
     address,
     lamports,
     sol,
+    solUsd,
     totalSolValue,
     totalSolValueText: formatSolValue(totalSolValue),
     holdings,
@@ -266,7 +271,7 @@ function withPinnedUsdc(holdings: WalletHolding[]): WalletHolding[] {
       kind: "spl",
       mint: USDC_MINT,
       symbol: "USDC",
-      name: "USDC on Solana",
+      name: "USDC",
       amount: 0,
       amountText: "0",
       decimals: 6,
@@ -475,6 +480,35 @@ function formatAmount(value: number, max = 6): string {
   if (value === 0) return "0";
   if (value > 0 && value < 1e-6) return value.toExponential(2);
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: max }).format(value);
+}
+
+export function parseLooseAmount(value: string): number | null {
+  const cleaned = value.trim().replace(/,/g, "");
+  if (!cleaned || cleaned === "." || cleaned === "-") return null;
+  const amount = Number(cleaned);
+  if (!Number.isFinite(amount) || amount < 0) return null;
+  return amount;
+}
+
+export function formatSendInput(value: number, maxFraction = 6): string {
+  if (!Number.isFinite(value) || value <= 0) return "";
+  if (value >= 1000) return value.toFixed(2).replace(/\.?0+$/, "");
+  if (value >= 1) return value.toFixed(Math.min(4, maxFraction)).replace(/\.?0+$/, "");
+  return value.toFixed(Math.min(8, maxFraction)).replace(/\.?0+$/, "");
+}
+
+export function tokenAmountFromUsd(usd: number, usdPrice: number): number | null {
+  if (!Number.isFinite(usd) || usd < 0 || !Number.isFinite(usdPrice) || usdPrice <= 0) return null;
+  return usd / usdPrice;
+}
+
+export function usdFromTokenAmount(amount: number, usdPrice: number): number | null {
+  if (!Number.isFinite(amount) || amount < 0 || !Number.isFinite(usdPrice) || usdPrice <= 0) return null;
+  return amount * usdPrice;
+}
+
+export function solFromUsd(usd: number, solUsd: number): number | null {
+  return tokenAmountFromUsd(usd, solUsd);
 }
 
 export function parseSendAmount(amount: string, decimals: number): bigint {

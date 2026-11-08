@@ -17,9 +17,14 @@ import {
   explainWalletError,
   explorerAddress,
   explorerTx,
+  formatSendInput,
   isSolanaAddress,
   loadWalletPortfolio,
+  parseLooseAmount,
   signatureFromBytes,
+  solFromUsd,
+  tokenAmountFromUsd,
+  usdFromTokenAmount,
   waitForSignature,
   type SendDraft,
   type WalletActivity,
@@ -37,6 +42,7 @@ import {
   IconChevronUp,
   IconClose,
   IconCopy,
+  IconExchange,
   IconFilter,
   IconKey,
   IconSend,
@@ -57,6 +63,7 @@ type Sheet = "none" | "receive" | "send" | "review" | "status" | "settings";
 type CreatePhase = "idle" | "creating" | "ready" | "error";
 type ActivityFilter = "all" | "in" | "out" | "failed";
 type KeyRevealStep = "idle" | "code" | "exporting";
+type AmountMode = "token" | "usd";
 
 type SendStatus = {
   phase: "signing" | "confirming" | "confirmed" | "pending" | "failed";
@@ -307,6 +314,8 @@ function WalletDeskLive() {
   const [walletCode, setWalletCode] = useState("");
   const [codeInput, setCodeInput] = useState("");
   const [codeCopied, setCodeCopied] = useState(false);
+  const [amountMode, setAmountMode] = useState<AmountMode>("usd");
+  const [amountInput, setAmountInput] = useState("");
   const filterRef = useRef<HTMLDivElement | null>(null);
 
   const holdings = portfolio?.holdings ?? [];
@@ -333,6 +342,7 @@ function WalletDeskLive() {
             address,
             lamports: 0,
             sol: 0,
+            solUsd: 0,
             totalSolValue: 0,
             totalSolValueText: "0",
             holdings: [],
@@ -387,6 +397,7 @@ function WalletDeskLive() {
         address,
         lamports: 0,
         sol: 0,
+        solUsd: 0,
         totalSolValue: 0,
         totalSolValueText: "0",
         holdings: [],
@@ -466,8 +477,81 @@ function WalletDeskLive() {
       tokenAccount: asset.tokenAccount,
       programId: asset.programId,
     });
+    setAmountMode(asset.usdPrice ? "usd" : "token");
+    setAmountInput("");
     setSendStatus(null);
+    setError("");
     setSheet("send");
+  }
+
+  const sendHolding = useMemo(
+    () => (draft ? holdings.find((item) => item.mint === draft.mint || item.id === draft.mint) || null : null),
+    [draft, holdings],
+  );
+  const sendUsdPrice = sendHolding?.usdPrice || (draft?.kind === "sol" ? portfolio?.solUsd || 0 : 0);
+  const sendSolUsd = portfolio?.solUsd || 0;
+  const sendTokenAmount = parseLooseAmount(draft?.amount || "") ?? 0;
+  const sendUsdValue = sendUsdPrice > 0 ? usdFromTokenAmount(sendTokenAmount, sendUsdPrice) : null;
+  const sendSolValue =
+    draft?.kind === "sol"
+      ? sendTokenAmount
+      : sendUsdValue != null && sendSolUsd > 0
+        ? solFromUsd(sendUsdValue, sendSolUsd)
+        : sendHolding?.solValue != null && sendHolding.amount > 0
+          ? (sendTokenAmount / sendHolding.amount) * sendHolding.solValue
+          : null;
+
+  function setSendAmountFromInput(nextInput: string, mode: AmountMode = amountMode) {
+    if (!draft) return;
+    const cleaned = nextInput.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1");
+    setAmountInput(cleaned);
+    const parsed = parseLooseAmount(cleaned);
+    if (parsed == null) {
+      setDraft({ ...draft, amount: "" });
+      return;
+    }
+    if (mode === "usd") {
+      if (!(sendUsdPrice > 0)) {
+        setDraft({ ...draft, amount: "" });
+        return;
+      }
+      const token = tokenAmountFromUsd(parsed, sendUsdPrice);
+      setDraft({ ...draft, amount: token != null && token > 0 ? formatSendInput(token, Math.min(8, draft.decimals)) : "" });
+      return;
+    }
+    setDraft({ ...draft, amount: cleaned });
+  }
+
+  function toggleAmountMode() {
+    if (!draft || !(sendUsdPrice > 0)) return;
+    const nextMode: AmountMode = amountMode === "usd" ? "token" : "usd";
+    const tokenAmount = parseLooseAmount(draft.amount);
+    if (tokenAmount == null || tokenAmount <= 0) {
+      setAmountMode(nextMode);
+      setAmountInput("");
+      return;
+    }
+    if (nextMode === "usd") {
+      const usd = usdFromTokenAmount(tokenAmount, sendUsdPrice);
+      setAmountInput(usd != null ? formatSendInput(usd, 2) : "");
+    } else {
+      setAmountInput(formatSendInput(tokenAmount, Math.min(8, draft.decimals)));
+    }
+    setAmountMode(nextMode);
+  }
+
+  function fillMaxAmount() {
+    if (!draft || !sendHolding) return;
+    const keep = draft.kind === "sol" ? 0.002 : 0;
+    const max = Math.max(0, sendHolding.amount - keep);
+    const tokenText = max > 0 ? formatSendInput(max, Math.min(8, draft.decimals)) : "0";
+    setDraft({ ...draft, amount: tokenText });
+    if (amountMode === "usd" && sendUsdPrice > 0) {
+      const usd = usdFromTokenAmount(max, sendUsdPrice);
+      setAmountInput(usd != null ? formatSendInput(usd, 2) : "");
+    } else {
+      setAmountInput(tokenText);
+    }
   }
 
   function openReceive() {
@@ -967,41 +1051,100 @@ function WalletDeskLive() {
             ) : null}
 
             {sheet === "send" && draft ? (
-              <>
+              <div className="wallet-send">
                 <header className="wallet-sheet-head">
                   <h3>Send</h3>
                   <button type="button" className="text-btn" onClick={() => setSheet("none")}>
                     Close
                   </button>
                 </header>
-                <label className="wallet-field">
-                  <span>Asset</span>
-                  <select
-                    value={draft.mint}
-                    onChange={(event) => {
-                      const holding = holdings.find((item) => item.mint === event.target.value);
-                      if (!holding) return;
-                      setDraft({
-                        mint: holding.mint,
-                        kind: holding.kind,
-                        to: draft.to,
-                        amount: "",
-                        decimals: holding.decimals,
-                        symbol: holding.symbol,
-                        tokenAccount: holding.tokenAccount,
-                        programId: holding.programId,
-                      });
-                    }}
-                  >
-                    {holdings.map((holding) => (
-                      <option key={holding.id} value={holding.mint}>
-                        {holding.symbol} · {holding.amountText}
-                      </option>
-                    ))}
-                  </select>
+
+                <label className="wallet-send-asset">
+                  <span className="wallet-receive-label">Asset</span>
+                  <div className="wallet-send-asset-row">
+                    {sendHolding ? <AssetMark holding={sendHolding} /> : null}
+                    <select
+                      value={draft.mint}
+                      onChange={(event) => {
+                        const holding = holdings.find((item) => item.mint === event.target.value);
+                        if (!holding) return;
+                        setDraft({
+                          mint: holding.mint,
+                          kind: holding.kind,
+                          to: draft.to,
+                          amount: "",
+                          decimals: holding.decimals,
+                          symbol: holding.symbol,
+                          tokenAccount: holding.tokenAccount,
+                          programId: holding.programId,
+                        });
+                        setAmountMode(holding.usdPrice || (holding.kind === "sol" && (portfolio?.solUsd || 0) > 0) ? "usd" : "token");
+                        setAmountInput("");
+                      }}
+                    >
+                      {holdings.map((holding) => (
+                        <option key={holding.id} value={holding.mint}>
+                          {holding.symbol} · {holding.amountText} available
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </label>
+
+                <div className="wallet-send-amount">
+                  <div className="wallet-send-amount-top">
+                    <span className="wallet-receive-label">Amount</span>
+                    <button type="button" className="text-btn" onClick={fillMaxAmount}>
+                      Max
+                    </button>
+                  </div>
+                  <div className="wallet-send-amount-main">
+                    <span className="wallet-send-prefix">{amountMode === "usd" ? "$" : ""}</span>
+                    <input
+                      value={amountInput}
+                      onChange={(event) => setSendAmountFromInput(event.target.value)}
+                      placeholder="0"
+                      inputMode="decimal"
+                      aria-label={amountMode === "usd" ? "Amount in USD" : `Amount in ${draft.symbol}`}
+                    />
+                    <button
+                      type="button"
+                      className="wallet-send-unit"
+                      disabled={!(sendUsdPrice > 0)}
+                      onClick={toggleAmountMode}
+                      aria-label="Switch amount unit"
+                    >
+                      {amountMode === "usd" ? "USD" : draft.symbol}
+                      <IconExchange size={14} />
+                    </button>
+                  </div>
+                  <p className="wallet-send-equiv quiet">
+                    {sendUsdPrice > 0
+                      ? amountMode === "usd"
+                        ? `≈ ${formatSendInput(sendTokenAmount, Math.min(6, draft.decimals)) || "0"} ${draft.symbol}${
+                            draft.kind !== "sol" && sendSolValue != null
+                              ? ` · ${formatSendInput(sendSolValue, 6) || "0"} SOL`
+                              : ""
+                          }`
+                        : `≈ $${formatSendInput(sendUsdValue ?? 0, 2) || "0"}${
+                            draft.kind !== "sol" && sendSolValue != null
+                              ? ` · ${formatSendInput(sendSolValue, 6) || "0"} SOL`
+                              : draft.kind === "sol"
+                                ? ""
+                                : ""
+                          }`
+                      : "Live price unavailable · enter the token amount"}
+                  </p>
+                  <p className="wallet-send-available quiet">
+                    Available {sendHolding?.amountText ?? "0"} {draft.symbol}
+                    {sendHolding?.usdPrice
+                      ? ` · ≈ $${formatSendInput((sendHolding.amount || 0) * sendHolding.usdPrice, 2) || "0"}`
+                      : ""}
+                  </p>
+                </div>
+
                 <label className="wallet-field">
-                  <span>Destination</span>
+                  <span>To</span>
                   <input
                     value={draft.to}
                     onChange={(event) => setDraft({ ...draft, to: event.target.value.trim() })}
@@ -1010,39 +1153,12 @@ function WalletDeskLive() {
                     spellCheck={false}
                   />
                 </label>
-                <label className="wallet-field">
-                  <span>Amount</span>
-                  <div className="wallet-amount">
-                    <input
-                      value={draft.amount}
-                      onChange={(event) => setDraft({ ...draft, amount: event.target.value })}
-                      placeholder="0.00"
-                      inputMode="decimal"
-                    />
-                    <button
-                      type="button"
-                      className="text-btn"
-                      onClick={() => {
-                        const holding = holdings.find((item) => item.mint === draft.mint);
-                        if (!holding) return;
-                        if (holding.kind === "sol") {
-                          const keep = 0.002;
-                          const max = Math.max(0, holding.amount - keep);
-                          setDraft({ ...draft, amount: max > 0 ? String(max) : "0" });
-                          return;
-                        }
-                        setDraft({ ...draft, amount: holding.amountText });
-                      }}
-                    >
-                      Max
-                    </button>
-                  </div>
-                </label>
+
                 {error ? <p className="wallet-error">{error}</p> : null}
-                <button type="button" className="btn ink" onClick={goReview}>
-                  Review
+                <button type="button" className="btn ink wide" onClick={goReview}>
+                  Continue
                 </button>
-              </>
+              </div>
             ) : null}
 
             {sheet === "review" && draft ? (
@@ -1053,13 +1169,16 @@ function WalletDeskLive() {
                     Back
                   </button>
                 </header>
+                <div className="wallet-review-hero">
+                  <strong>
+                    {draft.amount} {draft.symbol}
+                  </strong>
+                  <span className="quiet">
+                    {sendUsdValue != null ? `≈ $${formatSendInput(sendUsdValue, 2)}` : "USD quote unavailable"}
+                    {draft.kind !== "sol" && sendSolValue != null ? ` · ${formatSendInput(sendSolValue, 6)} SOL` : ""}
+                  </span>
+                </div>
                 <dl className="wallet-review">
-                  <div>
-                    <dt>You send</dt>
-                    <dd>
-                      {draft.amount} {draft.symbol}
-                    </dd>
-                  </div>
                   <div>
                     <dt>To</dt>
                     <dd className="num">{draft.to}</dd>
@@ -1068,9 +1187,16 @@ function WalletDeskLive() {
                     <dt>Network</dt>
                     <dd>Solana</dd>
                   </div>
+                  <div>
+                    <dt>Pay with</dt>
+                    <dd>
+                      {draft.symbol}
+                      {sendHolding ? ` · ${sendHolding.amountText} available` : ""}
+                    </dd>
+                  </div>
                 </dl>
                 <p className="quiet">Transfers cannot be reversed. Privy will ask you to approve the signature.</p>
-                <button type="button" className="btn ink" onClick={() => void confirmSend()}>
+                <button type="button" className="btn ink wide" onClick={() => void confirmSend()}>
                   Confirm and sign
                 </button>
               </>
