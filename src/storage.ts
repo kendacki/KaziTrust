@@ -32,6 +32,7 @@ export type WatchItem = {
 const THREADS = "kazitrust.threads";
 const WATCH = "kazitrust.watch";
 const PROFILE = "kazitrust.profile";
+const API_KEY = "kazitrust.apikey";
 
 function read<T>(key: string, fallback: T): T {
   try {
@@ -50,56 +51,68 @@ function write(key: string, value: unknown) {
   }
 }
 
-export function loadThreads(): Thread[] {
-  return read<Thread[]>(THREADS, []);
+function dropLegacy(key: string) {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    /* Best-effort cleanup of pre-account-scoped keys. */
+  }
 }
 
-export function saveThreads(threads: Thread[]) {
-  write(THREADS, threads.slice(0, 40));
+function scopedKey(base: string, userId: string | null | undefined): string | null {
+  if (!userId) return null;
+  return `${base}.${userId}`;
 }
 
-export function loadWatch(): WatchItem[] {
-  return read<WatchItem[]>(WATCH, []);
+export function loadThreads(userId: string | null | undefined): Thread[] {
+  const key = scopedKey(THREADS, userId);
+  if (!key) return [];
+  dropLegacy(THREADS);
+  return read<Thread[]>(key, []);
 }
 
-export function saveWatch(items: WatchItem[]) {
-  write(WATCH, items.slice(0, 24));
+export function saveThreads(userId: string | null | undefined, threads: Thread[]) {
+  const key = scopedKey(THREADS, userId);
+  if (!key) return;
+  write(key, threads.slice(0, 40));
+  dropLegacy(THREADS);
+}
+
+export function loadWatch(userId: string | null | undefined): WatchItem[] {
+  const key = scopedKey(WATCH, userId);
+  if (!key) return [];
+  dropLegacy(WATCH);
+  return read<WatchItem[]>(key, []);
+}
+
+export function saveWatch(userId: string | null | undefined, items: WatchItem[]) {
+  const key = scopedKey(WATCH, userId);
+  if (!key) return;
+  write(key, items.slice(0, 24));
+  dropLegacy(WATCH);
 }
 
 export function cleanUsername(value: string | null | undefined): string {
   return (value ?? "").replace(/[\u0000-\u001f]/g, "").replace(/\s+/g, " ").trim().slice(0, 32);
 }
 
-function profileKey(userId: string): string {
-  return `${PROFILE}.${userId}`;
-}
-
 export function loadUsername(userId: string | null | undefined): string | null {
-  if (!userId) return null;
-  try {
-    // Drop the old shared profile key so one account's name cannot stick to another.
-    localStorage.removeItem(PROFILE);
-  } catch {
-    /* Best-effort cleanup. */
-  }
-  const saved = read<{ name?: string } | null>(profileKey(userId), null);
+  const key = scopedKey(PROFILE, userId);
+  if (!key) return null;
+  dropLegacy(PROFILE);
+  const saved = read<{ name?: string } | null>(key, null);
   const name = cleanUsername(saved?.name);
   return name || null;
 }
 
 export function saveUsername(userId: string | null | undefined, name: string) {
-  if (!userId) return;
+  const key = scopedKey(PROFILE, userId);
+  if (!key) return;
   const clean = cleanUsername(name);
   if (!clean) return;
-  write(profileKey(userId), { name: clean });
-  try {
-    localStorage.removeItem(PROFILE);
-  } catch {
-    /* Legacy shared profile key is best-effort to clear. */
-  }
+  write(key, { name: clean });
+  dropLegacy(PROFILE);
 }
-
-const API_KEY = "kazitrust.apikey";
 
 export type SavedApiKey = {
   key: string;
@@ -108,20 +121,28 @@ export type SavedApiKey = {
   expiresAt?: string;
 };
 
-export function loadApiKey(): SavedApiKey | null {
-  const saved = read<Partial<SavedApiKey> | null>(API_KEY, null);
+export function loadApiKey(userId: string | null | undefined): SavedApiKey | null {
+  const key = scopedKey(API_KEY, userId);
+  if (!key) return null;
+  dropLegacy(API_KEY);
+  const saved = read<Partial<SavedApiKey> | null>(key, null);
   if (!saved?.key?.startsWith("kt_") || !saved.prefix || !saved.createdAt) return null;
   if (saved.key.length > 160 || saved.prefix.length > 12) return null;
   const expiresAt = typeof saved.expiresAt === "string" && Number.isFinite(Date.parse(saved.expiresAt)) ? saved.expiresAt : undefined;
   return { key: saved.key, prefix: saved.prefix, createdAt: saved.createdAt, ...(expiresAt ? { expiresAt } : {}) };
 }
 
-export function saveApiKey(value: SavedApiKey) {
-  write(API_KEY, value);
+export function saveApiKey(userId: string | null | undefined, value: SavedApiKey) {
+  const key = scopedKey(API_KEY, userId);
+  if (!key) return;
+  write(key, value);
+  dropLegacy(API_KEY);
 }
 
-export function clearApiKey() {
+export function clearApiKey(userId: string | null | undefined) {
+  const key = scopedKey(API_KEY, userId);
   try {
+    if (key) localStorage.removeItem(key);
     localStorage.removeItem(API_KEY);
   } catch {
     /* The browser refused the clear. The next read still checks the prefix. */

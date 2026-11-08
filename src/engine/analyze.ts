@@ -110,6 +110,7 @@ export async function investigate(options: {
   mode: "quick" | "deep";
   signal: AbortSignal;
   onStep?: Stepper;
+  userId?: string | null;
 }): Promise<Answer> {
   const question = options.question.trim();
   const onStep = options.onStep ?? (() => undefined);
@@ -161,12 +162,12 @@ export async function investigate(options: {
     return voiceText(question, fallback, ["Show the illustrative deployer read", "Read the Jupiter contract", "Read the USDC mint"], options.signal, onStep);
   }
 
-  const quota = consumeRead();
+  const quota = consumeRead(options.userId);
   if (!quota.ok) {
     track({ name: "investigate_quota", ok: false, meta: { mode: options.mode, limit: quota.limit } });
     return {
       kind: "text",
-      text: `This browser has used its ${quota.limit} live reads for today. The sample deployer read still works, and the counter resets tomorrow.`,
+      text: `This account has used its ${quota.limit} live reads for today. The sample deployer read still works, and the counter resets tomorrow.`,
       followups: ["Show the illustrative deployer read", "How is the score built?"],
     };
   }
@@ -217,7 +218,7 @@ export async function investigate(options: {
     onStep("Scoring the public record", "active");
     const report = buildReport(facts, intent);
     if (quota.remaining <= 5) {
-      report.warnings.push(`${quota.remaining} live reads left today on this browser.`);
+      report.warnings.push(`${quota.remaining} live reads left today on this account.`);
     }
     onStep("Scoring the public record", "done");
     assertGrounded(report);
@@ -234,7 +235,7 @@ export async function investigate(options: {
     }
     const message = error instanceof RpcError ? error.message : "The read failed before a score could be made.";
     track({ name: "investigate_error", ok: false, ms: Date.now() - started, error: message, meta: { mode: options.mode } });
-    const remaining = readQuota();
+    const remaining = readQuota(options.userId);
     return {
       kind: "text",
       text: `${message} ${remaining.remaining} live reads are still available today.`,

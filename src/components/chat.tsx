@@ -58,9 +58,11 @@ function contextAddresses(messages: ThreadMessage[]): string[] {
 
 export function Chat({ go, api = false, wallet = false }: { go: (to: string) => void; api?: boolean; wallet?: boolean }) {
   const { logout, user } = usePrivy();
-  const [threads, setThreads] = useState<Thread[]>(() => loadThreads());
+  const userId = user?.id ?? null;
+  const [accountId, setAccountId] = useState<string | null>(null);
+  const [threads, setThreads] = useState<Thread[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [watch, setWatch] = useState<WatchItem[]>(() => loadWatch());
+  const [watch, setWatch] = useState<WatchItem[]>([]);
   const [draft, setDraft] = useState("");
   const [mode, setMode] = useState<"quick" | "deep">("quick");
   const [filter, setFilter] = useState("");
@@ -70,8 +72,7 @@ export function Chat({ go, api = false, wallet = false }: { go: (to: string) => 
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState<string | null>(null);
   const [rename, setRename] = useState<string | null>(null);
-  const [quota, setQuota] = useState(() => readQuota());
-  const userId = user?.id ?? null;
+  const [quota, setQuota] = useState(() => readQuota(userId));
   const [username, setUsername] = useState("");
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
@@ -82,12 +83,23 @@ export function Chat({ go, api = false, wallet = false }: { go: (to: string) => 
   const fileRef = useRef<HTMLInputElement>(null);
   threadsRef.current = threads;
 
-  useEffect(() => saveThreads(threads), [threads]);
-  useEffect(() => saveWatch(watch), [watch]);
   useEffect(() => {
+    setThreads(loadThreads(userId));
+    setWatch(loadWatch(userId));
+    setActiveId(null);
     setUsername(loadUsername(userId) ?? "");
     setEditingName(false);
+    setQuota(readQuota(userId));
+    setAccountId(userId);
   }, [userId]);
+  useEffect(() => {
+    if (!userId || userId !== accountId) return;
+    saveThreads(userId, threads);
+  }, [userId, accountId, threads]);
+  useEffect(() => {
+    if (!userId || userId !== accountId) return;
+    saveWatch(userId, watch);
+  }, [userId, accountId, watch]);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") setPanel(null);
@@ -193,6 +205,7 @@ export function Chat({ go, api = false, wallet = false }: { go: (to: string) => 
         contextAddresses: contextAddresses(prior.slice(0, -1)),
         mode,
         signal: controller.signal,
+        userId,
         onStep: (label, state) => {
           patchMessage(thread.id, assistantId, (message) => {
             const steps = message.steps ?? [];
@@ -220,7 +233,7 @@ export function Chat({ go, api = false, wallet = false }: { go: (to: string) => 
       }));
     } finally {
       setBusy(false);
-      setQuota(readQuota());
+      setQuota(readQuota(userId));
       abortRef.current = null;
     }
   }

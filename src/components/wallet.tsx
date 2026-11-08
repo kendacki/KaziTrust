@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePrivy } from "@privy-io/react-auth";
 import { useCreateWallet, useSignAndSendTransaction, useWallets } from "@privy-io/react-auth/solana";
 import { track } from "../analytics";
 import {
@@ -18,6 +19,7 @@ import { formatTime, shortAddress } from "../format";
 import { IconCopy, IconSend, IconWallet } from "./icons";
 
 const PRIVY_APP_ID = import.meta.env.VITE_PRIVY_APP_ID ?? "";
+const autoCreateTried = new Set<string>();
 
 type Sheet = "none" | "receive" | "send" | "review" | "status";
 
@@ -27,6 +29,51 @@ type SendStatus = {
   signature?: string;
   error?: string;
 };
+
+function useSolanaWallet() {
+  const { user } = usePrivy();
+  const { ready, wallets } = useWallets();
+  const { createWallet } = useCreateWallet();
+  const userId = user?.id ?? null;
+  const wallet = wallets[0] ?? null;
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
+  const createLock = useRef(false);
+
+  const ensureWallet = useCallback(async () => {
+    if (wallet || createLock.current) return;
+    createLock.current = true;
+    setCreating(true);
+    setCreateError("");
+    try {
+      await createWallet();
+      track({ name: "wallet_create", ok: true });
+    } catch (caught) {
+      const message = explainWalletError(caught);
+      setCreateError(message);
+      track({ name: "wallet_create", ok: false, error: message });
+      throw caught;
+    } finally {
+      createLock.current = false;
+      setCreating(false);
+    }
+  }, [wallet, createWallet]);
+
+  useEffect(() => {
+    setCreateError("");
+  }, [userId]);
+
+  useEffect(() => {
+    if (!ready || !userId || wallet || creating || createLock.current) return;
+    if (autoCreateTried.has(userId)) return;
+    autoCreateTried.add(userId);
+    void ensureWallet().catch(() => {
+      autoCreateTried.delete(userId);
+    });
+  }, [ready, userId, wallet, creating, ensureWallet]);
+
+  return { ready, wallet, creating, createError, ensureWallet };
+}
 
 export function WalletDesk() {
   if (!PRIVY_APP_ID) {
@@ -44,10 +91,8 @@ export function WalletDesk() {
 }
 
 function WalletDeskLive() {
-  const { ready, wallets } = useWallets();
-  const { createWallet } = useCreateWallet();
+  const { ready, wallet, creating, createError, ensureWallet } = useSolanaWallet();
   const { signAndSendTransaction } = useSignAndSendTransaction();
-  const wallet = wallets[0] ?? null;
   const address = wallet?.address ?? "";
 
   const [portfolio, setPortfolio] = useState<WalletPortfolio | null>(null);
@@ -55,7 +100,6 @@ function WalletDeskLive() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
-  const [creating, setCreating] = useState(false);
   const [sheet, setSheet] = useState<Sheet>("none");
   const [draft, setDraft] = useState<SendDraft | null>(null);
   const [sendStatus, setSendStatus] = useState<SendStatus | null>(null);
@@ -91,6 +135,7 @@ function WalletDeskLive() {
 
   useEffect(() => {
     if (!address) {
+      setPortfolio(null);
       setLoading(false);
       return;
     }
@@ -99,17 +144,16 @@ function WalletDeskLive() {
     return () => window.clearInterval(timer);
   }, [address, refresh]);
 
-  async function ensureWallet() {
-    setCreating(true);
+  useEffect(() => {
+    if (createError) setError(createError);
+  }, [createError]);
+
+  async function retryCreateWallet() {
     setError("");
     try {
-      await createWallet();
-      track({ name: "wallet_create", ok: true });
-    } catch (caught) {
-      setError(explainWalletError(caught));
-      track({ name: "wallet_create", ok: false, error: explainWalletError(caught) });
-    } finally {
-      setCreating(false);
+      await ensureWallet();
+    } catch {
+      /* ensureWallet already records the error */
     }
   }
 
@@ -199,12 +243,12 @@ function WalletDeskLive() {
     }
   }
 
-  if (!ready) {
+  if (!ready || (!wallet && creating)) {
     return (
       <div className="wallet-desk">
         <div className="wallet-state">
           <p className="eyebrow">Wallet</p>
-          <h2>Preparing your Solana wallet</h2>
+          <h2>{creating ? "Creating your Solana wallet" : "Preparing your Solana wallet"}</h2>
           <p className="quiet">Privy is finishing sign-in and embedded wallet setup.</p>
         </div>
       </div>
@@ -221,7 +265,7 @@ function WalletDeskLive() {
             KaziTrust uses a Privy embedded Solana wallet. It can receive SOL and any SPL token sent to your address.
           </p>
           {error ? <p className="wallet-error" role="alert">{error}</p> : null}
-          <button type="button" className="btn ink" disabled={creating} onClick={() => void ensureWallet()}>
+          <button type="button" className="btn ink" disabled={creating} onClick={() => void retryCreateWallet()}>
             {creating ? "Creating…" : "Create wallet"}
           </button>
         </div>
@@ -521,19 +565,23 @@ export function HistoryWalletCard({
 }
 
 function HistoryWalletCardLive({ go, active }: { go: (to: string) => void; active?: boolean }) {
-  const { ready, wallets } = useWallets();
-  const address = wallets[0]?.address || "";
+  const { ready, wallet, creating, createError } = useSolanaWallet();
+  const address = wallet?.address || "";
+  const detail = !ready
+    ? "Preparing…"
+    : creating
+      ? "Creating wallet…"
+      : address
+        ? shortAddress(address)
+        : createError
+          ? "Tap to retry wallet"
+          : "Create Solana wallet";
 
   return (
     <button
       type="button"
       className={`history-wallet ${active ? "current" : ""}`}
-      onClick={() => {
-        go("/app/wallet");
-        if (window.innerWidth < 860) {
-          /* sidebar close is handled by parent navigation */
-        }
-      }}
+      onClick={() => go("/app/wallet")}
       aria-current={active ? "page" : undefined}
     >
       <span className="history-wallet-icon" aria-hidden="true">
@@ -541,8 +589,8 @@ function HistoryWalletCardLive({ go, active }: { go: (to: string) => void; activ
       </span>
       <span className="history-wallet-copy">
         <strong>Wallet</strong>
-        <span className="num">
-          {!ready ? "Preparing…" : address ? shortAddress(address) : "Create Solana wallet"}
+        <span className={address ? "num" : undefined} title={address || createError || undefined}>
+          {detail}
         </span>
       </span>
     </button>

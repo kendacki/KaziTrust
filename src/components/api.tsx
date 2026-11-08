@@ -129,8 +129,8 @@ function mcpOrigin(origin: string) {
 }
 
 export function ApiDesk() {
-  const { authenticated, getAccessToken } = usePrivy();
-  return <ApiKeys getAccessToken={authenticated ? getAccessToken : undefined} />;
+  const { authenticated, getAccessToken, user } = usePrivy();
+  return <ApiKeys userId={user?.id ?? null} getAccessToken={authenticated ? getAccessToken : undefined} />;
 }
 
 export function ApiEntry({ go }: { go: (to: string) => void }) {
@@ -331,10 +331,12 @@ function ApiPublic({ go }: { go: (to: string) => void }) {
   );
 }
 
-function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | null> }) {
+function ApiKeys({ userId, getAccessToken }: { userId: string | null; getAccessToken?: () => Promise<string | null> }) {
   const origin = window.location.origin;
   const tokenRef = useRef(getAccessToken);
   tokenRef.current = getAccessToken;
+  const userIdRef = useRef(userId);
+  userIdRef.current = userId;
   const [record, setRecord] = useState<KeyRecord | null>(null);
   const [secret, setSecret] = useState("");
   const [loading, setLoading] = useState(true);
@@ -368,40 +370,44 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
   useEffect(() => {
     if (!expired || !secret) return;
     setSecret("");
-    clearApiKey();
+    clearApiKey(userIdRef.current);
   }, [expired, secret]);
 
   useEffect(() => {
     let live = true;
+    setLoading(true);
+    setRecord(null);
+    setSecret("");
+    setError("");
     void (async () => {
       try {
         const loaded = await readKeyState(await sessionHeaders(tokenRef.current));
         if (!live) return;
         const next = loaded.key;
         setQuota(loaded.quota);
-        const saved = loadApiKey();
+        const saved = loadApiKey(userIdRef.current);
         if (next && saved?.prefix === next.prefix) {
           setRecord(next);
           if (next.active && keyActive(saved.expiresAt)) setSecret(saved.key);
-          else clearApiKey();
+          else clearApiKey(userIdRef.current);
         } else if (next) {
-          if (saved) clearApiKey();
+          if (saved) clearApiKey(userIdRef.current);
           setRecord(next);
         } else if (saved && keyActive(saved.expiresAt)) {
           setRecord({ prefix: saved.prefix, createdAt: saved.createdAt, expiresAt: saved.expiresAt ?? null, active: true });
           setSecret(saved.key);
         } else if (saved) {
-          clearApiKey();
+          clearApiKey(userIdRef.current);
         }
       } catch (caught) {
         if (!live) return;
-        const saved = loadApiKey();
+        const saved = loadApiKey(userIdRef.current);
         if (saved && keyActive(saved.expiresAt)) {
           setRecord({ prefix: saved.prefix, createdAt: saved.createdAt, expiresAt: saved.expiresAt ?? null, active: true });
           setSecret(saved.key);
           return;
         }
-        if (saved) clearApiKey();
+        if (saved) clearApiKey(userIdRef.current);
         setError(caught instanceof Error ? caught.message : "The key service did not answer.");
       } finally {
         if (live) setLoading(false);
@@ -410,7 +416,7 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
     return () => {
       live = false;
     };
-  }, []);
+  }, [userId]);
 
   async function issue() {
     setWorking(true);
@@ -438,7 +444,7 @@ function ApiKeys({ getAccessToken }: { getAccessToken?: () => Promise<string | n
         throw new Error(keyFailure(response.status, body?.error));
       }
       const issued = { key: body.key, prefix: body.prefix, createdAt: body.createdAt, expiresAt: body.expiresAt };
-      saveApiKey(issued);
+      saveApiKey(userIdRef.current, issued);
       setRecord({
         prefix: issued.prefix,
         createdAt: issued.createdAt,

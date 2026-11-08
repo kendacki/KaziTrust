@@ -14,9 +14,13 @@ function store(): Storage | null {
   }
 }
 
-export function readQuota(): { used: number; limit: number; remaining: number } {
+function quotaKey(userId?: string | null): string {
+  return userId ? `${KEY}.${userId}` : KEY;
+}
+
+export function readQuota(userId?: string | null): { used: number; limit: number; remaining: number } {
   try {
-    const raw = store()?.getItem(KEY);
+    const raw = store()?.getItem(quotaKey(userId));
     const parsed = raw ? (JSON.parse(raw) as { date?: string; count?: number }) : {};
     const used = parsed.date === today() ? Number(parsed.count ?? 0) : 0;
     return { used, limit: LIMIT, remaining: Math.max(0, LIMIT - used) };
@@ -25,10 +29,15 @@ export function readQuota(): { used: number; limit: number; remaining: number } 
   }
 }
 
-export function consumeRead(): { ok: boolean; remaining: number; limit: number } {
-  const current = readQuota();
+export function consumeRead(userId?: string | null): { ok: boolean; remaining: number; limit: number } {
+  const current = readQuota(userId);
   if (current.remaining <= 0) return { ok: false, remaining: 0, limit: LIMIT };
   const used = current.used + 1;
-  store()?.setItem(KEY, JSON.stringify({ date: today(), count: used }));
+  store()?.setItem(quotaKey(userId), JSON.stringify({ date: today(), count: used }));
+  try {
+    if (userId) store()?.removeItem(KEY);
+  } catch {
+    /* Legacy shared quota key is best-effort to clear. */
+  }
   return { ok: true, remaining: LIMIT - used, limit: LIMIT };
 }

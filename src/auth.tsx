@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useRef, type ReactNode } from "react";
 import { PrivyProvider, useLogin, usePrivy } from "@privy-io/react-auth";
+import { createSolanaRpc, createSolanaRpcSubscriptions } from "@solana/kit";
 import { track } from "./analytics";
 import { Lockup } from "./components/mark";
 
 const appId = import.meta.env.VITE_PRIVY_APP_ID ?? "";
 let signedInBefore = false;
+
+const solanaMainnetRpc = createSolanaRpc("https://api.mainnet-beta.solana.com");
+const solanaMainnetSubscriptions = createSolanaRpcSubscriptions("wss://api.mainnet-beta.solana.com");
 
 function modalVisible() {
   return Boolean(document.getElementById("privy-modal-content") || document.getElementById("privy-dialog"));
@@ -22,6 +26,14 @@ export function AuthRoot({ children }: { children: ReactNode }) {
           accentColor: "#0b0c0e",
           showWalletLoginFirst: false,
           walletChainType: "solana-only",
+        },
+        solana: {
+          rpcs: {
+            "solana:mainnet": {
+              rpc: solanaMainnetRpc,
+              rpcSubscriptions: solanaMainnetSubscriptions,
+            },
+          },
         },
         embeddedWallets: {
           ethereum: { createOnLogin: "off" },
