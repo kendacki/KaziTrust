@@ -51,6 +51,15 @@ export default defineConfig({
     include: ["buffer", "@solana/web3.js", "@solana/spl-token", "bs58"],
   },
   build: {
+    // Keep Privy / Solana wallet chunks off the marketing-page preload list.
+    modulePreload: {
+      resolveDependencies(_filename, deps) {
+        return deps.filter(
+          (dep) =>
+            !/auth-wallet|\/solana-[^/]+\.js|\/chat-[^/]+\.js|\/wallet-[^/]+\.js|\/api-[^/]+\.js/.test(dep),
+        );
+      },
+    },
     rollupOptions: {
       output: {
         manualChunks(id) {
