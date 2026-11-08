@@ -3019,7 +3019,7 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
 }
 .wallet-copied {
   font-size: 12px;
-  color: var(--green);
+  color: var(--text);
 }
 .wallet-actions {
   display: grid;
