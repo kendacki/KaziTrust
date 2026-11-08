@@ -3526,24 +3526,15 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   line-height: 1.4;
   color: var(--mute);
 }
-.wallet-settings-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: start;
-}
-.wallet-settings-address {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.5;
-  word-break: break-all;
-  color: var(--text);
-}
 .wallet-settings-section .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+}
+.wallet-settings-hint {
+  margin: 0;
+  font-size: 13px;
 }
 .wallet-settings-verify {
   display: grid;

@@ -931,22 +931,11 @@ function WalletDeskLive() {
 
                 <section className="wallet-settings-section">
                   <div className="wallet-settings-section-head">
-                    <h4>Address</h4>
-                    <p>Share this to receive SOL or tokens on Solana.</p>
-                  </div>
-                  <div className="wallet-settings-row">
-                    <p className="num wallet-settings-address">{address}</p>
-                    <button type="button" className="icon-btn tiny" aria-label="Copy address" onClick={() => void copyAddress()}>
-                      <IconCopy size={14} />
-                    </button>
-                  </div>
-                  {copied ? <span className="wallet-copied">Copied</span> : null}
-                </section>
-
-                <section className="wallet-settings-section">
-                  <div className="wallet-settings-section-head">
                     <h4>Private key</h4>
-                    <p>Only reveal on a device you trust. You’ll verify with a code first.</p>
+                    <p>
+                      Anyone with this key can take your funds. Reveal it only on a device you trust, then keep it offline
+                      and never share it.
+                    </p>
                   </div>
                   {keyStep === "idle" ? (
                     <button type="button" className="btn ink wide" onClick={startPrivateKeyReveal}>
@@ -955,8 +944,9 @@ function WalletDeskLive() {
                     </button>
                   ) : (
                     <div className="wallet-settings-verify">
+                      <p className="quiet wallet-settings-hint">Enter the code below to continue.</p>
                       <div className="wallet-settings-code-box">
-                        <span className="wallet-receive-label">Your code</span>
+                        <span className="wallet-receive-label">Verification code</span>
                         <div className="wallet-settings-code-row">
                           <strong className="num wallet-settings-code">{walletCode}</strong>
                           <button type="button" className="icon-btn tiny" aria-label="Copy code" onClick={() => void copyWalletCode()}>
