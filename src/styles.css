@@ -2995,6 +2995,9 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   align-items: center;
   gap: 12px;
 }
+.wallet-hero-top .text-btn {
+  font-size: 12px;
+}
 .wallet-balance {
   margin: 0;
   font-size: clamp(34px, 7vw, 52px);
