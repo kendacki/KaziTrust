@@ -32,7 +32,7 @@ import { ApiDesk } from "./api";
 import { Lockup } from "./mark";
 import { EvidenceList, ReportView, reportPlainText } from "./report";
 import { VisualView, visualTitle } from "./visuals";
-import { HistoryWalletCard, WalletDesk } from "./wallet";
+import { WalletDesk } from "./wallet";
 
 type Panel =
   | { kind: "visual"; visual: Visual }
@@ -384,8 +384,6 @@ export function Chat({ go, api = false, wallet = false }: { go: (to: string) => 
           </button>
         </div>
         <div className="side-scroll">
-          <p className="side-label">Wallet</p>
-          <HistoryWalletCard go={go} active={wallet} />
           <p className="side-label">History</p>
           {Object.entries(groups).map(([label, items]) =>
             items.length ? (

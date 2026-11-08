@@ -25,10 +25,12 @@ import {
   type WalletPortfolio,
 } from "../engine/wallet";
 import { formatTime, shortAddress } from "../format";
-import { IconCopy, IconSend, IconWallet } from "./icons";
+import { IconAlertCircle, IconCheckCircle, IconCopy, IconSend, IconSpinner, IconWallet } from "./icons";
 
 const PRIVY_APP_ID = import.meta.env.VITE_PRIVY_APP_ID ?? "";
 const autoCreateTried = new Set<string>();
+const CREATE_MIN_MS = 2200;
+const READY_HOLD_MS = 2800;
 
 type Sheet = "none" | "receive" | "send" | "review" | "status";
 type CreatePhase = "idle" | "creating" | "ready" | "error";
@@ -88,26 +90,54 @@ function SolanaWalletEnsureLive({ children }: { children: ReactNode }) {
   const [phase, setPhase] = useState<CreatePhase>("idle");
   const [createError, setCreateError] = useState("");
   const createLock = useRef(false);
+  const startedAt = useRef<number | null>(null);
+  const advanceTimer = useRef<number | null>(null);
   const dismissTimer = useRef<number | null>(null);
 
-  const clearDismiss = useCallback(() => {
+  const clearTimers = useCallback(() => {
+    if (advanceTimer.current != null) {
+      window.clearTimeout(advanceTimer.current);
+      advanceTimer.current = null;
+    }
     if (dismissTimer.current != null) {
       window.clearTimeout(dismissTimer.current);
       dismissTimer.current = null;
     }
   }, []);
 
+  const showReadyThenClose = useCallback(() => {
+    clearTimers();
+    const elapsed = Date.now() - (startedAt.current ?? Date.now());
+    const wait = Math.max(0, CREATE_MIN_MS - elapsed);
+    advanceTimer.current = window.setTimeout(() => {
+      setPhase("ready");
+      dismissTimer.current = window.setTimeout(() => {
+        setPhase("idle");
+        startedAt.current = null;
+        dismissTimer.current = null;
+      }, READY_HOLD_MS);
+      advanceTimer.current = null;
+    }, wait);
+  }, [clearTimers]);
+
   const ensureWallet = useCallback(async () => {
     if (wallet || linkedSolana || createLock.current) return;
     createLock.current = true;
-    clearDismiss();
+    clearTimers();
+    startedAt.current = Date.now();
     setPhase("creating");
     setCreateError("");
     try {
       await createWallet();
       track({ name: "wallet_create", ok: true });
+      showReadyThenClose();
     } catch (caught) {
       const message = explainWalletError(caught);
+      // Privy may throw when the wallet already exists for this account.
+      if (/already|exist/i.test(message)) {
+        showReadyThenClose();
+        return;
+      }
       setCreateError(message);
       setPhase("error");
       track({ name: "wallet_create", ok: false, error: message });
@@ -115,13 +145,14 @@ function SolanaWalletEnsureLive({ children }: { children: ReactNode }) {
     } finally {
       createLock.current = false;
     }
-  }, [wallet, linkedSolana, createWallet, clearDismiss]);
+  }, [wallet, linkedSolana, createWallet, clearTimers, showReadyThenClose]);
 
   useEffect(() => {
-    clearDismiss();
+    clearTimers();
+    startedAt.current = null;
     setCreateError("");
     setPhase("idle");
-  }, [userId, clearDismiss]);
+  }, [userId, clearTimers]);
 
   useEffect(() => {
     if (!authReady || !authenticated || !ready || !userId) return;
@@ -136,15 +167,9 @@ function SolanaWalletEnsureLive({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!(wallet || linkedSolana)) return;
-    if (phase !== "creating" && phase !== "ready") return;
-    setPhase("ready");
-    clearDismiss();
-    dismissTimer.current = window.setTimeout(() => {
-      setPhase("idle");
-      dismissTimer.current = null;
-    }, 1100);
-    return clearDismiss;
-  }, [wallet, linkedSolana, phase, clearDismiss]);
+    if (phase !== "creating") return;
+    showReadyThenClose();
+  }, [wallet, linkedSolana, phase, showReadyThenClose]);
 
   useEffect(() => {
     if (phase !== "creating") return;
@@ -153,7 +178,7 @@ function SolanaWalletEnsureLive({ children }: { children: ReactNode }) {
       setCreateError("Wallet creation is taking longer than expected. Try again.");
       setPhase("error");
       if (userId) autoCreateTried.delete(userId);
-    }, 20_000);
+    }, 25_000);
     return () => window.clearTimeout(timer);
   }, [phase, wallet, linkedSolana, userId]);
 
@@ -179,27 +204,29 @@ function SolanaWalletEnsureLive({ children }: { children: ReactNode }) {
       {showModal ? (
         <div className="wallet-create-layer" role="dialog" aria-modal="true" aria-labelledby="wallet-create-title">
           <div className="wallet-create-scrim" />
-          <div className="wallet-create-panel">
-            <div className={`wallet-create-mark ${phase === "ready" ? "done" : phase === "error" ? "fail" : "spin"}`} aria-hidden="true">
-              {phase === "ready" ? "✓" : phase === "error" ? "!" : ""}
+          <div className="wallet-create-panel privy-like">
+            <div
+              className={`wallet-create-mark ${phase === "ready" ? "done" : phase === "error" ? "fail" : "spin"}`}
+              aria-hidden="true"
+            >
+              {phase === "ready" ? (
+                <IconCheckCircle size={28} />
+              ) : phase === "error" ? (
+                <IconAlertCircle size={28} />
+              ) : (
+                <IconSpinner size={28} />
+              )}
             </div>
             <h2 id="wallet-create-title">
-              {phase === "ready" ? "Wallet ready" : phase === "error" ? "Wallet setup paused" : "Creating your wallet"}
+              {phase === "ready" ? "All set!" : phase === "error" ? "Something went wrong" : "Creating your wallet"}
             </h2>
             <p className="quiet">
               {phase === "ready"
-                ? "Your Solana address is linked to this account."
+                ? "Your account is secured with a Solana wallet."
                 : phase === "error"
                   ? createError || "Privy could not finish creating the embedded wallet."
-                  : "Privy is setting up a Solana address for this account."}
+                  : "Please wait…"}
             </p>
-            {phase === "creating" ? (
-              <ol className="wallet-create-steps">
-                <li className="current">Securing embedded keys</li>
-                <li>Linking Solana address</li>
-                <li>Opening portfolio</li>
-              </ol>
-            ) : null}
             {phase === "error" ? (
               <button
                 type="button"
@@ -681,61 +708,5 @@ function WalletDeskLive() {
         </div>
       ) : null}
     </div>
-  );
-}
-
-export function HistoryWalletCard({
-  go,
-  active,
-}: {
-  go: (to: string) => void;
-  active?: boolean;
-}) {
-  if (!PRIVY_APP_ID) {
-    return (
-      <button type="button" className="history-wallet" disabled>
-        <span className="history-wallet-icon" aria-hidden="true">
-          <IconWallet size={16} />
-        </span>
-        <span className="history-wallet-copy">
-          <strong>Wallet</strong>
-          <span>Unavailable</span>
-        </span>
-      </button>
-    );
-  }
-  return <HistoryWalletCardLive go={go} active={active} />;
-}
-
-function HistoryWalletCardLive({ go, active }: { go: (to: string) => void; active?: boolean }) {
-  const { ready, wallet, creating, createError } = useSolanaWallet();
-  const address = wallet?.address || "";
-  const detail = !ready
-    ? "Preparing…"
-    : creating
-      ? "Creating wallet…"
-      : address
-        ? shortAddress(address)
-        : createError
-          ? "Tap to retry wallet"
-          : "Create Solana wallet";
-
-  return (
-    <button
-      type="button"
-      className={`history-wallet ${active ? "current" : ""}`}
-      onClick={() => go("/app/wallet")}
-      aria-current={active ? "page" : undefined}
-    >
-      <span className="history-wallet-icon" aria-hidden="true">
-        <IconWallet size={16} />
-      </span>
-      <span className="history-wallet-copy">
-        <strong>Wallet</strong>
-        <span className={address ? "num" : undefined} title={address || createError || undefined}>
-          {detail}
-        </span>
-      </span>
-    </button>
   );
 }

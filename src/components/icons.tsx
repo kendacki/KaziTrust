@@ -25,6 +25,27 @@ export const IconWallet = (p: IconProps) => (
   </Svg>
 );
 
+export const IconCheckCircle = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="10" cy="10" r="7.25" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M6.8 10.2 9 12.4 13.4 7.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+  </Svg>
+);
+
+export const IconAlertCircle = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="10" cy="10" r="7.25" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M10 6.8v4.2M10 13.4v.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </Svg>
+);
+
+export const IconSpinner = (p: IconProps) => (
+  <Svg {...p} className={`icon-spinner ${p.className ?? ""}`.trim()}>
+    <circle cx="10" cy="10" r="7.25" stroke="currentColor" strokeWidth="1.5" opacity="0.22" />
+    <path d="M10 2.75a7.25 7.25 0 0 1 7.25 7.25" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </Svg>
+);
+
 export const IconToken = (p: IconProps) => <Pen {...p} d="M10 3.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM8 10h4" />;
 export const IconDeploy = (p: IconProps) => <Pen {...p} d="M10 16V5M6.5 8.5 10 5l3.5 3.5M4 16.5h12" />;
 export const IconExchange = (p: IconProps) => <Pen {...p} d="M4 7h10M12 4.5 14.5 7 12 9.5M16 13H6M8 10.5 5.5 13 8 15.5" />;
