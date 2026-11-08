@@ -1,4 +1,5 @@
 import {
+  ComputeBudgetProgram,
   PublicKey,
   SystemProgram,
   Transaction,
@@ -19,13 +20,31 @@ import { readTokenFaces, type TokenFace } from "./tokenmeta";
 import { formatRawUnits, shortAddress } from "../format";
 
 const ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
-const FEE_BUFFER_LAMPORTS = 10_000;
+const BASE_FEE_LAMPORTS = 5_000;
+const DEFAULT_PRIORITY_MICRO_LAMPORTS = 10_000;
+const ATA_RENT_LAMPORTS = 2_039_280;
+const CU_SOL_TRANSFER = 450;
+const CU_SPL_TRANSFER = 65_000;
+const CU_SPL_WITH_ATA = 150_000;
 const WSOL_MINT = "So11111111111111111111111111111111111111112";
 export const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 const USDT_MINT = "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB";
 const STABLE_USD: Record<string, number> = {
   [USDC_MINT]: 1,
   [USDT_MINT]: 1,
+};
+
+export type NetworkFeeEstimate = {
+  lamports: number;
+  sol: number;
+  solText: string;
+  usdText?: string;
+  baseLamports: number;
+  priorityLamports: number;
+  rentLamports: number;
+  computeUnits: number;
+  microLamportsPerCu: number;
+  createsAta: boolean;
 };
 
 export type WalletHolding = {
@@ -565,11 +584,57 @@ export function parseSendAmount(amount: string, decimals: number): bigint {
   return value;
 }
 
+export async function estimateSendNetworkFee(input: {
+  kind: "sol" | "spl";
+  from?: string;
+  to?: string;
+  mint?: string;
+  programId?: string;
+  solUsd?: number;
+  signal?: AbortSignal;
+}): Promise<NetworkFeeEstimate> {
+  const signal = input.signal ?? AbortSignal.timeout(12_000);
+  const [microLamportsPerCu, createsAta] = await Promise.all([
+    readPriorityMicroLamports(signal),
+    input.kind === "spl" && input.from && input.to && input.mint
+      ? destinationNeedsAta({
+          owner: input.to,
+          mint: input.mint,
+          from: input.from,
+          programId: input.programId || TOKEN_PROGRAM,
+          signal,
+        })
+      : Promise.resolve(false),
+  ]);
+
+  const computeUnits =
+    input.kind === "sol" ? CU_SOL_TRANSFER : createsAta ? CU_SPL_WITH_ATA : CU_SPL_TRANSFER;
+  const priorityLamports = Math.max(1, Math.ceil((computeUnits * microLamportsPerCu) / 1_000_000));
+  const rentLamports = createsAta ? ATA_RENT_LAMPORTS : 0;
+  const lamports = BASE_FEE_LAMPORTS + priorityLamports + rentLamports;
+  const sol = lamports / 1e9;
+  const usd = input.solUsd && input.solUsd > 0 ? sol * input.solUsd : undefined;
+
+  return {
+    lamports,
+    sol,
+    solText: formatFeeSol(sol),
+    ...(usd != null ? { usdText: formatFeeUsd(usd) } : {}),
+    baseLamports: BASE_FEE_LAMPORTS,
+    priorityLamports,
+    rentLamports,
+    computeUnits,
+    microLamportsPerCu,
+    createsAta,
+  };
+}
+
 export async function buildTransferTransaction(input: {
   from: string;
   draft: SendDraft;
   availableLamports: number;
-}): Promise<{ transaction: Uint8Array; summary: string }> {
+  solUsd?: number;
+}): Promise<{ transaction: Uint8Array; summary: string; fee: NetworkFeeEstimate }> {
   const from = new PublicKey(input.from);
   const toRaw = input.draft.to.trim();
   if (!isSolanaAddress(toRaw)) throw new Error("That destination address is not a valid Solana address.");
@@ -577,11 +642,27 @@ export async function buildTransferTransaction(input: {
 
   const to = new PublicKey(toRaw);
   const amount = parseSendAmount(input.draft.amount, input.draft.decimals);
-  const { blockhash } = await latestBlockhash();
-  const ixs: TransactionInstruction[] = [];
+  const signal = AbortSignal.timeout(12_000);
+  const [{ blockhash }, fee] = await Promise.all([
+    latestBlockhash(),
+    estimateSendNetworkFee({
+      kind: input.draft.kind,
+      from: input.from,
+      to: toRaw,
+      mint: input.draft.kind === "spl" ? input.draft.mint : undefined,
+      programId: input.draft.programId,
+      solUsd: input.solUsd,
+      signal,
+    }),
+  ]);
+
+  const ixs: TransactionInstruction[] = [
+    ComputeBudgetProgram.setComputeUnitLimit({ units: fee.computeUnits }),
+    ComputeBudgetProgram.setComputeUnitPrice({ microLamports: fee.microLamportsPerCu }),
+  ];
 
   if (input.draft.kind === "sol") {
-    if (amount + BigInt(FEE_BUFFER_LAMPORTS) > BigInt(input.availableLamports)) {
+    if (amount + BigInt(fee.lamports) > BigInt(input.availableLamports)) {
       throw new Error("Not enough SOL to cover the amount and network fee. Add SOL, then try again.");
     }
     ixs.push(
@@ -605,7 +686,7 @@ export async function buildTransferTransaction(input: {
       createAssociatedTokenAccountIdempotentInstruction(from, destAta, to, mint, programId, ASSOCIATED_TOKEN_PROGRAM_ID),
       createTransferCheckedInstruction(new PublicKey(sourceAta), mint, destAta, from, amount, input.draft.decimals, [], programId),
     );
-    if (input.availableLamports < FEE_BUFFER_LAMPORTS) {
+    if (input.availableLamports < fee.lamports) {
       throw new Error("Not enough SOL to pay the network fee for this token transfer.");
     }
   }
@@ -619,7 +700,58 @@ export async function buildTransferTransaction(input: {
     input.draft.kind === "sol"
       ? `Send ${input.draft.amount} SOL to ${shortAddress(toRaw)}`
       : `Send ${input.draft.amount} ${input.draft.symbol} to ${shortAddress(toRaw)}`;
-  return { transaction, summary };
+  return { transaction, summary, fee };
+}
+
+async function readPriorityMicroLamports(signal: AbortSignal): Promise<number> {
+  try {
+    const samples = await rpc<{ prioritizationFee: number }[]>("getRecentPrioritizationFees", [[]], signal);
+    const fees = (samples || [])
+      .map((row) => row.prioritizationFee)
+      .filter((value) => Number.isFinite(value) && value >= 0)
+      .sort((a, b) => a - b);
+    if (!fees.length) return DEFAULT_PRIORITY_MICRO_LAMPORTS;
+    const p75 = fees[Math.min(fees.length - 1, Math.floor(fees.length * 0.75))] || 0;
+    return Math.max(1_000, Math.ceil(Math.max(p75, 1) * 1.2));
+  } catch {
+    return DEFAULT_PRIORITY_MICRO_LAMPORTS;
+  }
+}
+
+async function destinationNeedsAta(input: {
+  owner: string;
+  mint: string;
+  from: string;
+  programId: string;
+  signal: AbortSignal;
+}): Promise<boolean> {
+  try {
+    const mint = new PublicKey(input.mint);
+    const owner = new PublicKey(input.owner);
+    const programId = new PublicKey(input.programId);
+    const ata = getAssociatedTokenAddressSync(mint, owner, false, programId, ASSOCIATED_TOKEN_PROGRAM_ID);
+    const info = await rpc<{ value: { lamports?: number } | null }>(
+      "getAccountInfo",
+      [ata.toBase58(), { encoding: "base64", commitment: "confirmed" }],
+      input.signal,
+    );
+    return !info?.value;
+  } catch {
+    return true;
+  }
+}
+
+function formatFeeSol(sol: number): string {
+  if (!Number.isFinite(sol) || sol <= 0) return "0";
+  if (sol < 0.000001) return "<0.000001";
+  if (sol < 0.001) return sol.toFixed(6).replace(/\.?0+$/, "");
+  return sol.toFixed(4).replace(/\.?0+$/, "");
+}
+
+function formatFeeUsd(usd: number): string {
+  if (!Number.isFinite(usd) || usd <= 0) return "<$0.01";
+  if (usd < 0.01) return "<$0.01";
+  return `$${usd.toFixed(usd < 1 ? 3 : 2)}`;
 }
 
 export function signatureFromBytes(bytes: Uint8Array): string {

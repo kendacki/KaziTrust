@@ -14,6 +14,7 @@ import { track } from "../analytics";
 import {
   applyOptimisticSend,
   buildTransferTransaction,
+  estimateSendNetworkFee,
   explainWalletError,
   explorerAddress,
   explorerTx,
@@ -27,6 +28,7 @@ import {
   tokenAmountFromUsd,
   usdFromTokenAmount,
   waitForSignature,
+  type NetworkFeeEstimate,
   type SendDraft,
   type WalletActivity,
   type WalletHolding,
@@ -329,6 +331,8 @@ function WalletDeskLive() {
   const [codeInput, setCodeInput] = useState("");
   const [amountMode, setAmountMode] = useState<AmountMode>("usd");
   const [amountInput, setAmountInput] = useState("");
+  const [networkFee, setNetworkFee] = useState<NetworkFeeEstimate | null>(null);
+  const [feeLoading, setFeeLoading] = useState(false);
   const filterRef = useRef<HTMLDivElement | null>(null);
 
   const holdings = portfolio?.holdings ?? [];
@@ -492,10 +496,45 @@ function WalletDeskLive() {
     });
     setAmountMode(resolveHoldingUsdPrice(asset, portfolio?.solUsd || 0) > 0 ? "usd" : "token");
     setAmountInput("");
+    setNetworkFee(null);
     setSendStatus(null);
     setError("");
     setSheet("send");
   }
+
+  useEffect(() => {
+    if ((sheet !== "send" && sheet !== "review") || !draft) {
+      setNetworkFee(null);
+      setFeeLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      setFeeLoading(true);
+      void estimateSendNetworkFee({
+        kind: draft.kind,
+        from: address || undefined,
+        to: isSolanaAddress(draft.to) ? draft.to.trim() : undefined,
+        mint: draft.kind === "spl" ? draft.mint : undefined,
+        programId: draft.programId,
+        solUsd: portfolio?.solUsd || 0,
+        signal: controller.signal,
+      })
+        .then((fee) => {
+          if (!controller.signal.aborted) setNetworkFee(fee);
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setNetworkFee(null);
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setFeeLoading(false);
+        });
+    }, 280);
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [sheet, draft?.kind, draft?.mint, draft?.programId, draft?.to, address, portfolio?.solUsd]);
 
   const sendHolding = useMemo(
     () => (draft ? holdings.find((item) => item.mint === draft.mint || item.id === draft.mint) || null : null),
@@ -555,7 +594,8 @@ function WalletDeskLive() {
 
   function fillMaxAmount() {
     if (!draft || !sendHolding) return;
-    const keep = draft.kind === "sol" ? 0.002 : 0;
+    const feeSol = networkFee?.sol ?? 0.00005;
+    const keep = draft.kind === "sol" ? Math.max(feeSol * 1.05, 0.00001) : 0;
     const max = Math.max(0, sendHolding.amount - keep);
     const tokenText = max > 0 ? formatSendInput(max, Math.min(8, draft.decimals)) : "0";
     setDraft({ ...draft, amount: tokenText });
@@ -565,6 +605,11 @@ function WalletDeskLive() {
     } else {
       setAmountInput(tokenText);
     }
+  }
+
+  function feeLabel(fee: NetworkFeeEstimate | null): string {
+    if (!fee) return feeLoading ? "Estimating…" : "Calculating…";
+    return fee.usdText ? `${fee.solText} SOL · ${fee.usdText}` : `${fee.solText} SOL`;
   }
 
   function openReceive() {
@@ -638,6 +683,17 @@ function WalletDeskLive() {
       setError("Enter an amount to send.");
       return;
     }
+    if (networkFee && portfolio && portfolio.lamports < networkFee.lamports) {
+      setError("Not enough SOL to cover the network fee. Add a little SOL, then try again.");
+      return;
+    }
+    if (draft.kind === "sol" && networkFee && sendHolding) {
+      const amount = parseLooseAmount(draft.amount) ?? 0;
+      if (amount + networkFee.sol > sendHolding.amount) {
+        setError("This amount leaves too little SOL for the network fee. Lower it or tap Max.");
+        return;
+      }
+    }
     setError("");
     setSheet("review");
   }
@@ -652,8 +708,13 @@ function WalletDeskLive() {
         from: wallet.address,
         draft,
         availableLamports: portfolio.lamports,
+        solUsd: portfolio.solUsd,
       });
-      setSendStatus({ phase: "signing", summary: built.summary });
+      setNetworkFee(built.fee);
+      setSendStatus({
+        phase: "signing",
+        summary: `${built.summary} · fee ${built.fee.solText} SOL`,
+      });
       const result = await signAndSendTransaction({
         transaction: built.transaction,
         wallet,
@@ -1127,6 +1188,18 @@ function WalletDeskLive() {
                   />
                 </label>
 
+                <div className="wallet-fee-card">
+                  <div className="wallet-fee-row">
+                    <span>Network fee</span>
+                    <strong className="num">{feeLabel(networkFee)}</strong>
+                  </div>
+                  <p className="quiet">
+                    {networkFee?.createsAta
+                      ? "Includes priority fee and new token account rent. Calculated automatically."
+                      : "Includes base fee and priority fee. Calculated automatically from live network conditions."}
+                  </p>
+                </div>
+
                 {error ? <p className="wallet-error">{error}</p> : null}
                 <button type="button" className="btn ink wide" onClick={goReview}>
                   Continue
@@ -1162,6 +1235,13 @@ function WalletDeskLive() {
                   <div>
                     <dt>Network</dt>
                     <dd>Solana</dd>
+                  </div>
+                  <div>
+                    <dt>Network fee</dt>
+                    <dd>
+                      {feeLabel(networkFee)}
+                      {networkFee?.createsAta ? " · includes account rent" : ""}
+                    </dd>
                   </div>
                   <div>
                     <dt>Pay with</dt>

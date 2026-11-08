@@ -3484,6 +3484,32 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   margin: 0;
   font-size: 13px;
 }
+.wallet-fee-card {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.wallet-fee-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--soft);
+}
+.wallet-fee-row strong {
+  color: var(--text);
+  font-weight: 550;
+  text-align: right;
+}
+.wallet-fee-card > .quiet {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
 .wallet-review-hero {
   display: grid;
   gap: 4px;
