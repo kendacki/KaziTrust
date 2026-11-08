@@ -25,7 +25,8 @@ import {
   type WalletPortfolio,
 } from "../engine/wallet";
 import { formatTime, shortAddress } from "../format";
-import { IconAlertCircle, IconCheckCircle, IconCopy, IconSend, IconSpinner } from "./icons";
+import { QRCodeSVG } from "qrcode.react";
+import { IconAlertCircle, IconCheckCircle, IconClose, IconCopy, IconSend, IconSpinner } from "./icons";
 
 const PRIVY_APP_ID = import.meta.env.VITE_PRIVY_APP_ID ?? "";
 const autoCreateTried = new Set<string>();
@@ -536,22 +537,29 @@ function WalletDeskLive() {
           <button type="button" className="wallet-sheet-scrim" aria-label="Close" onClick={() => setSheet("none")} />
           <div className="wallet-sheet-panel">
             {sheet === "receive" ? (
-              <>
+              <div className="wallet-receive">
                 <header className="wallet-sheet-head">
-                  <h3>Receive</h3>
-                  <button type="button" className="text-btn" onClick={() => setSheet("none")}>
-                    Close
+                  <div className="wallet-receive-heading">
+                    <h3>Receive</h3>
+                    <p className="quiet">Solana network · SOL and SPL tokens</p>
+                  </div>
+                  <button type="button" className="icon-btn" aria-label="Close" onClick={() => setSheet("none")}>
+                    <IconClose size={18} />
                   </button>
                 </header>
-                <p className="quiet">Share this Solana address to receive SOL or any SPL token.</p>
+                <div className="wallet-receive-qr">
+                  <QRCodeSVG value={address} size={176} level="M" marginSize={0} bgColor="#ffffff" fgColor="#0b0c0e" />
+                </div>
                 <div className="wallet-receive-card">
+                  <span className="wallet-receive-label">Address</span>
                   <p className="num wallet-receive-address">{address}</p>
-                  <button type="button" className="btn" onClick={() => void copyAddress()}>
+                  <button type="button" className="btn ink wallet-receive-copy" onClick={() => void copyAddress()}>
+                    <IconCopy size={16} />
                     {copied ? "Copied" : "Copy address"}
                   </button>
                 </div>
-                <p className="quiet">Only send Solana-network assets here. Assets from other chains will not arrive.</p>
-              </>
+                <p className="wallet-receive-note quiet">Only send assets on Solana. Tokens from other chains will not arrive.</p>
+              </div>
             ) : null}
 
             {sheet === "send" && draft ? (
