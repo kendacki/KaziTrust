@@ -33,21 +33,27 @@ import {
   IconArrowDown,
   IconArrowUp,
   IconCheckCircle,
+  IconChevronDown,
+  IconChevronUp,
   IconClose,
   IconCopy,
+  IconFilter,
   IconSend,
   IconSpinner,
   IconXCircle,
 } from "./icons";
 import { Mark } from "./mark";
+import { loadWalletActivity, mergeWalletActivity, saveWalletActivity } from "../storage";
 
 const PRIVY_APP_ID = import.meta.env.VITE_PRIVY_APP_ID ?? "";
 const autoCreateTried = new Set<string>();
 const CREATE_MIN_MS = 2200;
 const READY_HOLD_MS = 2800;
+const ACTIVITY_STACK = 7;
 
 type Sheet = "none" | "receive" | "send" | "review" | "status";
 type CreatePhase = "idle" | "creating" | "ready" | "error";
+type ActivityFilter = "all" | "in" | "out" | "failed";
 
 type SendStatus = {
   phase: "signing" | "confirming" | "confirmed" | "pending" | "failed";
@@ -276,8 +282,10 @@ export function WalletDesk() {
 
 function WalletDeskLive() {
   const { ready, wallet, creating, createError, ensureWallet } = useSolanaWallet();
+  const { user } = usePrivy();
   const { signAndSendTransaction } = useSignAndSendTransaction();
   const address = wallet?.address ?? "";
+  const userId = user?.id ?? null;
 
   const [portfolio, setPortfolio] = useState<WalletPortfolio | null>(null);
   const [loading, setLoading] = useState(true);
@@ -288,11 +296,48 @@ function WalletDeskLive() {
   const [draft, setDraft] = useState<SendDraft | null>(null);
   const [sendStatus, setSendStatus] = useState<SendStatus | null>(null);
   const [selectedMint, setSelectedMint] = useState("SOL");
+  const [activityFilter, setActivityFilter] = useState<ActivityFilter>("all");
+  const [activityExpanded, setActivityExpanded] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterRef = useRef<HTMLDivElement | null>(null);
 
   const holdings = portfolio?.holdings ?? [];
   const selected = useMemo(
     () => holdings.find((item) => item.mint === selectedMint || item.id === selectedMint) || holdings[0] || null,
     [holdings, selectedMint],
+  );
+
+  const persistActivity = useCallback(
+    (items: WalletActivity[]) => {
+      if (!userId || !address) return;
+      saveWalletActivity(userId, address, items);
+    },
+    [userId, address],
+  );
+
+  const rememberActivity = useCallback(
+    (entry: WalletActivity) => {
+      setPortfolio((current) => {
+        if (!current) {
+          const activity = mergeWalletActivity([entry], loadWalletActivity(userId, address));
+          persistActivity(activity);
+          return {
+            address,
+            lamports: 0,
+            sol: 0,
+            totalSolValue: 0,
+            totalSolValueText: "0",
+            holdings: [],
+            activity,
+            updatedAt: Date.now(),
+          };
+        }
+        const activity = mergeWalletActivity(current.activity, [entry]);
+        persistActivity(activity);
+        return { ...current, activity, updatedAt: Date.now() };
+      });
+    },
+    [address, persistActivity, userId],
   );
 
   const refresh = useCallback(
@@ -304,8 +349,11 @@ function WalletDeskLive() {
       const controller = new AbortController();
       try {
         const next = await loadWalletPortfolio(address, controller.signal);
-        setPortfolio(next);
-        track({ name: "wallet_refresh", meta: { holdings: next.holdings.length } });
+        const cached = loadWalletActivity(userId, address);
+        const activity = mergeWalletActivity(cached, next.activity);
+        persistActivity(activity);
+        setPortfolio({ ...next, activity });
+        track({ name: "wallet_refresh", meta: { holdings: next.holdings.length, activity: activity.length } });
       } catch (caught) {
         setError(explainWalletError(caught));
         track({ name: "wallet_refresh", ok: false, error: explainWalletError(caught) });
@@ -314,19 +362,63 @@ function WalletDeskLive() {
         setRefreshing(false);
       }
     },
-    [address],
+    [address, persistActivity, userId],
   );
 
   useEffect(() => {
     if (!address) {
       setPortfolio(null);
       setLoading(false);
+      setActivityExpanded(false);
+      setFilterOpen(false);
       return;
+    }
+    const cached = loadWalletActivity(userId, address);
+    if (cached.length) {
+      setPortfolio({
+        address,
+        lamports: 0,
+        sol: 0,
+        totalSolValue: 0,
+        totalSolValueText: "0",
+        holdings: [],
+        activity: cached,
+        updatedAt: 0,
+      });
+    } else {
+      setPortfolio(null);
     }
     void refresh("hard");
     const timer = window.setInterval(() => void refresh("quiet"), 45_000);
     return () => window.clearInterval(timer);
-  }, [address, refresh]);
+  }, [address, refresh, userId]);
+
+  useEffect(() => {
+    if (!filterOpen) return;
+    function onPointer(event: MouseEvent) {
+      if (!filterRef.current?.contains(event.target as Node)) setFilterOpen(false);
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setFilterOpen(false);
+    }
+    window.addEventListener("mousedown", onPointer);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onPointer);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [filterOpen]);
+
+  const filteredActivity = useMemo(() => {
+    const rows = portfolio?.activity ?? [];
+    if (activityFilter === "failed") return rows.filter((item) => item.failed);
+    if (activityFilter === "in") return rows.filter((item) => !item.failed && item.direction === "in");
+    if (activityFilter === "out") return rows.filter((item) => !item.failed && item.direction === "out");
+    return rows;
+  }, [portfolio?.activity, activityFilter]);
+
+  const visibleActivity = activityExpanded ? filteredActivity : filteredActivity.slice(0, ACTIVITY_STACK);
+  const hiddenActivityCount = Math.max(0, filteredActivity.length - ACTIVITY_STACK);
 
   useEffect(() => {
     if (createError) setError(createError);
@@ -419,15 +511,47 @@ function WalletDeskLive() {
         signature,
         error: outcome === "failed" ? "The network reported this transfer as failed." : undefined,
       });
+      const entry: WalletActivity = {
+        signature,
+        slot: 0,
+        err: outcome === "failed" ? { message: "failed" } : null,
+        blockTime: Math.floor(Date.now() / 1000),
+        failed: outcome === "failed",
+        direction: outcome === "failed" ? "unknown" : "out",
+        title: outcome === "failed" ? "Failed transfer" : `Sent ${draft.symbol}`,
+        detail: outcome === "failed" ? "This transaction did not land" : "Token left this wallet",
+        amountText: outcome === "failed" ? undefined : `−${draft.amount} ${draft.symbol}`,
+        symbol: draft.symbol,
+        image: draft.kind === "sol" ? "/logos/solana.svg" : draft.symbol === "USDC" ? "/logos/usdc.svg" : undefined,
+      };
       if (outcome !== "failed") {
-        setPortfolio((current) => (current ? applyOptimisticSend(current, draft) : current));
+        setPortfolio((current) => {
+          if (!current) return current;
+          const next = applyOptimisticSend(current, draft);
+          const activity = mergeWalletActivity(next.activity, [entry]);
+          persistActivity(activity);
+          return { ...next, activity };
+        });
         void refresh("quiet");
         window.setTimeout(() => void refresh("quiet"), 2200);
+      } else {
+        rememberActivity(entry);
       }
     } catch (caught) {
       const message = explainWalletError(caught);
       setSendStatus({ phase: "failed", summary: draft.amount ? `Send ${draft.amount} ${draft.symbol}` : "Send", error: message });
       track({ name: "wallet_send", ok: false, error: message });
+      rememberActivity({
+        signature: `local-fail-${Date.now()}`,
+        slot: 0,
+        err: { message },
+        blockTime: Math.floor(Date.now() / 1000),
+        failed: true,
+        direction: "unknown",
+        title: "Failed transfer",
+        detail: message.slice(0, 120) || "This transaction did not land",
+        symbol: draft.symbol,
+      });
     }
   }
 
@@ -525,34 +649,105 @@ function WalletDeskLive() {
       <section className="wallet-section">
         <div className="wallet-section-head">
           <h3>Recent activity</h3>
-          <a className="quiet-link" href={explorerAddress(address)} target="_blank" rel="noreferrer">
-            Hash
-          </a>
+          <div className="wallet-section-tools">
+            <div className="wallet-filter" ref={filterRef}>
+              <button
+                type="button"
+                className={`icon-btn tiny ${filterOpen || activityFilter !== "all" ? "active" : ""}`}
+                aria-label="Filter activity"
+                aria-expanded={filterOpen}
+                aria-haspopup="menu"
+                onClick={() => setFilterOpen((open) => !open)}
+              >
+                <IconFilter size={15} />
+              </button>
+              {filterOpen ? (
+                <div className="wallet-filter-menu" role="menu">
+                  {(
+                    [
+                      ["all", "All"],
+                      ["in", "Received"],
+                      ["out", "Sent"],
+                      ["failed", "Failed"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={activityFilter === value}
+                      className={activityFilter === value ? "active" : ""}
+                      onClick={() => {
+                        setActivityFilter(value);
+                        setActivityExpanded(false);
+                        setFilterOpen(false);
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            <a className="quiet-link" href={explorerAddress(address)} target="_blank" rel="noreferrer">
+              Hash
+            </a>
+          </div>
         </div>
-        {portfolio?.activity.length ? (
-          <ul className="wallet-activity">
-            {portfolio.activity.map((item) => (
-              <li key={item.signature}>
-                <a
-                  className={`wallet-activity-row ${item.direction} ${item.failed ? "failed" : ""}`}
-                  href={explorerTx(item.signature)}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <ActivityMark item={item} />
-                  <span className="wallet-activity-copy">
-                    <strong>{item.title}</strong>
-                    <span>{item.detail}</span>
-                  </span>
-                  <span className="wallet-activity-meta">
-                    {item.amountText ? <strong className={`num ${item.direction}`}>{item.amountText}</strong> : null}
-                    <span className="quiet">{item.blockTime ? formatTime(item.blockTime) : "Pending"}</span>
-                  </span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        ) : null}
+        {filteredActivity.length ? (
+          <>
+            <ul className="wallet-activity">
+              {visibleActivity.map((item) => {
+                const localOnly = item.signature.startsWith("local-");
+                const row = (
+                  <>
+                    <ActivityMark item={item} />
+                    <span className="wallet-activity-copy">
+                      <strong>{item.title}</strong>
+                      <span>{item.detail}</span>
+                    </span>
+                    <span className="wallet-activity-meta">
+                      {item.amountText ? <strong className={`num ${item.direction}`}>{item.amountText}</strong> : null}
+                      <span className="quiet">{item.blockTime ? formatTime(item.blockTime) : "Pending"}</span>
+                    </span>
+                  </>
+                );
+                return (
+                  <li key={item.signature}>
+                    {localOnly ? (
+                      <div className={`wallet-activity-row ${item.direction} ${item.failed ? "failed" : ""}`}>{row}</div>
+                    ) : (
+                      <a
+                        className={`wallet-activity-row ${item.direction} ${item.failed ? "failed" : ""}`}
+                        href={explorerTx(item.signature)}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {row}
+                      </a>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+            {hiddenActivityCount > 0 ? (
+              <button
+                type="button"
+                className="wallet-activity-expand"
+                onClick={() => setActivityExpanded((open) => !open)}
+              >
+                {activityExpanded ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
+                <span>{activityExpanded ? "Show less" : `Show ${hiddenActivityCount} more`}</span>
+              </button>
+            ) : null}
+          </>
+        ) : (
+          <p className="quiet wallet-activity-empty">
+            {activityFilter === "all"
+              ? "Received and failed transfers will stay here after you sign in again."
+              : "No transfers match this filter."}
+          </p>
+        )}
       </section>
 
       {sheet !== "none" ? (

@@ -41,6 +41,9 @@ export const IconXCircle = (p: IconProps) => (
 
 export const IconArrowDown = (p: IconProps) => <Pen {...p} d="M10 4.5v11M6 11.5 10 15.5 14 11.5" />;
 export const IconArrowUp = (p: IconProps) => <Pen {...p} d="M10 15.5V4.5M6 8.5 10 4.5 14 8.5" />;
+export const IconFilter = (p: IconProps) => <Pen {...p} d="M3.5 5.5h13M6 10h8M8.5 14.5h3" />;
+export const IconChevronDown = (p: IconProps) => <Pen {...p} d="M5 7.5 10 12.5 15 7.5" />;
+export const IconChevronUp = (p: IconProps) => <Pen {...p} d="M5 12.5 10 7.5 15 12.5" />;
 
 export const IconAlertCircle = (p: IconProps) => (
   <Svg {...p}>

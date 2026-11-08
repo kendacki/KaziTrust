@@ -1,4 +1,5 @@
 import type { Report } from "./types";
+import type { WalletActivity } from "./engine/wallet";
 
 export type ThreadMessage = {
   id: string;
@@ -33,6 +34,8 @@ const THREADS = "kazitrust.threads";
 const WATCH = "kazitrust.watch";
 const PROFILE = "kazitrust.profile";
 const API_KEY = "kazitrust.apikey";
+const WALLET_ACTIVITY = "kazitrust.wallet.activity";
+const ACTIVITY_LIMIT = 80;
 
 function read<T>(key: string, fallback: T): T {
   try {
@@ -153,4 +156,61 @@ export function initials(name: string): string {
   const parts = cleanUsername(name).split(" ").filter(Boolean);
   const letters = parts.length >= 2 ? `${parts[0][0] ?? ""}${parts[1][0] ?? ""}` : [...(parts[0] ?? "")].slice(0, 2).join("");
   return letters.toLocaleUpperCase() || "RE";
+}
+
+function activityKey(userId: string | null | undefined, address: string): string | null {
+  const scoped = scopedKey(WALLET_ACTIVITY, userId);
+  const clean = address.trim();
+  if (!scoped || !clean) return null;
+  return `${scoped}.${clean}`;
+}
+
+function isActivity(value: unknown): value is WalletActivity {
+  if (!value || typeof value !== "object") return false;
+  const row = value as Partial<WalletActivity>;
+  return typeof row.signature === "string" && row.signature.length > 8 && typeof row.title === "string";
+}
+
+export function loadWalletActivity(userId: string | null | undefined, address: string): WalletActivity[] {
+  const key = activityKey(userId, address);
+  if (!key) return [];
+  const saved = read<unknown[]>(key, []);
+  return mergeWalletActivity([], saved.filter(isActivity));
+}
+
+export function saveWalletActivity(userId: string | null | undefined, address: string, items: WalletActivity[]) {
+  const key = activityKey(userId, address);
+  if (!key) return;
+  write(key, mergeWalletActivity([], items).slice(0, ACTIVITY_LIMIT));
+}
+
+export function mergeWalletActivity(...groups: WalletActivity[][]): WalletActivity[] {
+  const map = new Map<string, WalletActivity>();
+  for (const group of groups) {
+    for (const item of group) {
+      if (!item?.signature) continue;
+      const prev = map.get(item.signature);
+      if (!prev) {
+        map.set(item.signature, item);
+        continue;
+      }
+      map.set(item.signature, {
+        ...prev,
+        ...item,
+        title: item.title || prev.title,
+        detail: item.detail || prev.detail,
+        amountText: item.amountText || prev.amountText,
+        symbol: item.symbol || prev.symbol,
+        image: item.image || prev.image,
+        blockTime: item.blockTime ?? prev.blockTime,
+        failed: item.failed || prev.failed,
+        direction: item.direction !== "unknown" ? item.direction : prev.direction,
+      });
+    }
+  }
+  return [...map.values()].sort((a, b) => {
+    const time = (b.blockTime ?? 0) - (a.blockTime ?? 0);
+    if (time) return time;
+    return (b.slot || 0) - (a.slot || 0);
+  }).slice(0, ACTIVITY_LIMIT);
 }

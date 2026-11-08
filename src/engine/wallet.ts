@@ -129,7 +129,7 @@ export async function loadWalletPortfolio(address: string, signal: AbortSignal):
     rpcTokenAccounts(address, TOKEN_2022, signal),
     rpc<
       { signature: string; slot: number; err: unknown; blockTime: number | null }[]
-    >("getSignaturesForAddress", [address, { limit: 12, commitment: "confirmed" }], signal),
+    >("getSignaturesForAddress", [address, { limit: 40, commitment: "confirmed" }], signal),
   ]);
 
   const lamports = balance.value ?? 0;
