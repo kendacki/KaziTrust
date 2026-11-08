@@ -35,6 +35,21 @@ export default defineConfig({
   optimizeDeps: {
     include: ["buffer", "@solana/web3.js", "@solana/spl-token", "bs58"],
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules")) {
+            if (id.includes("@privy-io") || id.includes("@walletconnect") || id.includes("@coinbase")) {
+              return "auth-wallet";
+            }
+            if (id.includes("@solana")) return "solana";
+            if (id.includes("framer-motion")) return "motion";
+          }
+        },
+      },
+    },
+  },
   server: {
     port: 5173,
     host: "127.0.0.1",

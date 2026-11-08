@@ -16,6 +16,24 @@ function modalVisible() {
 }
 
 export function AuthRoot({ children }: { children: ReactNode }) {
+  useEffect(() => {
+    if (!appId || typeof document === "undefined") return;
+    const origins = ["https://auth.privy.io", "https://explorer-api.walletconnect.com"];
+    const links: HTMLLinkElement[] = [];
+    for (const href of origins) {
+      if (document.head.querySelector(`link[rel="preconnect"][href="${href}"]`)) continue;
+      const link = document.createElement("link");
+      link.rel = "preconnect";
+      link.href = href;
+      link.crossOrigin = "anonymous";
+      document.head.appendChild(link);
+      links.push(link);
+    }
+    return () => {
+      for (const link of links) link.remove();
+    };
+  }, []);
+
   if (!appId) return children;
   return (
     <PrivyProvider
@@ -79,7 +97,17 @@ function GateScreen({
         </div>
       </div>
       <div className="gate-plate">
-        <img src="/crowd.jpg" alt="People standing together, seen from behind, in a bright field" />
+        <picture>
+          <source type="image/webp" srcSet="/crowd-800.webp 800w, /crowd.webp 1280w" sizes="(max-width: 720px) 100vw, 640px" />
+          <img
+            src="/crowd.jpg"
+            alt="People standing together, seen from behind, in a bright field"
+            width={1280}
+            height={720}
+            loading="lazy"
+            decoding="async"
+          />
+        </picture>
       </div>
     </section>
   );

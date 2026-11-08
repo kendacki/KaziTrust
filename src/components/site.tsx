@@ -135,7 +135,17 @@ export function Chrome({
             </nav>
           </div>
           <div className="footer-plate">
-            <img src="/crowd.jpg" alt="People standing together, seen from behind, in a bright field" />
+            <picture>
+              <source type="image/webp" srcSet="/crowd-800.webp 800w, /crowd.webp 1280w" sizes="(max-width: 720px) 100vw, 640px" />
+              <img
+                src="/crowd.jpg"
+                alt="People standing together, seen from behind, in a bright field"
+                width={1280}
+                height={720}
+                loading="lazy"
+                decoding="async"
+              />
+            </picture>
           </div>
         </div>
       </footer>
@@ -607,9 +617,9 @@ const USDC_ACCOUNT = "2Y7HATmn9aJBcxCskE5V2U2epmjvkZmB51zTJBbhj4cU";
 
 const logos = [
   { name: "Solana", src: "/logos/solana.svg" },
-  { name: "Solscan", src: "/logos/solscan.png" },
-  { name: "RugCheck", src: "/logos/rugcheck.png" },
-  { name: "FluxRPC", src: "/logos/fluxrpc.png" },
+  { name: "Solscan", src: "/logos/solscan.webp", fallback: "/logos/solscan.png" },
+  { name: "RugCheck", src: "/logos/rugcheck.webp", fallback: "/logos/rugcheck.png" },
+  { name: "FluxRPC", src: "/logos/fluxrpc.webp", fallback: "/logos/fluxrpc.png" },
   { name: "Groq", src: "/logos/groq.svg" },
   { name: "ChatGPT", src: "/logos/openai.svg" },
   { name: "Privy", src: "/logos/privy.svg" },
@@ -623,7 +633,28 @@ function LogoCarousel() {
           <ul key={copy} aria-hidden={copy === 1}>
             {logos.map((logo) => (
               <li key={`${copy}-${logo.name}`}>
-                <img src={logo.src} alt={copy === 0 ? logo.name : ""} />
+                {"fallback" in logo && logo.fallback ? (
+                  <picture>
+                    <source type="image/webp" srcSet={logo.src} />
+                    <img
+                      src={logo.fallback}
+                      alt={copy === 0 ? logo.name : ""}
+                      width={40}
+                      height={40}
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </picture>
+                ) : (
+                  <img
+                    src={logo.src}
+                    alt={copy === 0 ? logo.name : ""}
+                    width={40}
+                    height={40}
+                    loading="lazy"
+                    decoding="async"
+                  />
+                )}
               </li>
             ))}
           </ul>

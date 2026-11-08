@@ -1,16 +1,22 @@
-import { useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion, MotionConfig } from "framer-motion";
 import { trackPage } from "./analytics";
-import { RequireAuth } from "./auth";
-import { Chat } from "./components/chat";
 import { ConsentRoot } from "./components/consent";
 import { Lost } from "./components/lost";
 import { PrivacyChoicesPage, PrivacyPage } from "./components/privacy";
 import { Chrome, Docs, Home, Method } from "./components/site";
-import { ApiEntry } from "./components/api";
 import { ease } from "./motion";
 
+const AuthRoot = lazy(() => import("./auth").then((mod) => ({ default: mod.AuthRoot })));
+const RequireAuth = lazy(() => import("./auth").then((mod) => ({ default: mod.RequireAuth })));
+const Chat = lazy(() => import("./components/chat").then((mod) => ({ default: mod.Chat })));
+const ApiEntry = lazy(() => import("./components/api").then((mod) => ({ default: mod.ApiEntry })));
+
 const KNOWN = new Set(["/", "/app", "/app/api", "/app/wallet", "/docs", "/method", "/api", "/privacy", "/privacy/choices"]);
+
+function needsPrivy(path: string) {
+  return path.startsWith("/app") || path === "/api";
+}
 
 function useOnline() {
   const [online, setOnline] = useState(() => navigator.onLine);
@@ -25,6 +31,10 @@ function useOnline() {
     };
   }, []);
   return online;
+}
+
+function RouteFallback({ app }: { app?: boolean }) {
+  return <div className={app ? "page-app" : "page-fade"} aria-busy="true" />;
 }
 
 export function App() {
@@ -48,6 +58,12 @@ export function App() {
   const hash = url.includes("#") ? url.split("#")[1] : "";
   const online = useOnline();
   const missing = !KNOWN.has(path);
+  const [privyMounted, setPrivyMounted] = useState(() => needsPrivy(path));
+
+  useEffect(() => {
+    if (needsPrivy(path)) setPrivyMounted(true);
+  }, [path]);
+
   useEffect(() => {
     document.title = !online
       ? "Offline · KaziTrust"
@@ -96,24 +112,30 @@ export function App() {
     };
   }, [path, hash]);
 
-  let body;
+  let body: ReactNode;
   if (!online) body = <Lost go={go} mode="offline" />;
   else if (missing) body = <Lost go={go} mode="missing" />;
   else if (path === "/app" || path === "/app/api" || path === "/app/wallet") {
     body = (
-      <RequireAuth go={go}>
-        <Chat go={go} api={path === "/app/api"} wallet={path === "/app/wallet"} />
-      </RequireAuth>
+      <Suspense fallback={<RouteFallback app />}>
+        <RequireAuth go={go}>
+          <Chat go={go} api={path === "/app/api"} wallet={path === "/app/wallet"} />
+        </RequireAuth>
+      </Suspense>
     );
-  }
-  else if (path === "/docs") body = <Chrome path={path} go={go}><Docs go={go} /></Chrome>;
+  } else if (path === "/docs") body = <Chrome path={path} go={go}><Docs go={go} /></Chrome>;
   else if (path === "/method") body = <Chrome path={path} go={go}><Method go={go} /></Chrome>;
   else if (path === "/privacy/choices") body = <PrivacyChoicesPage go={go} />;
   else if (path === "/privacy") body = <PrivacyPage go={go} />;
-  else if (path === "/api") body = <ApiEntry go={go} />;
-  else body = <Chrome path={path} go={go}><Home go={go} /></Chrome>;
+  else if (path === "/api") {
+    body = (
+      <Suspense fallback={<RouteFallback />}>
+        <ApiEntry go={go} />
+      </Suspense>
+    );
+  } else body = <Chrome path={path} go={go}><Home go={go} /></Chrome>;
 
-  return (
+  const shell = (
     <MotionConfig reducedMotion="user" transition={{ duration: 0.55, ease }}>
       <AnimatePresence mode="wait">
         <motion.div
@@ -128,5 +150,20 @@ export function App() {
       </AnimatePresence>
       <ConsentRoot go={go} />
     </MotionConfig>
+  );
+
+  if (!privyMounted) return shell;
+
+  return (
+    <Suspense
+      fallback={
+        <MotionConfig reducedMotion="user" transition={{ duration: 0.55, ease }}>
+          <RouteFallback app={path.startsWith("/app")} />
+          <ConsentRoot go={go} />
+        </MotionConfig>
+      }
+    >
+      <AuthRoot>{shell}</AuthRoot>
+    </Suspense>
   );
 }

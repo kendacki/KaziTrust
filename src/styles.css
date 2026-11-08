@@ -36,7 +36,7 @@ html, body, #root {
   max-width: 100%;
 }
 body {
-  font-family: Aeonik, Inter, system-ui, sans-serif;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   background: var(--background);
   color: var(--text);
   font-size: 15px;
@@ -757,6 +757,11 @@ h3 {
   height: 220px;
   margin-top: 28px;
 }
+.footer-plate picture {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
 .footer-plate img {
   width: 100%;
   height: 100%;
@@ -1064,7 +1069,7 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
 .api-page *,
 .api-page pre,
 .api-page code {
-  font-family: Aeonik, Inter, system-ui, sans-serif;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 .api-notice { margin: 0; }
 .api-keys { align-content: start; }
@@ -1472,7 +1477,7 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
 .visual figcaption { display: flex; justify-content: space-between; gap: 12px; }
 .visual figcaption p, .chart { color: var(--mute); }
 .chart { width: 100%; height: auto; color: var(--text); }
-.chart text { font-family: Aeonik, Inter, system-ui, sans-serif; }
+.chart text { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
 .chart-hit { cursor: pointer; }
 .timeline { display: grid; gap: 0; }
 .timeline-row { display: grid; grid-template-columns: 16px 1fr auto; gap: 10px; padding: 8px 0; }
@@ -1634,6 +1639,11 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
 .gate .lede { max-width: 36ch; }
 .gate .quiet { max-width: 36ch; }
 .gate-plate { height: 220px; flex: 0 0 auto; width: 100%; }
+.gate-plate picture {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
 .gate-plate img {
   width: 100%;
   height: 100%;
@@ -1675,7 +1685,7 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   max-height: none !important;
   overflow: visible !important;
   background: #ffffff !important;
-  font-family: Aeonik, Inter, system-ui, sans-serif;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 #privy-modal-content input {
   background: #ffffff !important;
@@ -3747,7 +3757,7 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   gap: 12px;
   justify-items: center;
   text-align: center;
-  font-family: Aeonik, Inter, system-ui, sans-serif;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 .wallet-create-panel h2 {
   margin: 0;
