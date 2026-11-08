@@ -3540,25 +3540,6 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   display: grid;
   gap: 12px;
 }
-.wallet-settings-code-box {
-  display: grid;
-  gap: 8px;
-  padding: 12px;
-  border-radius: 12px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-}
-.wallet-settings-code-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.wallet-settings-code {
-  font-size: 26px;
-  letter-spacing: 0.16em;
-  font-weight: 550;
-  color: var(--text);
-}
 .wallet-settings-actions {
   display: grid;
   gap: 8px;

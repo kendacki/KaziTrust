@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { usePrivy, type User } from "@privy-io/react-auth";
+import { useLoginWithEmail, usePrivy, type User } from "@privy-io/react-auth";
 import { useCreateWallet, useExportWallet, useSignAndSendTransaction, useWallets } from "@privy-io/react-auth/solana";
 import { track } from "../analytics";
 import {
@@ -63,8 +63,20 @@ const ACTIVITY_STACK = 7;
 type Sheet = "none" | "receive" | "send" | "review" | "status" | "settings";
 type CreatePhase = "idle" | "creating" | "ready" | "error";
 type ActivityFilter = "all" | "in" | "out" | "failed";
-type KeyRevealStep = "idle" | "code" | "exporting";
+type KeyRevealStep = "idle" | "sending" | "code" | "exporting";
 type AmountMode = "token" | "usd";
+
+function accountEmail(user: User | null | undefined): string | null {
+  const email = user?.email?.address || user?.google?.email;
+  return email?.trim() || null;
+}
+
+function maskEmail(email: string): string {
+  const [name, domain] = email.split("@");
+  if (!name || !domain) return email;
+  if (name.length <= 2) return `${name[0] ?? ""}*@${domain}`;
+  return `${name.slice(0, 2)}•••@${domain}`;
+}
 
 type SendStatus = {
   phase: "signing" | "confirming" | "confirmed" | "pending" | "failed";
@@ -294,10 +306,12 @@ export function WalletDesk() {
 function WalletDeskLive() {
   const { ready, wallet, creating, createError, ensureWallet } = useSolanaWallet();
   const { user } = usePrivy();
+  const { sendCode, loginWithCode } = useLoginWithEmail();
   const { signAndSendTransaction } = useSignAndSendTransaction();
   const { exportWallet } = useExportWallet();
   const address = wallet?.address ?? "";
   const userId = user?.id ?? null;
+  const verifyEmail = accountEmail(user);
 
   const [portfolio, setPortfolio] = useState<WalletPortfolio | null>(null);
   const [loading, setLoading] = useState(true);
@@ -312,9 +326,7 @@ function WalletDeskLive() {
   const [activityExpanded, setActivityExpanded] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [keyStep, setKeyStep] = useState<KeyRevealStep>("idle");
-  const [walletCode, setWalletCode] = useState("");
   const [codeInput, setCodeInput] = useState("");
-  const [codeCopied, setCodeCopied] = useState(false);
   const [amountMode, setAmountMode] = useState<AmountMode>("usd");
   const [amountInput, setAmountInput] = useState("");
   const filterRef = useRef<HTMLDivElement | null>(null);
@@ -562,50 +574,55 @@ function WalletDeskLive() {
   function openSettings() {
     setError("");
     setKeyStep("idle");
-    setWalletCode("");
     setCodeInput("");
-    setCodeCopied(false);
     setSheet("settings");
   }
 
-  function startPrivateKeyReveal() {
-    setError("");
-    const bytes = new Uint32Array(1);
-    crypto.getRandomValues(bytes);
-    const code = String(100000 + (bytes[0]! % 900000));
-    setWalletCode(code);
+  function resetKeyReveal() {
+    setKeyStep("idle");
     setCodeInput("");
-    setCodeCopied(false);
-    setKeyStep("code");
   }
 
-  async function copyWalletCode() {
-    if (!walletCode) return;
+  async function startPrivateKeyReveal() {
+    setError("");
+    if (!verifyEmail) {
+      setError("Add an email to your account first. We send the verification code there.");
+      return;
+    }
+    setCodeInput("");
+    setKeyStep("sending");
     try {
-      await navigator.clipboard.writeText(walletCode);
-      setCodeCopied(true);
-      window.setTimeout(() => setCodeCopied(false), 1600);
-    } catch {
-      setError("Clipboard is blocked in this browser. Copy the code manually.");
+      await sendCode({ email: verifyEmail, disableSignup: true });
+      setKeyStep("code");
+      track({ name: "wallet_export_code_sent", ok: true });
+    } catch (caught) {
+      const message = explainWalletError(caught);
+      setError(message || "Could not send the verification code. Try again in a moment.");
+      setKeyStep("idle");
+      track({ name: "wallet_export_code_sent", ok: false, error: message });
     }
   }
 
   async function confirmPrivateKeyReveal() {
-    if (!walletCode || codeInput.trim() !== walletCode) {
-      setError("Enter the exact verification code shown in your wallet settings.");
+    if (codeInput.trim().length < 6) {
+      setError("Enter the 6-digit code from your email.");
       return;
     }
     setError("");
     setKeyStep("exporting");
     try {
+      await loginWithCode({ code: codeInput.trim() });
       await exportWallet({ address });
       track({ name: "wallet_export_key", ok: true });
-      setKeyStep("idle");
-      setWalletCode("");
-      setCodeInput("");
+      resetKeyReveal();
     } catch (caught) {
       const message = explainWalletError(caught);
-      setError(message);
+      const low = message.toLowerCase();
+      setError(
+        /code|otp|invalid|expired|incorrect/i.test(low)
+          ? "That code is incorrect or expired. Request a new one and try again."
+          : message,
+      );
       setKeyStep("code");
       track({ name: "wallet_export_key", ok: false, error: message });
     }
@@ -904,9 +921,7 @@ function WalletDeskLive() {
             aria-label="Close"
             onClick={() => {
               setSheet("none");
-              setKeyStep("idle");
-              setWalletCode("");
-              setCodeInput("");
+              resetKeyReveal();
             }}
           />
           <div className="wallet-sheet-panel">
@@ -920,9 +935,7 @@ function WalletDeskLive() {
                     aria-label="Close"
                     onClick={() => {
                       setSheet("none");
-                      setKeyStep("idle");
-                      setWalletCode("");
-                      setCodeInput("");
+                      resetKeyReveal();
                     }}
                   >
                     <IconClose size={18} />
@@ -938,25 +951,20 @@ function WalletDeskLive() {
                     </p>
                   </div>
                   {keyStep === "idle" ? (
-                    <button type="button" className="btn ink wide" onClick={startPrivateKeyReveal}>
+                    <button type="button" className="btn ink wide" onClick={() => void startPrivateKeyReveal()}>
                       <IconKey size={16} />
                       Show private key
                     </button>
+                  ) : keyStep === "sending" ? (
+                    <p className="quiet wallet-settings-hint">Sending a code to your email…</p>
                   ) : (
                     <div className="wallet-settings-verify">
-                      <p className="quiet wallet-settings-hint">Enter the code below to continue.</p>
-                      <div className="wallet-settings-code-box">
-                        <span className="wallet-receive-label">Verification code</span>
-                        <div className="wallet-settings-code-row">
-                          <strong className="num wallet-settings-code">{walletCode}</strong>
-                          <button type="button" className="icon-btn tiny" aria-label="Copy code" onClick={() => void copyWalletCode()}>
-                            <IconCopy size={14} />
-                          </button>
-                          {codeCopied ? <span className="wallet-copied">Copied</span> : null}
-                        </div>
-                      </div>
+                      <p className="quiet wallet-settings-hint">
+                        We emailed a code to {verifyEmail ? maskEmail(verifyEmail) : "your inbox"}. Enter it here to
+                        continue.
+                      </p>
                       <label className="wallet-field">
-                        <span>Enter code</span>
+                        <span>Email code</span>
                         <input
                           value={codeInput}
                           onChange={(event) => setCodeInput(event.target.value.replace(/\D/g, "").slice(0, 6))}
@@ -973,18 +981,17 @@ function WalletDeskLive() {
                           disabled={keyStep === "exporting" || codeInput.length !== 6}
                           onClick={() => void confirmPrivateKeyReveal()}
                         >
-                          {keyStep === "exporting" ? "Opening…" : "Continue"}
+                          {keyStep === "exporting" ? "Opening…" : "Verify and show key"}
                         </button>
                         <button
                           type="button"
                           className="text-btn"
                           disabled={keyStep === "exporting"}
-                          onClick={() => {
-                            setKeyStep("idle");
-                            setWalletCode("");
-                            setCodeInput("");
-                          }}
+                          onClick={() => void startPrivateKeyReveal()}
                         >
+                          Resend code
+                        </button>
+                        <button type="button" className="text-btn" disabled={keyStep === "exporting"} onClick={resetKeyReveal}>
                           Cancel
                         </button>
                       </div>
