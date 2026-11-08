@@ -12,16 +12,26 @@ import {
   type ConsentChoice,
 } from "../privacy/consent";
 
+const FIRST_VISIT_CONSENT_DELAY_MS = 15_000;
+
 export function ConsentRoot({ go }: { go: (to: string) => void }) {
   const [choice, setChoice] = useState<ConsentChoice>(() => loadConsent());
-  const [open, setOpen] = useState(() => !hasConsentDecision());
+  const [open, setOpen] = useState(false);
   const [prefs, setPrefs] = useState(false);
 
   useEffect(() => {
     return subscribeConsent(() => {
       setChoice(loadConsent());
-      setOpen(!hasConsentDecision());
+      if (hasConsentDecision()) setOpen(false);
     });
+  }, []);
+
+  useEffect(() => {
+    if (hasConsentDecision()) return;
+    const timer = window.setTimeout(() => {
+      if (!hasConsentDecision()) setOpen(true);
+    }, FIRST_VISIT_CONSENT_DELAY_MS);
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
