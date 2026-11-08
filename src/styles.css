@@ -3160,6 +3160,14 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   background: #fff5f4;
   color: #9b1c1c;
 }
+.wallet-activity-mark.failed {
+  background: #fff1f0;
+  color: #b42318;
+}
+.wallet-activity-mark.has-logo {
+  background: #fff;
+  color: inherit;
+}
 .wallet-activity-mark img {
   width: 100%;
   height: 100%;
@@ -3167,6 +3175,9 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   padding: 5px;
   display: block;
   background: #fff;
+}
+.wallet-activity-mark svg {
+  display: block;
 }
 .wallet-activity-copy {
   display: grid;

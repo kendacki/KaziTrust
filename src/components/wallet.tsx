@@ -22,12 +22,23 @@ import {
   signatureFromBytes,
   waitForSignature,
   type SendDraft,
+  type WalletActivity,
   type WalletHolding,
   type WalletPortfolio,
 } from "../engine/wallet";
 import { formatTime, shortAddress } from "../format";
 import { QRCodeSVG } from "qrcode.react";
-import { IconAlertCircle, IconCheckCircle, IconClose, IconCopy, IconSend, IconSpinner } from "./icons";
+import {
+  IconAlertCircle,
+  IconArrowDown,
+  IconArrowUp,
+  IconCheckCircle,
+  IconClose,
+  IconCopy,
+  IconSend,
+  IconSpinner,
+  IconXCircle,
+} from "./icons";
 import { Mark } from "./mark";
 
 const PRIVY_APP_ID = import.meta.env.VITE_PRIVY_APP_ID ?? "";
@@ -528,9 +539,7 @@ function WalletDeskLive() {
                   target="_blank"
                   rel="noreferrer"
                 >
-                  <span className={`wallet-activity-mark ${item.direction}`} aria-hidden="true">
-                    {item.image ? <img src={item.image} alt="" /> : item.direction === "in" ? "+" : item.direction === "out" ? "−" : "·"}
-                  </span>
+                  <ActivityMark item={item} />
                   <span className="wallet-activity-copy">
                     <strong>{item.title}</strong>
                     <span>{item.detail}</span>
@@ -743,6 +752,42 @@ function WalletLogoWait({ label }: { label: string }) {
         <Mark size={64} />
       </span>
     </div>
+  );
+}
+
+function ActivityMark({ item }: { item: WalletActivity }) {
+  if (item.failed) {
+    return (
+      <span className="wallet-activity-mark failed" aria-hidden="true">
+        <IconXCircle size={22} />
+      </span>
+    );
+  }
+
+  if (item.image) {
+    return (
+      <span className={`wallet-activity-mark ${item.direction} has-logo`} aria-hidden="true">
+        <img
+          src={item.image}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          referrerPolicy="no-referrer"
+        />
+      </span>
+    );
+  }
+
+  return (
+    <span className={`wallet-activity-mark ${item.direction}`} aria-hidden="true">
+      {item.direction === "in" ? (
+        <IconArrowDown size={20} />
+      ) : item.direction === "out" ? (
+        <IconArrowUp size={20} />
+      ) : (
+        <IconCheckCircle size={22} />
+      )}
+    </span>
   );
 }
 

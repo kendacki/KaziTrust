@@ -32,6 +32,16 @@ export const IconCheckCircle = (p: IconProps) => (
   </Svg>
 );
 
+export const IconXCircle = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="10" cy="10" r="7.25" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M7.2 7.2 12.8 12.8M12.8 7.2 7.2 12.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </Svg>
+);
+
+export const IconArrowDown = (p: IconProps) => <Pen {...p} d="M10 4.5v11M6 11.5 10 15.5 14 11.5" />;
+export const IconArrowUp = (p: IconProps) => <Pen {...p} d="M10 15.5V4.5M6 8.5 10 4.5 14 8.5" />;
+
 export const IconAlertCircle = (p: IconProps) => (
   <Svg {...p}>
     <circle cx="10" cy="10" r="7.25" stroke="currentColor" strokeWidth="1.5" />
