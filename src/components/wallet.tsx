@@ -1105,17 +1105,11 @@ function WalletDeskLive() {
                     </button>
                   </div>
                   <p className="wallet-send-equiv quiet">
-                    {amountMode === "usd"
-                      ? `≈ ${formatSendInput(sendTokenAmount, Math.min(6, draft.decimals)) || "0"} ${draft.symbol}${
-                          draft.kind !== "sol" && sendSolValue != null
-                            ? ` · ${formatSendInput(sendSolValue, 6) || "0"} SOL`
-                            : ""
-                        }`
-                      : `≈ $${formatSendInput(sendUsdValue ?? 0, 2) || "0"}${
-                          draft.kind !== "sol" && sendSolValue != null
-                            ? ` · ${formatSendInput(sendSolValue, 6) || "0"} SOL`
-                            : ""
-                        }`}
+                    {draft.kind === "sol"
+                      ? amountMode === "usd"
+                        ? `≈ ${formatSendInput(sendTokenAmount, 6) || "0"} SOL`
+                        : `≈ $${formatSendInput(sendUsdValue ?? 0, 2) || "0"}`
+                      : `≈ ${formatSendInput(sendSolValue ?? 0, 6) || "0"} SOL`}
                   </p>
                   <p className="wallet-send-available quiet">
                     Available {sendHolding?.amountText ?? "0"} {draft.symbol}
@@ -1156,8 +1150,11 @@ function WalletDeskLive() {
                     {draft.amount} {draft.symbol}
                   </strong>
                   <span className="quiet">
-                    {sendUsdValue != null ? `≈ $${formatSendInput(sendUsdValue, 2)}` : "USD quote unavailable"}
-                    {draft.kind !== "sol" && sendSolValue != null ? ` · ${formatSendInput(sendSolValue, 6)} SOL` : ""}
+                    {draft.kind === "sol"
+                      ? sendUsdValue != null
+                        ? `≈ $${formatSendInput(sendUsdValue, 2)}`
+                        : "—"
+                      : `≈ ${formatSendInput(sendSolValue ?? 0, 6) || "0"} SOL`}
                   </span>
                 </div>
                 <dl className="wallet-review">
