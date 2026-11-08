@@ -3001,6 +3001,10 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   letter-spacing: -0.03em;
   line-height: 1.05;
 }
+.wallet-balance-note {
+  margin: -4px 0 0;
+  font-size: 13px;
+}
 .wallet-address-row {
   display: flex;
   align-items: center;

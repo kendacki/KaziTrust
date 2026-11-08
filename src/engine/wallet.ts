@@ -20,6 +20,7 @@ import { formatRawUnits, shortAddress } from "../format";
 
 const ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const FEE_BUFFER_LAMPORTS = 10_000;
+const WSOL_MINT = "So11111111111111111111111111111111111111112";
 
 export type WalletHolding = {
   id: string;
@@ -34,6 +35,8 @@ export type WalletHolding = {
   tokenAccount?: string;
   programId: string;
   image?: string;
+  solValue?: number;
+  solValueText?: string;
 };
 
 export type WalletActivity = {
@@ -41,12 +44,21 @@ export type WalletActivity = {
   slot: number;
   err: unknown;
   blockTime: number | null;
+  failed: boolean;
+  direction: "in" | "out" | "unknown";
+  title: string;
+  detail: string;
+  amountText?: string;
+  symbol?: string;
+  image?: string;
 };
 
 export type WalletPortfolio = {
   address: string;
   lamports: number;
   sol: number;
+  totalSolValue: number;
+  totalSolValueText: string;
   holdings: WalletHolding[];
   activity: WalletActivity[];
   updatedAt: number;
@@ -127,6 +139,10 @@ export async function loadWalletPortfolio(address: string, signal: AbortSignal):
     signal,
   ).catch(() => new Map<string, TokenFace>());
 
+  const priceMints = splRows.map((row) => row.mint);
+  const usdPrices = await readUsdPrices(priceMints, signal).catch(() => new Map<string, number>());
+  const solUsd = usdPrices.get(WSOL_MINT) || 0;
+
   const holdings: WalletHolding[] = [
     {
       id: "sol",
@@ -140,9 +156,13 @@ export async function loadWalletPortfolio(address: string, signal: AbortSignal):
       raw: String(lamports),
       programId: SystemProgram.programId.toBase58(),
       image: "/logos/solana.svg",
+      solValue: sol,
+      solValueText: formatSolValue(sol),
     },
     ...splRows.map((row) => {
       const face = faces.get(row.mint);
+      const tokenUsd = usdPrices.get(row.mint);
+      const solValue = tokenUsd && solUsd > 0 ? (row.amount * tokenUsd) / solUsd : undefined;
       return {
         id: row.tokenAccount,
         kind: "spl" as const,
@@ -156,23 +176,223 @@ export async function loadWalletPortfolio(address: string, signal: AbortSignal):
         tokenAccount: row.tokenAccount,
         programId: row.programId,
         image: face?.image,
+        ...(solValue != null
+          ? { solValue, solValueText: formatSolValue(solValue) }
+          : {}),
       };
     }),
   ];
+
+  const totalSolValue = holdings.reduce((sum, holding) => sum + (holding.solValue ?? 0), 0);
+  const activity = await readWalletActivity(address, signatures || [], faces, signal).catch(() =>
+    (signatures || []).map((item) => bareActivity(item)),
+  );
 
   return {
     address,
     lamports,
     sol,
+    totalSolValue,
+    totalSolValueText: formatSolValue(totalSolValue),
     holdings,
-    activity: (signatures || []).map((item) => ({
-      signature: item.signature,
-      slot: item.slot,
-      err: item.err ?? null,
-      blockTime: item.blockTime ?? null,
-    })),
+    activity,
     updatedAt: Date.now(),
   };
+}
+
+export function applyOptimisticSend(portfolio: WalletPortfolio, draft: SendDraft): WalletPortfolio {
+  const amount = Number(draft.amount.trim().replace(/,/g, ""));
+  if (!Number.isFinite(amount) || amount <= 0) return portfolio;
+  const holdings = portfolio.holdings.map((holding) => {
+    const match =
+      draft.kind === "sol"
+        ? holding.kind === "sol"
+        : holding.kind === "spl" && (holding.mint === draft.mint || holding.tokenAccount === draft.tokenAccount);
+    if (!match) return holding;
+    const nextAmount = Math.max(0, holding.amount - amount);
+    const ratio = holding.amount > 0 && holding.solValue != null ? holding.solValue / holding.amount : undefined;
+    const solValue = ratio == null ? holding.solValue : nextAmount * ratio;
+    return {
+      ...holding,
+      amount: nextAmount,
+      amountText: formatAmount(nextAmount, holding.decimals),
+      ...(solValue != null ? { solValue, solValueText: formatSolValue(solValue) } : {}),
+    };
+  });
+  const totalSolValue = holdings.reduce((sum, holding) => sum + (holding.solValue ?? 0), 0);
+  const solHolding = holdings.find((holding) => holding.kind === "sol");
+  return {
+    ...portfolio,
+    holdings,
+    sol: solHolding?.amount ?? portfolio.sol,
+    lamports: Math.max(0, Math.round((solHolding?.amount ?? portfolio.sol) * 1e9)),
+    totalSolValue,
+    totalSolValueText: formatSolValue(totalSolValue),
+    updatedAt: Date.now(),
+  };
+}
+
+async function readUsdPrices(mints: string[], signal: AbortSignal): Promise<Map<string, number>> {
+  const ids = [...new Set([WSOL_MINT, ...mints.filter(Boolean)])].slice(0, 40);
+  const prices = new Map<string, number>();
+  if (!ids.length) return prices;
+  const response = await fetch(`https://lite-api.jup.ag/price/v3?ids=${ids.map(encodeURIComponent).join(",")}`, {
+    signal,
+    headers: { accept: "application/json" },
+  });
+  if (!response.ok) return prices;
+  const body = (await response.json()) as Record<string, { usdPrice?: number } | null>;
+  for (const [mint, row] of Object.entries(body || {})) {
+    if (typeof row?.usdPrice === "number" && Number.isFinite(row.usdPrice) && row.usdPrice > 0) {
+      prices.set(mint, row.usdPrice);
+    }
+  }
+  return prices;
+}
+
+function formatSolValue(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "0";
+  if (value < 0.0001) return "<0.0001";
+  if (value < 1) return value.toFixed(4).replace(/\.?0+$/, "");
+  if (value < 1000) return value.toFixed(3).replace(/\.?0+$/, "");
+  return formatAmount(value, 2);
+}
+
+type SignatureRow = { signature: string; slot: number; err: unknown; blockTime: number | null };
+
+function bareActivity(item: SignatureRow): WalletActivity {
+  return {
+    signature: item.signature,
+    slot: item.slot,
+    err: item.err ?? null,
+    blockTime: item.blockTime ?? null,
+    failed: Boolean(item.err),
+    direction: "unknown",
+    title: item.err ? "Failed transaction" : "Transaction",
+    detail: shortAddress(item.signature),
+  };
+}
+
+async function readWalletActivity(
+  address: string,
+  signatures: SignatureRow[],
+  faces: Map<string, TokenFace>,
+  signal: AbortSignal,
+): Promise<WalletActivity[]> {
+  const rows = signatures.slice(0, 10);
+  const parsed = await Promise.all(
+    rows.map(async (item) => {
+      try {
+        const tx = await rpc<ParsedTx | null>(
+          "getTransaction",
+          [item.signature, { encoding: "jsonParsed", maxSupportedTransactionVersion: 0, commitment: "confirmed" }],
+          signal,
+        );
+        if (!tx) return bareActivity(item);
+        return describeActivity(address, item, tx, faces);
+      } catch (error) {
+        if (signal.aborted) throw error;
+        return bareActivity(item);
+      }
+    }),
+  );
+  return parsed;
+}
+
+type ParsedTx = {
+  meta?: {
+    err?: unknown;
+    fee?: number;
+    preBalances?: number[];
+    postBalances?: number[];
+    preTokenBalances?: { accountIndex: number; mint: string; owner?: string; uiTokenAmount?: { uiAmount?: number | null } }[];
+    postTokenBalances?: { accountIndex: number; mint: string; owner?: string; uiTokenAmount?: { uiAmount?: number | null } }[];
+  } | null;
+  transaction?: {
+    message?: {
+      accountKeys?: (string | { pubkey: string; signer?: boolean })[];
+    };
+  };
+};
+
+function accountKey(tx: ParsedTx, index: number): string {
+  const key = tx.transaction?.message?.accountKeys?.[index];
+  if (!key) return "";
+  return typeof key === "string" ? key : key.pubkey;
+}
+
+function describeActivity(address: string, item: SignatureRow, tx: ParsedTx, faces: Map<string, TokenFace>): WalletActivity {
+  const failed = Boolean(tx.meta?.err ?? item.err);
+  const pre = tx.meta?.preBalances ?? [];
+  const post = tx.meta?.postBalances ?? [];
+  let selfIndex = -1;
+  for (let i = 0; i < Math.max(pre.length, post.length); i += 1) {
+    if (accountKey(tx, i) === address) selfIndex = i;
+  }
+
+  const tokenDelta = new Map<string, number>();
+  const before = new Map<string, number>();
+  for (const row of tx.meta?.preTokenBalances ?? []) {
+    if (row.owner !== address) continue;
+    before.set(row.mint, Number(row.uiTokenAmount?.uiAmount ?? 0));
+  }
+  for (const row of tx.meta?.postTokenBalances ?? []) {
+    if (row.owner !== address) continue;
+    const next = Number(row.uiTokenAmount?.uiAmount ?? 0);
+    const prev = before.get(row.mint) ?? 0;
+    const change = next - prev;
+    if (Math.abs(change) > 0) tokenDelta.set(row.mint, (tokenDelta.get(row.mint) ?? 0) + change);
+  }
+  for (const [mint, prev] of before) {
+    if (!tokenDelta.has(mint) && !(tx.meta?.postTokenBalances ?? []).some((row) => row.owner === address && row.mint === mint)) {
+      tokenDelta.set(mint, -prev);
+    }
+  }
+
+  const tokenMoves = [...tokenDelta.entries()]
+    .map(([mint, change]) => ({ mint, change }))
+    .filter((row) => Math.abs(row.change) > 0)
+    .sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
+
+  let solDelta = 0;
+  if (selfIndex >= 0) solDelta = ((post[selfIndex] ?? 0) - (pre[selfIndex] ?? 0)) / 1e9;
+
+  const base = bareActivity(item);
+  base.failed = failed;
+  if (failed) {
+    base.title = "Failed transfer";
+    base.detail = "This transaction did not land";
+    return base;
+  }
+
+  if (tokenMoves[0]) {
+    const move = tokenMoves[0];
+    const face = faces.get(move.mint);
+    const symbol = face?.symbol || shortAddress(move.mint);
+    const inbound = move.change > 0;
+    base.direction = inbound ? "in" : "out";
+    base.symbol = symbol;
+    base.image = face?.image;
+    base.amountText = `${inbound ? "+" : "−"}${formatAmount(Math.abs(move.change), 6)} ${symbol}`;
+    base.title = inbound ? `Received ${symbol}` : `Sent ${symbol}`;
+    base.detail = inbound ? "Token credited to this wallet" : "Token left this wallet";
+    return base;
+  }
+
+  if (Math.abs(solDelta) >= 0.000005) {
+    const inbound = solDelta > 0;
+    base.direction = inbound ? "in" : "out";
+    base.symbol = "SOL";
+    base.image = "/logos/solana.svg";
+    base.amountText = `${inbound ? "+" : "−"}${formatAmount(Math.abs(solDelta), 9)} SOL`;
+    base.title = inbound ? "Received SOL" : "Sent SOL";
+    base.detail = inbound ? "SOL credited to this wallet" : "SOL left this wallet";
+    return base;
+  }
+
+  base.title = "Wallet activity";
+  base.detail = "Confirmed on Solana";
+  return base;
 }
 
 type TokenParse = {

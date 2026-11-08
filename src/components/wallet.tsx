@@ -12,6 +12,7 @@ import { usePrivy, type User } from "@privy-io/react-auth";
 import { useCreateWallet, useSignAndSendTransaction, useWallets } from "@privy-io/react-auth/solana";
 import { track } from "../analytics";
 import {
+  applyOptimisticSend,
   buildTransferTransaction,
   explainWalletError,
   explorerAddress,
@@ -406,7 +407,11 @@ function WalletDeskLive() {
         signature,
         error: outcome === "failed" ? "The network reported this transfer as failed." : undefined,
       });
-      void refresh(true);
+      if (outcome !== "failed") {
+        setPortfolio((current) => (current ? applyOptimisticSend(current, draft) : current));
+        void refresh(true);
+        window.setTimeout(() => void refresh(true), 2200);
+      }
     } catch (caught) {
       const message = explainWalletError(caught);
       setSendStatus({ phase: "failed", summary: draft.amount ? `Send ${draft.amount} ${draft.symbol}` : "Send", error: message });
@@ -448,12 +453,19 @@ function WalletDeskLive() {
     <div className="wallet-desk">
       <header className="wallet-hero">
         <div className="wallet-hero-top">
-          <p className="eyebrow">Portfolio</p>
+          <p className="eyebrow">Available balance</p>
           <button type="button" className="text-btn" disabled={refreshing || loading} onClick={() => void refresh(true)}>
             {refreshing ? "Updating…" : "Refresh"}
           </button>
         </div>
-        <p className="wallet-balance">{loading && !portfolio ? "…" : `${portfolio?.holdings[0]?.amountText ?? "0"} SOL`}</p>
+        <p className="wallet-balance">
+          {loading && !portfolio ? "…" : `${portfolio?.totalSolValueText ?? "0"} SOL`}
+        </p>
+        <p className="wallet-balance-note quiet">
+          {loading && !portfolio
+            ? "Pricing holdings…"
+            : `${portfolio?.sol != null ? formatHeroSol(portfolio.sol) : "0"} SOL liquid · total across all assets`}
+        </p>
         <div className="wallet-address-row">
           <span className="num" title={address}>
             {shortAddress(address)}
@@ -497,7 +509,10 @@ function WalletDeskLive() {
                     <strong>{holding.symbol}</strong>
                     <span>{holding.name}</span>
                   </span>
-                  <span className="wallet-asset-amt num">{holding.amountText}</span>
+                  <span className="wallet-asset-amt">
+                    <strong className="num">{holding.amountText}</strong>
+                    <span className="num">{holding.solValueText ? `${holding.solValueText} SOL` : "—"}</span>
+                  </span>
                 </button>
               </li>
             ))}
@@ -507,7 +522,7 @@ function WalletDeskLive() {
 
       <section className="wallet-section">
         <div className="wallet-section-head">
-          <h3>Activity</h3>
+          <h3>Recent activity</h3>
           <a className="quiet-link" href={explorerAddress(address)} target="_blank" rel="noreferrer">
             Explorer
           </a>
@@ -516,13 +531,23 @@ function WalletDeskLive() {
           <ul className="wallet-activity">
             {portfolio.activity.map((item) => (
               <li key={item.signature}>
-                <a href={explorerTx(item.signature)} target="_blank" rel="noreferrer">
-                  <span className={`wallet-dot ${item.err ? "bad" : "ok"}`} aria-hidden="true" />
-                  <span className="wallet-activity-copy">
-                    <strong>{item.err ? "Failed" : "Confirmed"}</strong>
-                    <span className="num">{shortAddress(item.signature)}</span>
+                <a
+                  className={`wallet-activity-row ${item.direction} ${item.failed ? "failed" : ""}`}
+                  href={explorerTx(item.signature)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <span className={`wallet-activity-mark ${item.direction}`} aria-hidden="true">
+                    {item.image ? <img src={item.image} alt="" /> : item.direction === "in" ? "+" : item.direction === "out" ? "−" : "·"}
                   </span>
-                  <span className="quiet">{item.blockTime ? formatTime(item.blockTime) : "—"}</span>
+                  <span className="wallet-activity-copy">
+                    <strong>{item.title}</strong>
+                    <span>{item.detail}</span>
+                  </span>
+                  <span className="wallet-activity-meta">
+                    {item.amountText ? <strong className={`num ${item.direction}`}>{item.amountText}</strong> : null}
+                    <span className="quiet">{item.blockTime ? formatTime(item.blockTime) : "Pending"}</span>
+                  </span>
                 </a>
               </li>
             ))}
@@ -729,4 +754,10 @@ function AssetMark({ holding }: { holding: WalletHolding }) {
       )}
     </span>
   );
+}
+
+function formatHeroSol(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "0";
+  if (value < 0.0001) return "<0.0001";
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: value < 1 ? 4 : 3 }).format(value);
 }
