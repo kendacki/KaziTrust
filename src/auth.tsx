@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, type ReactNode } from "react";
 import { PrivyProvider, useLogin, usePrivy } from "@privy-io/react-auth";
 import { createSolanaRpc, createSolanaRpcSubscriptions } from "@solana/kit";
 import { track } from "./analytics";
+import { SolanaWalletEnsure } from "./components/wallet";
 import { Lockup } from "./components/mark";
 
 const appId = import.meta.env.VITE_PRIVY_APP_ID ?? "";
@@ -85,7 +86,9 @@ function GateScreen({
 }
 
 export function RequireAuth({ go, children }: { go: (to: string) => void; children: ReactNode }) {
-  if (import.meta.env.DEV) return children;
+  if (import.meta.env.DEV) {
+    return appId ? <SolanaWalletEnsure>{children}</SolanaWalletEnsure> : children;
+  }
   if (!appId) {
     return <GateScreen go={go} title="Sign-in is not configured." lede="Add the Privy app id on the server, then open the app again." />;
   }
@@ -171,5 +174,5 @@ function AuthGate({ go, children }: { go: (to: string) => void; children: ReactN
     );
   }
 
-  return children;
+  return <SolanaWalletEnsure>{children}</SolanaWalletEnsure>;
 }

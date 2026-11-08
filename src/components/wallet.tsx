@@ -1,5 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { usePrivy, type User } from "@privy-io/react-auth";
 import { useCreateWallet, useSignAndSendTransaction, useWallets } from "@privy-io/react-auth/solana";
 import { track } from "../analytics";
 import {
@@ -22,6 +31,7 @@ const PRIVY_APP_ID = import.meta.env.VITE_PRIVY_APP_ID ?? "";
 const autoCreateTried = new Set<string>();
 
 type Sheet = "none" | "receive" | "send" | "review" | "status";
+type CreatePhase = "idle" | "creating" | "ready" | "error";
 
 type SendStatus = {
   phase: "signing" | "confirming" | "confirmed" | "pending" | "failed";
@@ -30,20 +40,68 @@ type SendStatus = {
   error?: string;
 };
 
-function useSolanaWallet() {
-  const { user } = usePrivy();
+type WalletEnsureValue = {
+  ready: boolean;
+  wallet: ReturnType<typeof useWallets>["wallets"][number] | null;
+  creating: boolean;
+  createError: string;
+  ensureWallet: () => Promise<void>;
+};
+
+const WalletEnsureContext = createContext<WalletEnsureValue | null>(null);
+
+function userHasSolanaWallet(user: User | null | undefined): boolean {
+  if (!user?.linkedAccounts?.length) return false;
+  return user.linkedAccounts.some((account) => {
+    if (account.type !== "wallet") return false;
+    const chainType = "chainType" in account ? String(account.chainType ?? "") : "";
+    return chainType === "solana";
+  });
+}
+
+function useSolanaWallet(): WalletEnsureValue {
+  const context = useContext(WalletEnsureContext);
+  const { ready, wallets } = useWallets();
+  const wallet = wallets[0] ?? null;
+  if (context) return context;
+  return {
+    ready,
+    wallet,
+    creating: false,
+    createError: "",
+    ensureWallet: async () => undefined,
+  };
+}
+
+export function SolanaWalletEnsure({ children }: { children: ReactNode }) {
+  if (!PRIVY_APP_ID) return children;
+  return <SolanaWalletEnsureLive>{children}</SolanaWalletEnsureLive>;
+}
+
+function SolanaWalletEnsureLive({ children }: { children: ReactNode }) {
+  const { ready: authReady, authenticated, user } = usePrivy();
   const { ready, wallets } = useWallets();
   const { createWallet } = useCreateWallet();
   const userId = user?.id ?? null;
   const wallet = wallets[0] ?? null;
-  const [creating, setCreating] = useState(false);
+  const linkedSolana = userHasSolanaWallet(user);
+  const [phase, setPhase] = useState<CreatePhase>("idle");
   const [createError, setCreateError] = useState("");
   const createLock = useRef(false);
+  const dismissTimer = useRef<number | null>(null);
+
+  const clearDismiss = useCallback(() => {
+    if (dismissTimer.current != null) {
+      window.clearTimeout(dismissTimer.current);
+      dismissTimer.current = null;
+    }
+  }, []);
 
   const ensureWallet = useCallback(async () => {
-    if (wallet || createLock.current) return;
+    if (wallet || linkedSolana || createLock.current) return;
     createLock.current = true;
-    setCreating(true);
+    clearDismiss();
+    setPhase("creating");
     setCreateError("");
     try {
       await createWallet();
@@ -51,28 +109,113 @@ function useSolanaWallet() {
     } catch (caught) {
       const message = explainWalletError(caught);
       setCreateError(message);
+      setPhase("error");
       track({ name: "wallet_create", ok: false, error: message });
       throw caught;
     } finally {
       createLock.current = false;
-      setCreating(false);
     }
-  }, [wallet, createWallet]);
+  }, [wallet, linkedSolana, createWallet, clearDismiss]);
 
   useEffect(() => {
+    clearDismiss();
     setCreateError("");
-  }, [userId]);
+    setPhase("idle");
+  }, [userId, clearDismiss]);
 
   useEffect(() => {
-    if (!ready || !userId || wallet || creating || createLock.current) return;
+    if (!authReady || !authenticated || !ready || !userId) return;
+    if (wallet || linkedSolana) return;
+    if (phase === "creating" || phase === "error" || createLock.current) return;
     if (autoCreateTried.has(userId)) return;
     autoCreateTried.add(userId);
     void ensureWallet().catch(() => {
       autoCreateTried.delete(userId);
     });
-  }, [ready, userId, wallet, creating, ensureWallet]);
+  }, [authReady, authenticated, ready, userId, wallet, linkedSolana, phase, ensureWallet]);
 
-  return { ready, wallet, creating, createError, ensureWallet };
+  useEffect(() => {
+    if (!(wallet || linkedSolana)) return;
+    if (phase !== "creating" && phase !== "ready") return;
+    setPhase("ready");
+    clearDismiss();
+    dismissTimer.current = window.setTimeout(() => {
+      setPhase("idle");
+      dismissTimer.current = null;
+    }, 1100);
+    return clearDismiss;
+  }, [wallet, linkedSolana, phase, clearDismiss]);
+
+  useEffect(() => {
+    if (phase !== "creating") return;
+    const timer = window.setTimeout(() => {
+      if (wallet || linkedSolana) return;
+      setCreateError("Wallet creation is taking longer than expected. Try again.");
+      setPhase("error");
+      if (userId) autoCreateTried.delete(userId);
+    }, 20_000);
+    return () => window.clearTimeout(timer);
+  }, [phase, wallet, linkedSolana, userId]);
+
+  const value = useMemo<WalletEnsureValue>(
+    () => ({
+      ready: Boolean(ready && authReady && (!linkedSolana || wallet)),
+      wallet,
+      creating: phase === "creating",
+      createError,
+      ensureWallet: async () => {
+        if (userId) autoCreateTried.delete(userId);
+        await ensureWallet();
+      },
+    }),
+    [ready, authReady, linkedSolana, wallet, phase, createError, ensureWallet, userId],
+  );
+
+  const showModal = authenticated && (phase === "creating" || phase === "ready" || phase === "error");
+
+  return (
+    <WalletEnsureContext.Provider value={value}>
+      {children}
+      {showModal ? (
+        <div className="wallet-create-layer" role="dialog" aria-modal="true" aria-labelledby="wallet-create-title">
+          <div className="wallet-create-scrim" />
+          <div className="wallet-create-panel">
+            <div className={`wallet-create-mark ${phase === "ready" ? "done" : phase === "error" ? "fail" : "spin"}`} aria-hidden="true">
+              {phase === "ready" ? "✓" : phase === "error" ? "!" : ""}
+            </div>
+            <h2 id="wallet-create-title">
+              {phase === "ready" ? "Wallet ready" : phase === "error" ? "Wallet setup paused" : "Creating your wallet"}
+            </h2>
+            <p className="quiet">
+              {phase === "ready"
+                ? "Your Solana address is linked to this account."
+                : phase === "error"
+                  ? createError || "Privy could not finish creating the embedded wallet."
+                  : "Privy is setting up a Solana address for this account."}
+            </p>
+            {phase === "creating" ? (
+              <ol className="wallet-create-steps">
+                <li className="current">Securing embedded keys</li>
+                <li>Linking Solana address</li>
+                <li>Opening portfolio</li>
+              </ol>
+            ) : null}
+            {phase === "error" ? (
+              <button
+                type="button"
+                className="btn ink"
+                onClick={() => {
+                  void value.ensureWallet().catch(() => undefined);
+                }}
+              >
+                Try again
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+    </WalletEnsureContext.Provider>
+  );
 }
 
 export function WalletDesk() {
