@@ -3003,11 +3003,6 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
 .wallet-hero-top .text-btn {
   font-size: 12px;
 }
-.wallet-onchain-note {
-  margin: 0;
-  font-size: 12px;
-  max-width: 46ch;
-}
 .wallet-balance {
   margin: 0;
   font-size: clamp(34px, 7vw, 52px);
@@ -3505,42 +3500,62 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
 }
 .wallet-settings {
   display: grid;
-  gap: 16px;
+  gap: 18px;
 }
-.wallet-settings-card {
+.wallet-settings-section {
   display: grid;
-  gap: 10px;
-  padding: 14px;
+  gap: 12px;
+  padding: 16px;
   border-radius: 16px;
   border: 1px solid var(--line);
   background: var(--surface);
 }
-.wallet-settings-card > p {
+.wallet-settings-section-head {
+  display: grid;
+  gap: 4px;
+}
+.wallet-settings-section-head h4 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 550;
+  color: var(--text);
+}
+.wallet-settings-section-head p {
   margin: 0;
   font-size: 13px;
-  line-height: 1.45;
-  color: var(--soft);
-}
-.wallet-settings-card .eyebrow {
+  line-height: 1.4;
   color: var(--mute);
+}
+.wallet-settings-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
 }
 .wallet-settings-address {
   margin: 0;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.5;
   word-break: break-all;
   color: var(--text);
 }
-.wallet-settings-card .btn {
+.wallet-settings-section .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  width: 100%;
 }
 .wallet-settings-verify {
   display: grid;
-  gap: 10px;
+  gap: 12px;
+}
+.wallet-settings-code-box {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
 }
 .wallet-settings-code-row {
   display: flex;
@@ -3548,14 +3563,19 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   gap: 8px;
 }
 .wallet-settings-code {
-  font-size: 28px;
-  letter-spacing: 0.18em;
+  font-size: 26px;
+  letter-spacing: 0.16em;
   font-weight: 550;
   color: var(--text);
 }
 .wallet-settings-actions {
   display: grid;
   gap: 8px;
+  justify-items: stretch;
+}
+.wallet-settings-actions .text-btn {
+  justify-self: center;
+  font-size: 13px;
 }
 .wallet-receive {
   display: grid;

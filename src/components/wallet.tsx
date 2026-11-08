@@ -751,11 +751,6 @@ function WalletDeskLive() {
           </button>
           {copied ? <span className="wallet-copied">Copied</span> : null}
         </div>
-        <p className="wallet-onchain-note quiet">
-          {(portfolio?.lamports ?? 0) > 0
-            ? "This address is funded on Solana."
-            : "Explorers may say the account does not exist until the first SOL arrives. Receiving still works."}
-        </p>
         <div className="wallet-actions">
           <button type="button" className="wallet-action" onClick={openReceive}>
             Receive
@@ -936,60 +931,62 @@ function WalletDeskLive() {
                     <IconClose size={18} />
                   </button>
                 </header>
-                <div className="wallet-settings-card">
-                  <p className="eyebrow">On-chain account</p>
-                  <p>
-                    Your Privy Solana address is already real. Explorers show “Account does not exist” only while it has
-                    never held rent-exempt SOL. Receiving SOL or SPL tokens still works, and the first credit creates
-                    the account on-chain. Sending needs a little SOL for fees.
-                  </p>
-                  <p className="num wallet-settings-address">{address}</p>
-                  <button type="button" className="btn" onClick={() => void copyAddress()}>
-                    <IconCopy size={16} />
-                    {copied ? "Copied address" : "Copy address"}
-                  </button>
-                </div>
-                <div className="wallet-settings-card">
-                  <p className="eyebrow">Private key</p>
-                  <p>
-                    Reveal only on a device you trust. A verification code appears here in your wallet first. After you
-                    enter it, Privy opens a secure window where you can view and copy the key.
-                  </p>
+
+                <section className="wallet-settings-section">
+                  <div className="wallet-settings-section-head">
+                    <h4>Address</h4>
+                    <p>Share this to receive SOL or tokens on Solana.</p>
+                  </div>
+                  <div className="wallet-settings-row">
+                    <p className="num wallet-settings-address">{address}</p>
+                    <button type="button" className="icon-btn tiny" aria-label="Copy address" onClick={() => void copyAddress()}>
+                      <IconCopy size={14} />
+                    </button>
+                  </div>
+                  {copied ? <span className="wallet-copied">Copied</span> : null}
+                </section>
+
+                <section className="wallet-settings-section">
+                  <div className="wallet-settings-section-head">
+                    <h4>Private key</h4>
+                    <p>Only reveal on a device you trust. You’ll verify with a code first.</p>
+                  </div>
                   {keyStep === "idle" ? (
-                    <button type="button" className="btn ink" onClick={startPrivateKeyReveal}>
+                    <button type="button" className="btn ink wide" onClick={startPrivateKeyReveal}>
                       <IconKey size={16} />
                       Show private key
                     </button>
-                  ) : null}
-                  {keyStep === "code" || keyStep === "exporting" ? (
+                  ) : (
                     <div className="wallet-settings-verify">
-                      <span className="wallet-receive-label">Code in your wallet</span>
-                      <div className="wallet-settings-code-row">
-                        <strong className="num wallet-settings-code">{walletCode}</strong>
-                        <button type="button" className="icon-btn tiny" aria-label="Copy verification code" onClick={() => void copyWalletCode()}>
-                          <IconCopy size={14} />
-                        </button>
-                        {codeCopied ? <span className="wallet-copied">Copied</span> : null}
+                      <div className="wallet-settings-code-box">
+                        <span className="wallet-receive-label">Your code</span>
+                        <div className="wallet-settings-code-row">
+                          <strong className="num wallet-settings-code">{walletCode}</strong>
+                          <button type="button" className="icon-btn tiny" aria-label="Copy code" onClick={() => void copyWalletCode()}>
+                            <IconCopy size={14} />
+                          </button>
+                          {codeCopied ? <span className="wallet-copied">Copied</span> : null}
+                        </div>
                       </div>
                       <label className="wallet-field">
-                        <span>Enter the code to continue</span>
+                        <span>Enter code</span>
                         <input
                           value={codeInput}
                           onChange={(event) => setCodeInput(event.target.value.replace(/\D/g, "").slice(0, 6))}
                           inputMode="numeric"
                           autoComplete="one-time-code"
-                          placeholder="6-digit code"
+                          placeholder="000000"
                           disabled={keyStep === "exporting"}
                         />
                       </label>
                       <div className="wallet-settings-actions">
                         <button
                           type="button"
-                          className="btn ink"
+                          className="btn ink wide"
                           disabled={keyStep === "exporting" || codeInput.length !== 6}
                           onClick={() => void confirmPrivateKeyReveal()}
                         >
-                          {keyStep === "exporting" ? "Opening secure key window…" : "Verify and show key"}
+                          {keyStep === "exporting" ? "Opening…" : "Continue"}
                         </button>
                         <button
                           type="button"
@@ -1005,8 +1002,9 @@ function WalletDeskLive() {
                         </button>
                       </div>
                     </div>
-                  ) : null}
-                </div>
+                  )}
+                </section>
+
                 {error ? (
                   <p className="wallet-error" role="alert">
                     {error}
@@ -1215,8 +1213,8 @@ function WalletDeskLive() {
                           ? "Submitted"
                           : "Sending"}
                   </h3>
-                  <button type="button" className="text-btn" onClick={() => setSheet("none")}>
-                    Close
+                  <button type="button" className="icon-btn" aria-label="Close" onClick={() => setSheet("none")}>
+                    <IconClose size={18} />
                   </button>
                 </header>
                 <p>{sendStatus.summary}</p>

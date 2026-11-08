@@ -106,13 +106,13 @@ export const IconKey = (p: IconProps) => (
 );
 export const IconSettings = (p: IconProps) => (
   <Svg {...p}>
-    <circle cx="10" cy="10" r="2.4" stroke="currentColor" strokeWidth="1.5" />
     <path
-      d="M10 3.2v1.6M10 15.2v1.6M3.2 10h1.6M15.2 10h1.6M5.2 5.2l1.1 1.1M13.7 13.7l1.1 1.1M5.2 14.8l1.1-1.1M13.7 6.3l1.1-1.1"
+      d="M8.05 2.6h3.9l.35 1.85c.52.16 1 .4 1.45.72l1.75-.7 1.95 1.95-.7 1.75c.32.45.56.93.72 1.45l1.85.35v3.9l-1.85.35a5.9 5.9 0 0 1-.72 1.45l.7 1.75-1.95 1.95-1.75-.7a5.9 5.9 0 0 1-1.45.72l-.35 1.85h-3.9l-.35-1.85a5.9 5.9 0 0 1-1.45-.72l-1.75.7-1.95-1.95.7-1.75a5.9 5.9 0 0 1-.72-1.45L2.6 11.95v-3.9l1.85-.35c.16-.52.4-1 .72-1.45l-.7-1.75L6.27 2.55l1.75.7c.45-.32.93-.56 1.45-.72L8.05 2.6z"
       stroke="currentColor"
       strokeWidth="1.5"
-      strokeLinecap="round"
+      strokeLinejoin="round"
     />
+    <circle cx="10" cy="10" r="2.35" stroke="currentColor" strokeWidth="1.5" />
   </Svg>
 );
 export const IconSidebar = (p: IconProps) => <Pen {...p} d="M4 4.5h12v11H4zM8 4.5v11" />;
