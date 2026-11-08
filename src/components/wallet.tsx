@@ -21,6 +21,7 @@ import {
   isSolanaAddress,
   loadWalletPortfolio,
   parseLooseAmount,
+  resolveHoldingUsdPrice,
   signatureFromBytes,
   solFromUsd,
   tokenAmountFromUsd,
@@ -477,7 +478,7 @@ function WalletDeskLive() {
       tokenAccount: asset.tokenAccount,
       programId: asset.programId,
     });
-    setAmountMode(asset.usdPrice ? "usd" : "token");
+    setAmountMode(resolveHoldingUsdPrice(asset, portfolio?.solUsd || 0) > 0 ? "usd" : "token");
     setAmountInput("");
     setSendStatus(null);
     setError("");
@@ -488,8 +489,8 @@ function WalletDeskLive() {
     () => (draft ? holdings.find((item) => item.mint === draft.mint || item.id === draft.mint) || null : null),
     [draft, holdings],
   );
-  const sendUsdPrice = sendHolding?.usdPrice || (draft?.kind === "sol" ? portfolio?.solUsd || 0 : 0);
   const sendSolUsd = portfolio?.solUsd || 0;
+  const sendUsdPrice = resolveHoldingUsdPrice(sendHolding, sendSolUsd);
   const sendTokenAmount = parseLooseAmount(draft?.amount || "") ?? 0;
   const sendUsdValue = sendUsdPrice > 0 ? usdFromTokenAmount(sendTokenAmount, sendUsdPrice) : null;
   const sendSolValue =
@@ -1077,7 +1078,7 @@ function WalletDeskLive() {
                           tokenAccount: holding.tokenAccount,
                           programId: holding.programId,
                         });
-                        setAmountMode(holding.usdPrice || (holding.kind === "sol" && (portfolio?.solUsd || 0) > 0) ? "usd" : "token");
+                        setAmountMode(resolveHoldingUsdPrice(holding, portfolio?.solUsd || 0) > 0 ? "usd" : "token");
                         setAmountInput("");
                       }}
                     >
@@ -1118,26 +1119,22 @@ function WalletDeskLive() {
                     </button>
                   </div>
                   <p className="wallet-send-equiv quiet">
-                    {sendUsdPrice > 0
-                      ? amountMode === "usd"
-                        ? `≈ ${formatSendInput(sendTokenAmount, Math.min(6, draft.decimals)) || "0"} ${draft.symbol}${
-                            draft.kind !== "sol" && sendSolValue != null
-                              ? ` · ${formatSendInput(sendSolValue, 6) || "0"} SOL`
-                              : ""
-                          }`
-                        : `≈ $${formatSendInput(sendUsdValue ?? 0, 2) || "0"}${
-                            draft.kind !== "sol" && sendSolValue != null
-                              ? ` · ${formatSendInput(sendSolValue, 6) || "0"} SOL`
-                              : draft.kind === "sol"
-                                ? ""
-                                : ""
-                          }`
-                      : "Live price unavailable · enter the token amount"}
+                    {amountMode === "usd"
+                      ? `≈ ${formatSendInput(sendTokenAmount, Math.min(6, draft.decimals)) || "0"} ${draft.symbol}${
+                          draft.kind !== "sol" && sendSolValue != null
+                            ? ` · ${formatSendInput(sendSolValue, 6) || "0"} SOL`
+                            : ""
+                        }`
+                      : `≈ $${formatSendInput(sendUsdValue ?? 0, 2) || "0"}${
+                          draft.kind !== "sol" && sendSolValue != null
+                            ? ` · ${formatSendInput(sendSolValue, 6) || "0"} SOL`
+                            : ""
+                        }`}
                   </p>
                   <p className="wallet-send-available quiet">
                     Available {sendHolding?.amountText ?? "0"} {draft.symbol}
-                    {sendHolding?.usdPrice
-                      ? ` · ≈ $${formatSendInput((sendHolding.amount || 0) * sendHolding.usdPrice, 2) || "0"}`
+                    {sendUsdPrice > 0
+                      ? ` · ≈ $${formatSendInput((sendHolding?.amount || 0) * sendUsdPrice, 2) || "0"}`
                       : ""}
                   </p>
                 </div>

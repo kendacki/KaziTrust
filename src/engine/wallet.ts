@@ -21,7 +21,12 @@ import { formatRawUnits, shortAddress } from "../format";
 const ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const FEE_BUFFER_LAMPORTS = 10_000;
 const WSOL_MINT = "So11111111111111111111111111111111111111112";
-const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+export const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+const USDT_MINT = "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB";
+const STABLE_USD: Record<string, number> = {
+  [USDC_MINT]: 1,
+  [USDT_MINT]: 1,
+};
 
 export type WalletHolding = {
   id: string;
@@ -142,13 +147,13 @@ export async function loadWalletPortfolio(address: string, signal: AbortSignal):
     signal,
   ).catch(() => new Map<string, TokenFace>());
 
-  const priceMints = splRows.map((row) => row.mint);
+  const priceMints = [...splRows.map((row) => row.mint), USDC_MINT, USDT_MINT];
   const usdPrices = await readUsdPrices(priceMints, signal).catch(() => new Map<string, number>());
   const solUsd = usdPrices.get(WSOL_MINT) || 0;
 
   const splHoldings: WalletHolding[] = splRows.map((row) => {
     const face = faces.get(row.mint);
-    const tokenUsd = usdPrices.get(row.mint);
+    const tokenUsd = resolveMintUsdPrice(row.mint, usdPrices.get(row.mint));
     const solValue = tokenUsd && solUsd > 0 ? (row.amount * tokenUsd) / solUsd : undefined;
     const isUsdc = row.mint === USDC_MINT;
     return {
@@ -164,32 +169,36 @@ export async function loadWalletPortfolio(address: string, signal: AbortSignal):
       tokenAccount: row.tokenAccount,
       programId: row.programId,
       image: isUsdc ? "/logos/usdc.svg" : face?.image,
-      ...(tokenUsd != null ? { usdPrice: tokenUsd } : {}),
+      ...(tokenUsd > 0 ? { usdPrice: tokenUsd } : {}),
       ...(solValue != null
         ? { solValue, solValueText: formatSolValue(solValue) }
         : {}),
     };
   });
 
-  const holdings: WalletHolding[] = withPinnedUsdc([
-    {
-      id: "sol",
-      kind: "sol",
-      mint: "SOL",
-      symbol: "SOL",
-      name: "Solana",
-      amount: sol,
-      amountText: formatAmount(sol, 9),
-      decimals: 9,
-      raw: String(lamports),
-      programId: SystemProgram.programId.toBase58(),
-      image: "/logos/solana.svg",
-      solValue: sol,
-      solValueText: formatSolValue(sol),
-      ...(solUsd > 0 ? { usdPrice: solUsd } : {}),
-    },
-    ...splHoldings,
-  ]);
+  const holdings: WalletHolding[] = withPinnedUsdc(
+    [
+      {
+        id: "sol",
+        kind: "sol",
+        mint: "SOL",
+        symbol: "SOL",
+        name: "Solana",
+        amount: sol,
+        amountText: formatAmount(sol, 9),
+        decimals: 9,
+        raw: String(lamports),
+        programId: SystemProgram.programId.toBase58(),
+        image: "/logos/solana.svg",
+        solValue: sol,
+        solValueText: formatSolValue(sol),
+        ...(solUsd > 0 ? { usdPrice: solUsd } : {}),
+      },
+      ...splHoldings,
+    ],
+    usdPrices,
+    solUsd,
+  );
 
   const totalSolValue = holdings.reduce((sum, holding) => sum + (holding.solValue ?? 0), 0);
   const activity = await readWalletActivity(address, signatures || [], faces, signal).catch(() =>
@@ -259,30 +268,64 @@ async function readUsdPrices(mints: string[], signal: AbortSignal): Promise<Map<
   return prices;
 }
 
-function withPinnedUsdc(holdings: WalletHolding[]): WalletHolding[] {
+function resolveMintUsdPrice(mint: string, live?: number): number {
+  if (typeof live === "number" && Number.isFinite(live) && live > 0) return live;
+  return STABLE_USD[mint] || 0;
+}
+
+export function resolveHoldingUsdPrice(
+  holding: WalletHolding | null | undefined,
+  solUsd = 0,
+): number {
+  if (!holding) return 0;
+  if (holding.kind === "sol") {
+    if (holding.usdPrice && holding.usdPrice > 0) return holding.usdPrice;
+    return solUsd > 0 ? solUsd : 0;
+  }
+  return resolveMintUsdPrice(holding.mint, holding.usdPrice);
+}
+
+function withPinnedUsdc(
+  holdings: WalletHolding[],
+  usdPrices: Map<string, number>,
+  solUsd: number,
+): WalletHolding[] {
   const sol = holdings.filter((holding) => holding.kind === "sol");
-  const usdc = holdings.filter((holding) => holding.mint === USDC_MINT);
+  const usdcRows = holdings.filter((holding) => holding.mint === USDC_MINT);
   const rest = holdings.filter((holding) => holding.kind !== "sol" && holding.mint !== USDC_MINT);
-  if (usdc.length) return [...sol, ...usdc, ...rest];
-  return [
-    ...sol,
-    {
-      id: "usdc",
-      kind: "spl",
-      mint: USDC_MINT,
-      symbol: "USDC",
-      name: "USDC",
-      amount: 0,
-      amountText: "0",
-      decimals: 6,
-      raw: "0",
-      programId: TOKEN_PROGRAM,
-      image: "/logos/usdc.svg",
-      solValue: 0,
-      solValueText: "0",
-    },
-    ...rest,
-  ];
+  const usdcPrice = resolveMintUsdPrice(USDC_MINT, usdPrices.get(USDC_MINT));
+  const usdc =
+    usdcRows.length > 0
+      ? usdcRows.map((holding) => {
+          const price = resolveMintUsdPrice(holding.mint, holding.usdPrice || usdcPrice);
+          const solValue = price > 0 && solUsd > 0 ? (holding.amount * price) / solUsd : holding.solValue;
+          return {
+            ...holding,
+            ...(price > 0 ? { usdPrice: price } : {}),
+            ...(solValue != null
+              ? { solValue, solValueText: formatSolValue(solValue) }
+              : {}),
+          };
+        })
+      : [
+          {
+            id: "usdc",
+            kind: "spl" as const,
+            mint: USDC_MINT,
+            symbol: "USDC",
+            name: "USDC",
+            amount: 0,
+            amountText: "0",
+            decimals: 6,
+            raw: "0",
+            programId: TOKEN_PROGRAM,
+            image: "/logos/usdc.svg",
+            usdPrice: usdcPrice || 1,
+            solValue: 0,
+            solValueText: "0",
+          },
+        ];
+  return [...sol, ...usdc, ...rest];
 }
 
 function formatSolValue(value: number): string {
