@@ -139,6 +139,7 @@ export async function loadWalletPortfolio(address: string, signal: AbortSignal):
       decimals: 9,
       raw: String(lamports),
       programId: SystemProgram.programId.toBase58(),
+      image: "/logos/solana.svg",
     },
     ...splRows.map((row) => {
       const face = faces.get(row.mint);

@@ -492,9 +492,7 @@ function WalletDeskLive() {
             {holdings.map((holding) => (
               <li key={holding.id}>
                 <button type="button" className="wallet-asset" onClick={() => openSend(holding)}>
-                  <span className="wallet-asset-mark" aria-hidden="true">
-                    {holding.image ? <img src={holding.image} alt="" /> : holding.symbol.slice(0, 1)}
-                  </span>
+                  <AssetMark holding={holding} />
                   <span className="wallet-asset-copy">
                     <strong>{holding.symbol}</strong>
                     <span>{holding.name}</span>
@@ -709,5 +707,26 @@ function WalletDeskLive() {
         </div>
       ) : null}
     </div>
+  );
+}
+
+function AssetMark({ holding }: { holding: WalletHolding }) {
+  const [broken, setBroken] = useState(false);
+  const showImage = Boolean(holding.image) && !broken;
+  return (
+    <span className={`wallet-asset-mark ${showImage ? "has-logo" : ""}`} aria-hidden="true">
+      {showImage ? (
+        <img
+          src={holding.image}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          referrerPolicy="no-referrer"
+          onError={() => setBroken(true)}
+        />
+      ) : (
+        holding.symbol.slice(0, 1)
+      )}
+    </span>
   );
 }

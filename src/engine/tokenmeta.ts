@@ -14,39 +14,113 @@ const P = 2n ** 255n - 19n;
 type ChainFace = { name: string; symbol: string; uri: string };
 
 export async function readTokenFaces(mints: string[], signal: AbortSignal): Promise<Map<string, TokenFace>> {
-  const unique = [...new Set(mints.filter(Boolean))].slice(0, 12);
+  const unique = [...new Set(mints.filter(Boolean))].slice(0, 24);
   const faces = new Map<string, TokenFace>();
   const pending: { mint: string; uri: string }[] = [];
   for (let index = 0; index < unique.length; index += 4) {
     const batch = unique.slice(index, index + 4);
     await Promise.all(
       batch.map(async (mint) => {
+        const known = KNOWN_FACES[mint];
+        if (known) faces.set(mint, { ...known });
         const chain = await readOnChain(mint, signal);
         if (!chain) return;
         const direct = imageExtension(chain.uri) ? chain.uri : "";
+        const existing = faces.get(mint);
         faces.set(mint, {
-          name: chain.name,
-          symbol: chain.symbol,
-          ...(direct ? { image: direct } : {}),
+          name: chain.name || existing?.name || "",
+          symbol: chain.symbol || existing?.symbol || "",
+          ...(direct || existing?.image ? { image: direct || existing?.image } : {}),
         });
-        if (chain.uri && !direct) pending.push({ mint, uri: chain.uri });
+        if (chain.uri && !direct && !existing?.image) pending.push({ mint, uri: chain.uri });
       }),
     );
   }
-  if (!pending.length) return faces;
-  const extra = await readOffchain(
-    pending.map((item) => item.uri),
-    signal,
-  );
-  for (const item of pending) {
-    const found = extra.get(item.uri);
-    const face = faces.get(item.mint);
-    if (!found || !face) continue;
-    if (found.image) face.image = found.image;
-    if (!face.name && found.name) face.name = found.name;
-    if (!face.symbol && found.symbol) face.symbol = found.symbol;
+  if (pending.length) {
+    const extra = await readOffchain(
+      pending.map((item) => item.uri),
+      signal,
+    );
+    for (const item of pending) {
+      const found = extra.get(item.uri);
+      const face = faces.get(item.mint);
+      if (!found || !face) continue;
+      if (found.image) face.image = found.image;
+      if (!face.name && found.name) face.name = found.name;
+      if (!face.symbol && found.symbol) face.symbol = found.symbol;
+    }
   }
+  await fillMissingFromCatalogs(unique, faces, signal);
   return faces;
+}
+
+const KNOWN_FACES: Record<string, TokenFace> = {
+  EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v: {
+    name: "USD Coin",
+    symbol: "USDC",
+    image: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png",
+  },
+  Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB: {
+    name: "USDT",
+    symbol: "USDT",
+    image: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB/logo.svg",
+  },
+  So11111111111111111111111111111111111111112: {
+    name: "Wrapped SOL",
+    symbol: "SOL",
+    image: "/logos/solana.svg",
+  },
+};
+
+async function fillMissingFromCatalogs(mints: string[], faces: Map<string, TokenFace>, signal: AbortSignal) {
+  const missing = mints.filter((mint) => !faces.get(mint)?.image);
+  if (!missing.length) return;
+  await Promise.all(
+    missing.map(async (mint) => {
+      const fromJupiter = await readJupiterFace(mint, signal);
+      if (fromJupiter) {
+        const current = faces.get(mint);
+        faces.set(mint, {
+          name: current?.name || fromJupiter.name,
+          symbol: current?.symbol || fromJupiter.symbol,
+          image: fromJupiter.image || current?.image,
+        });
+        if (fromJupiter.image) return;
+      }
+      const fromList = tokenListLogo(mint);
+      if (!fromList) return;
+      const current = faces.get(mint) ?? { name: "", symbol: "" };
+      if (!current.image) current.image = fromList;
+      faces.set(mint, current);
+    }),
+  );
+}
+
+async function readJupiterFace(mint: string, signal: AbortSignal): Promise<TokenFace | null> {
+  try {
+    const response = await fetch(`https://lite-api.jup.ag/tokens/v2/search?query=${encodeURIComponent(mint)}`, {
+      signal,
+      headers: { accept: "application/json" },
+    });
+    if (!response.ok) return null;
+    const rows = (await response.json()) as { id?: string; name?: string; symbol?: string; icon?: string }[];
+    if (!Array.isArray(rows)) return null;
+    const match = rows.find((row) => row.id === mint) || rows[0];
+    if (!match || match.id !== mint) return null;
+    const image = typeof match.icon === "string" && match.icon.startsWith("https://") ? match.icon : "";
+    const name = clip(typeof match.name === "string" ? match.name : "");
+    const symbol = clip(typeof match.symbol === "string" ? match.symbol : "");
+    if (!image && !name && !symbol) return null;
+    return { name, symbol, ...(image ? { image } : {}) };
+  } catch (error) {
+    if (signal.aborted) throw error;
+    return null;
+  }
+}
+
+function tokenListLogo(mint: string): string {
+  if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(mint)) return "";
+  return `https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/${mint}/logo.png`;
 }
 
 async function readOnChain(mint: string, signal: AbortSignal): Promise<ChainFace | null> {
