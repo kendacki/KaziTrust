@@ -1191,11 +1191,6 @@ function WalletDeskLive() {
                     <span>Network fee</span>
                     <strong className="num">{feeLabel(networkFee)}</strong>
                   </div>
-                  <p className="quiet">
-                    {networkFee?.createsAta
-                      ? "Includes priority fee and new token account rent. Calculated automatically."
-                      : "Includes base fee and priority fee. Calculated automatically from live network conditions."}
-                  </p>
                 </div>
 
                 {error ? <p className="wallet-error">{error}</p> : null}
@@ -1238,7 +1233,7 @@ function WalletDeskLive() {
                     <dt>Network fee</dt>
                     <dd>
                       {feeLabel(networkFee)}
-                      {networkFee?.createsAta ? " · includes account rent" : ""}
+                      {networkFee?.createsAta ? " includes account rent" : ""}
                     </dd>
                   </div>
                   <div>
