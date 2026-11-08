@@ -25,7 +25,7 @@ import {
   type WalletPortfolio,
 } from "../engine/wallet";
 import { formatTime, shortAddress } from "../format";
-import { IconAlertCircle, IconCheckCircle, IconCopy, IconSend, IconSpinner, IconWallet } from "./icons";
+import { IconAlertCircle, IconCheckCircle, IconCopy, IconSend, IconSpinner } from "./icons";
 
 const PRIVY_APP_ID = import.meta.env.VITE_PRIVY_APP_ID ?? "";
 const autoCreateTried = new Set<string>();
