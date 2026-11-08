@@ -3545,9 +3545,18 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
 .wallet-settings-hint {
   margin: 0;
   max-width: 22rem;
+  display: inline-flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8px;
   font-size: 13px;
   line-height: 1.4;
   text-align: center;
+}
+.wallet-settings-hint svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--text);
 }
 .wallet-settings-status {
   text-align: center;

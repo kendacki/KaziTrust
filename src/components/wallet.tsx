@@ -38,6 +38,7 @@ import {
 import { formatTime, shortAddress } from "../format";
 import { QRCodeSVG } from "qrcode.react";
 import {
+  IconAlert,
   IconAlertCircle,
   IconArrowDown,
   IconArrowUp,
@@ -1007,7 +1008,8 @@ function WalletDeskLive() {
                 {keyStep === "idle" ? (
                   <div className="wallet-settings-body">
                     <p className="quiet wallet-settings-hint">
-                      Click on Continue to Request for a One-time verification code
+                      <IconAlert size={16} />
+                      <span>Click on Continue to Request for a One-time verification code</span>
                     </p>
                     <button type="button" className="btn ink wide" onClick={() => void startPrivateKeyReveal()}>
                       <IconKey size={16} />
