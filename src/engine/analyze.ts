@@ -1402,8 +1402,8 @@ function activityFinding(facts: WalletFacts): Finding {
     facts.historyComplete
       ? "Fewer signatures came back than the scan could request, so this is the visible history."
       : facts.mode === "deep"
-        ? "Deep scan walks toward one year of signatures and samples interactions across that window. It still does not walk the entire chain."
-        : "Quick read walks toward six months of signatures and samples interactions across that window.",
+        ? "Deep scan covers about one year of history and samples key transactions in that window. It does not walk the entire chain."
+        : "Quick read covers about six months of history and samples key transactions in that window.",
     facts.signatures.slice(0, 2),
   );
 }

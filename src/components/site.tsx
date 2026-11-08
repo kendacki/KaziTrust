@@ -514,7 +514,7 @@ function AppPreview() {
                     <IconSend size={20} />
                   </button>
                 </div>
-                <p className="mode-note">Quick read walks toward six months of signatures and samples interactions across that window.</p>
+                <p className="mode-note">Quick read covers about six months of history and samples key transactions in that window.</p>
               </div>
             </form>
           </div>

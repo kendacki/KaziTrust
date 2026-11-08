@@ -665,8 +665,8 @@ export function Chat({ go, api = false, wallet = false }: { go: (to: string) => 
             </div>
             <p className="mode-note">
               {mode === "deep"
-                ? "Deep scan walks toward one year of signatures, samples interactions across that window, and reads the oldest funding address."
-                : "Quick read walks toward six months of signatures and samples interactions across that window."}
+                ? "Deep scan covers about one year of history, samples key transactions in that window, and checks the oldest funding address."
+                : "Quick read covers about six months of history and samples key transactions in that window."}
             </p>
           </div>
         </motion.form>
