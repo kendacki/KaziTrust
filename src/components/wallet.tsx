@@ -1004,14 +1004,10 @@ function WalletDeskLive() {
                   </button>
                 </header>
 
-                <p className="wallet-settings-warning">
-                  Never share this key. Anyone with it can move your funds.
-                </p>
-
                 {keyStep === "idle" ? (
                   <div className="wallet-settings-body">
                     <p className="quiet wallet-settings-hint">
-                      We’ll email a one-time code first. Keep the key offline after you copy it.
+                      Click on Continue to Request for a One-time verification code
                     </p>
                     <button type="button" className="btn ink wide" onClick={() => void startPrivateKeyReveal()}>
                       <IconKey size={16} />

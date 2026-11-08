@@ -3529,19 +3529,11 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
   display: grid;
   gap: 14px;
 }
-.wallet-settings-warning {
-  margin: 0;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--text);
-  font-size: 13px;
-  line-height: 1.35;
-}
 .wallet-settings-body {
   display: grid;
   gap: 12px;
+  justify-items: center;
+  text-align: center;
 }
 .wallet-settings-body .btn,
 .wallet-settings-verify .btn {
@@ -3552,8 +3544,10 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
 }
 .wallet-settings-hint {
   margin: 0;
+  max-width: 22rem;
   font-size: 13px;
   line-height: 1.4;
+  text-align: center;
 }
 .wallet-settings-status {
   text-align: center;
