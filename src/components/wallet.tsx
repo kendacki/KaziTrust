@@ -461,11 +461,6 @@ function WalletDeskLive() {
         <p className="wallet-balance">
           {loading && !portfolio ? "…" : `${portfolio?.totalSolValueText ?? "0"} SOL`}
         </p>
-        <p className="wallet-balance-note quiet">
-          {loading && !portfolio
-            ? "Pricing holdings…"
-            : `${portfolio?.sol != null ? formatHeroSol(portfolio.sol) : "0"} SOL liquid · total across all assets`}
-        </p>
         <div className="wallet-address-row">
           <span className="num" title={address}>
             {shortAddress(address)}
@@ -753,10 +748,4 @@ function AssetMark({ holding }: { holding: WalletHolding }) {
       )}
     </span>
   );
-}
-
-function formatHeroSol(value: number): string {
-  if (!Number.isFinite(value) || value <= 0) return "0";
-  if (value < 0.0001) return "<0.0001";
-  return new Intl.NumberFormat("en-US", { maximumFractionDigits: value < 1 ? 4 : 3 }).format(value);
 }
