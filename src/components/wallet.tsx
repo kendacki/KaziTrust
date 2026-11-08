@@ -989,7 +989,7 @@ function WalletDeskLive() {
             {sheet === "settings" ? (
               <div className="wallet-settings">
                 <header className="wallet-sheet-head">
-                  <h3>Settings</h3>
+                  <h3>Export private key</h3>
                   <button
                     type="button"
                     className="icon-btn"
@@ -1003,62 +1003,60 @@ function WalletDeskLive() {
                   </button>
                 </header>
 
-                <section className="wallet-settings-section">
-                  <div className="wallet-settings-section-head">
-                    <h4>Private key</h4>
-                    <p>
-                      Anyone with this key can take your funds. Reveal it only on a device you trust, then keep it offline
-                      and never share it.
+                <p className="wallet-settings-warning">
+                  Never share this key. Anyone with it can move your funds.
+                </p>
+
+                {keyStep === "idle" ? (
+                  <div className="wallet-settings-body">
+                    <p className="quiet wallet-settings-hint">
+                      We’ll email a one-time code first. Keep the key offline after you copy it.
                     </p>
-                  </div>
-                  {keyStep === "idle" ? (
                     <button type="button" className="btn ink wide" onClick={() => void startPrivateKeyReveal()}>
                       <IconKey size={16} />
-                      Show private key
+                      Continue
                     </button>
-                  ) : keyStep === "sending" ? (
-                    <p className="quiet wallet-settings-hint">Sending a code to your email…</p>
-                  ) : (
-                    <div className="wallet-settings-verify">
-                      <p className="quiet wallet-settings-hint">
-                        We emailed a code to {verifyEmail ? maskEmail(verifyEmail) : "your inbox"}. Enter it here to
-                        continue.
-                      </p>
-                      <label className="wallet-field">
-                        <span>Email code</span>
-                        <input
-                          value={codeInput}
-                          onChange={(event) => setCodeInput(event.target.value.replace(/\D/g, "").slice(0, 6))}
-                          inputMode="numeric"
-                          autoComplete="one-time-code"
-                          placeholder="000000"
-                          disabled={keyStep === "exporting"}
-                        />
-                      </label>
-                      <div className="wallet-settings-actions">
-                        <button
-                          type="button"
-                          className="btn ink wide"
-                          disabled={keyStep === "exporting" || codeInput.length !== 6}
-                          onClick={() => void confirmPrivateKeyReveal()}
-                        >
-                          {keyStep === "exporting" ? "Opening…" : "Verify and show key"}
-                        </button>
-                        <button
-                          type="button"
-                          className="text-btn"
-                          disabled={keyStep === "exporting"}
-                          onClick={() => void startPrivateKeyReveal()}
-                        >
-                          Resend code
-                        </button>
-                        <button type="button" className="text-btn" disabled={keyStep === "exporting"} onClick={resetKeyReveal}>
-                          Cancel
-                        </button>
-                      </div>
+                  </div>
+                ) : keyStep === "sending" ? (
+                  <p className="quiet wallet-settings-hint wallet-settings-status">Sending code…</p>
+                ) : (
+                  <div className="wallet-settings-verify">
+                    <p className="wallet-settings-sent">
+                      Code sent to <span className="num">{verifyEmail ? maskEmail(verifyEmail) : "your email"}</span>
+                    </p>
+                    <label className="wallet-settings-otp">
+                      <span className="wallet-receive-label">Code</span>
+                      <input
+                        value={codeInput}
+                        onChange={(event) => setCodeInput(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        placeholder="••••••"
+                        disabled={keyStep === "exporting"}
+                        aria-label="Email verification code"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="btn ink wide"
+                      disabled={keyStep === "exporting" || codeInput.length !== 6}
+                      onClick={() => void confirmPrivateKeyReveal()}
+                    >
+                      {keyStep === "exporting" ? "Opening…" : "Confirm"}
+                    </button>
+                    <div className="wallet-settings-actions">
+                      <button type="button" className="text-btn" disabled={keyStep === "exporting"} onClick={() => void startPrivateKeyReveal()}>
+                        Resend
+                      </button>
+                      <span className="wallet-settings-dot" aria-hidden="true">
+                        ·
+                      </span>
+                      <button type="button" className="text-btn" disabled={keyStep === "exporting"} onClick={resetKeyReveal}>
+                        Cancel
+                      </button>
                     </div>
-                  )}
-                </section>
+                  </div>
+                )}
 
                 {error ? (
                   <p className="wallet-error" role="alert">

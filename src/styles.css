@@ -3526,33 +3526,24 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
 }
 .wallet-settings {
   display: grid;
-  gap: 18px;
+  gap: 14px;
 }
-.wallet-settings-section {
+.wallet-settings-warning {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #f0c7c3;
+  background: #fff8f7;
+  color: #9b1c1c;
+  font-size: 13px;
+  line-height: 1.35;
+}
+.wallet-settings-body {
   display: grid;
   gap: 12px;
-  padding: 16px;
-  border-radius: 16px;
-  border: 1px solid var(--line);
-  background: var(--surface);
 }
-.wallet-settings-section-head {
-  display: grid;
-  gap: 4px;
-}
-.wallet-settings-section-head h4 {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 550;
-  color: var(--text);
-}
-.wallet-settings-section-head p {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.4;
-  color: var(--mute);
-}
-.wallet-settings-section .btn {
+.wallet-settings-body .btn,
+.wallet-settings-verify .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3561,18 +3552,58 @@ body:has(.page-app .gate) { height: auto; min-height: 100dvh; overflow: auto; }
 .wallet-settings-hint {
   margin: 0;
   font-size: 13px;
+  line-height: 1.4;
+}
+.wallet-settings-status {
+  text-align: center;
+  padding: 8px 0;
 }
 .wallet-settings-verify {
   display: grid;
   gap: 12px;
-}
-.wallet-settings-actions {
-  display: grid;
-  gap: 8px;
   justify-items: stretch;
 }
+.wallet-settings-sent {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--soft);
+}
+.wallet-settings-sent .num {
+  color: var(--text);
+}
+.wallet-settings-otp {
+  display: grid;
+  gap: 6px;
+}
+.wallet-settings-otp input {
+  width: 100%;
+  min-height: 52px;
+  border-radius: 14px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  padding: 0 14px;
+  text-align: center;
+  font-size: 22px;
+  font-weight: 550;
+  letter-spacing: 0.28em;
+  color: var(--text);
+}
+.wallet-settings-otp input::placeholder {
+  letter-spacing: 0.28em;
+  color: var(--mute);
+}
+.wallet-settings-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
 .wallet-settings-actions .text-btn {
-  justify-self: center;
+  font-size: 13px;
+}
+.wallet-settings-dot {
+  color: var(--mute);
   font-size: 13px;
 }
 .wallet-receive {
