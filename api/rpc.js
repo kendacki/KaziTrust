@@ -1,18 +1,8 @@
 import { track } from "../mcp/analytics.mjs";
+import { prepareRpcRequest, prepareRpcResponse } from "../mcp/rpc-guard.mjs";
 import { browserOriginAllowed, rateLimitAllow, redactSecrets, securityHeaders } from "../mcp/security.mjs";
 
 const PUBLIC_NODES = ["https://solana-rpc.publicnode.com", "https://api.mainnet-beta.solana.com", "https://api.mainnet.solana.com"];
-
-const METHODS = new Set([
-  "getBalance",
-  "getAccountInfo",
-  "getSignaturesForAddress",
-  "getTokenAccountsByOwner",
-  "getTransaction",
-  "getLatestBlockhash",
-  "getSignatureStatuses",
-  "getMinimumBalanceForRentExemption",
-]);
 
 const FAIL = "The public Solana nodes did not answer. Try the read again.";
 
@@ -70,16 +60,9 @@ async function run(req) {
   } catch {
     return { status: 400, body: envelope("The chain request was not readable.") };
   }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return { status: 400, body: envelope("The chain request was not readable.") };
-  }
-  if (!METHODS.has(parsed?.method)) return { status: 400, body: envelope("That chain method is not used by a read.") };
-  if (parsed.params != null && !Array.isArray(parsed.params)) {
-    return { status: 400, body: envelope("Chain params must be an array.") };
-  }
-  if (Array.isArray(parsed.params) && parsed.params.length > 8) {
-    return { status: 400, body: envelope("That chain request is too large.") };
-  }
+  const prepared = prepareRpcRequest(parsed);
+  if (!prepared.ok) return { status: 400, body: envelope(prepared.message) };
+
   const flux = (globalThis.process?.env?.FLUX_RPC_URL || "").trim();
   const nodes = flux.startsWith("https://") ? [flux, ...PUBLIC_NODES] : PUBLIC_NODES;
   for (const url of nodes) {
@@ -87,7 +70,7 @@ async function run(req) {
       const response = await fetch(url, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: raw,
+        body: prepared.payload,
         signal: AbortSignal.timeout(12000),
       });
       if (!response.ok) continue;
@@ -97,7 +80,7 @@ async function run(req) {
       if (secret) text = text.split(secret).join("");
       const body = JSON.parse(text);
       if (body?.error && /rate|limit|429|congested|too many/i.test(String(body.error.message || ""))) continue;
-      return { status: 200, body: text };
+      return { status: 200, body: prepareRpcResponse(body, prepared.id, FAIL) };
     } catch {
       continue;
     }

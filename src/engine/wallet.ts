@@ -20,12 +20,16 @@ import { readTokenFaces, type TokenFace } from "./tokenmeta";
 import { formatRawUnits, shortAddress } from "../format";
 
 const ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+const SIG_RE = /^[1-9A-HJ-NP-Za-km-z]{64,128}$/;
+const LOCAL_LOGO_RE = /^\/logos\/[a-z0-9._-]+$/i;
 const BASE_FEE_LAMPORTS = 5_000;
 const DEFAULT_PRIORITY_MICRO_LAMPORTS = 10_000;
+const MAX_PRIORITY_MICRO_LAMPORTS = 1_000_000;
 const ATA_RENT_LAMPORTS = 2_039_280;
 const CU_SOL_TRANSFER = 450;
 const CU_SPL_TRANSFER = 65_000;
 const CU_SPL_WITH_ATA = 150_000;
+const MAX_COMPUTE_UNITS = 200_000;
 const WSOL_MINT = "So11111111111111111111111111111111111111112";
 export const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 const USDT_MINT = "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB";
@@ -106,6 +110,26 @@ export function isSolanaAddress(value: string): boolean {
   return ADDRESS_RE.test(value.trim());
 }
 
+export function isSolanaSignature(value: string): boolean {
+  return SIG_RE.test(value.trim());
+}
+
+/** Allow only local logo paths or https image URLs (no javascript:/data:). */
+export function safeAssetImage(url: string | undefined | null): string | undefined {
+  if (!url || typeof url !== "string") return undefined;
+  const trimmed = url.trim().slice(0, 500);
+  if (LOCAL_LOGO_RE.test(trimmed)) return trimmed;
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== "https:") return undefined;
+    if (parsed.username || parsed.password) return undefined;
+    if (!parsed.hostname.includes(".")) return undefined;
+    return parsed.toString();
+  } catch {
+    return undefined;
+  }
+}
+
 export function explainWalletError(error: unknown): string {
   const raw =
     error instanceof Error
@@ -113,12 +137,13 @@ export function explainWalletError(error: unknown): string {
       : typeof error === "string"
         ? error
         : "The wallet action did not complete.";
-  const text = raw.toLowerCase();
+  const cleaned = raw.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 220);
+  const text = cleaned.toLowerCase();
 
-  if (/user rejected|user denied|rejected the request|cancelled|canceled|exited/i.test(raw)) {
+  if (/user rejected|user denied|rejected the request|cancelled|canceled|exited/i.test(cleaned)) {
     return "You cancelled the signature. Nothing was sent.";
   }
-  if (/insufficient (funds|lamports)|Attempt to debit an account but found no record of a prior credit/i.test(raw)) {
+  if (/insufficient (funds|lamports)|Attempt to debit an account but found no record of a prior credit/i.test(cleaned)) {
     return "Not enough SOL to cover the amount and network fee. Add SOL, then try again.";
   }
   if (/blockhash not found|block height exceeded|expired/i.test(text)) {
@@ -130,7 +155,7 @@ export function explainWalletError(error: unknown): string {
   if (/could not find account|account does not exist|invalid account data/i.test(text)) {
     return "A required token account is missing or unreadable. Try again, or receive that token first.";
   }
-  if (/simulation failed|Transaction simulation failed/i.test(raw)) {
+  if (/simulation failed|Transaction simulation failed/i.test(cleaned)) {
     return "The network rejected a preview of this transfer. Check the amount, destination, and SOL for fees.";
   }
   if (/429|rate|too many/i.test(text)) {
@@ -142,8 +167,14 @@ export function explainWalletError(error: unknown): string {
   if (/no wallet|wallet not found|not authenticated/i.test(text)) {
     return "Your Solana wallet is not ready yet. Sign in again, then wait for the embedded wallet to finish creating.";
   }
-  if (error instanceof RpcError) return error.message;
-  return raw.slice(0, 180) || "The wallet action did not complete.";
+  if (/amount is too large|decimal places|greater than zero|destination|token program|network fee/i.test(text)) {
+    return cleaned.slice(0, 180);
+  }
+  if (error instanceof RpcError) return cleaned.slice(0, 180) || "The wallet action did not complete.";
+  if (/stack|exception|undefined is not|cannot read|typeerror|syntaxerror|<\s*script/i.test(text)) {
+    return "The wallet action did not complete. Refresh and try again.";
+  }
+  return cleaned.slice(0, 180) || "The wallet action did not complete.";
 }
 
 export async function loadWalletPortfolio(address: string, signal: AbortSignal): Promise<WalletPortfolio> {
@@ -187,7 +218,7 @@ export async function loadWalletPortfolio(address: string, signal: AbortSignal):
       raw: row.raw,
       tokenAccount: row.tokenAccount,
       programId: row.programId,
-      image: isUsdc ? "/logos/usdc.svg" : face?.image,
+      image: isUsdc ? "/logos/usdc.svg" : safeAssetImage(face?.image),
       ...(tokenUsd > 0 ? { usdPrice: tokenUsd } : {}),
       ...(solValue != null
         ? { solValue, solValueText: formatSolValue(solValue) }
@@ -469,7 +500,7 @@ function describeActivity(address: string, item: SignatureRow, tx: ParsedTx, fac
     const inbound = move.change > 0;
     base.direction = inbound ? "in" : "out";
     base.symbol = symbol;
-    base.image = face?.image;
+    base.image = safeAssetImage(face?.image);
     base.amountText = `${inbound ? "+" : "−"}${formatAmount(Math.abs(move.change), 6)} ${symbol}`;
     base.title = inbound ? `Received ${symbol}` : `Sent ${symbol}`;
     base.detail = inbound ? "Token credited to this wallet" : "Token left this wallet";
@@ -574,9 +605,12 @@ export function solFromUsd(usd: number, solUsd: number): number | null {
 }
 
 export function parseSendAmount(amount: string, decimals: number): bigint {
+  if (!Number.isInteger(decimals) || decimals < 0 || decimals > 18) {
+    throw new Error("That token amount precision is not supported.");
+  }
   const clean = amount.trim().replace(/,/g, "");
   if (!/^\d+(\.\d+)?$/.test(clean)) throw new Error("Enter a valid amount.");
-  const [whole, frac = ""] = clean.split(".");
+  const [whole = "0", frac = ""] = clean.split(".");
   if (frac.length > decimals) throw new Error(`Use at most ${decimals} decimal places.`);
   const padded = `${whole}${frac.padEnd(decimals, "0")}`.replace(/^0+(?=\d)/, "") || "0";
   const value = BigInt(padded);
@@ -607,8 +641,10 @@ export async function estimateSendNetworkFee(input: {
       : Promise.resolve(false),
   ]);
 
-  const computeUnits =
-    input.kind === "sol" ? CU_SOL_TRANSFER : createsAta ? CU_SPL_WITH_ATA : CU_SPL_TRANSFER;
+  const computeUnits = Math.min(
+    MAX_COMPUTE_UNITS,
+    input.kind === "sol" ? CU_SOL_TRANSFER : createsAta ? CU_SPL_WITH_ATA : CU_SPL_TRANSFER,
+  );
   const priorityLamports = Math.max(1, Math.ceil((computeUnits * microLamportsPerCu) / 1_000_000));
   const rentLamports = createsAta ? ATA_RENT_LAMPORTS : 0;
   const lamports = BASE_FEE_LAMPORTS + priorityLamports + rentLamports;
@@ -640,6 +676,7 @@ export async function buildTransferTransaction(input: {
   if (!isSolanaAddress(toRaw)) throw new Error("That destination address is not a valid Solana address.");
   if (toRaw === input.from) throw new Error("Choose a different destination than your own wallet.");
 
+  if (!isSolanaAddress(input.from)) throw new Error("Wallet address is not valid.");
   const to = new PublicKey(toRaw);
   const amount = parseSendAmount(input.draft.amount, input.draft.decimals);
   const signal = AbortSignal.timeout(12_000);
@@ -662,6 +699,9 @@ export async function buildTransferTransaction(input: {
   ];
 
   if (input.draft.kind === "sol") {
+    if (amount > BigInt(Number.MAX_SAFE_INTEGER)) {
+      throw new Error("Amount is too large to send safely.");
+    }
     if (amount + BigInt(fee.lamports) > BigInt(input.availableLamports)) {
       throw new Error("Not enough SOL to cover the amount and network fee. Add SOL, then try again.");
     }
@@ -673,18 +713,36 @@ export async function buildTransferTransaction(input: {
       }),
     );
   } else {
+    if (!isSolanaAddress(input.draft.mint)) throw new Error("That token mint is not a valid Solana address.");
     const mint = new PublicKey(input.draft.mint);
     const programId = new PublicKey(input.draft.programId || TOKEN_PROGRAM_ID.toBase58());
     if (programId.equals(TOKEN_PROGRAM_ID) === false && programId.equals(TOKEN_2022_PROGRAM_ID) === false) {
       throw new Error("That token program is not supported for sends yet.");
     }
-    const sourceAta =
-      input.draft.tokenAccount ||
-      getAssociatedTokenAddressSync(mint, from, false, programId, ASSOCIATED_TOKEN_PROGRAM_ID).toBase58();
+    const expectedSource = getAssociatedTokenAddressSync(
+      mint,
+      from,
+      false,
+      programId,
+      ASSOCIATED_TOKEN_PROGRAM_ID,
+    ).toBase58();
+    if (input.draft.tokenAccount && input.draft.tokenAccount !== expectedSource) {
+      throw new Error("That token account does not belong to this wallet mint.");
+    }
+    const sourceAta = expectedSource;
     const destAta = getAssociatedTokenAddressSync(mint, to, false, programId, ASSOCIATED_TOKEN_PROGRAM_ID);
     ixs.push(
       createAssociatedTokenAccountIdempotentInstruction(from, destAta, to, mint, programId, ASSOCIATED_TOKEN_PROGRAM_ID),
-      createTransferCheckedInstruction(new PublicKey(sourceAta), mint, destAta, from, amount, input.draft.decimals, [], programId),
+      createTransferCheckedInstruction(
+        new PublicKey(sourceAta),
+        mint,
+        destAta,
+        from,
+        amount,
+        input.draft.decimals,
+        [],
+        programId,
+      ),
     );
     if (input.availableLamports < fee.lamports) {
       throw new Error("Not enough SOL to pay the network fee for this token transfer.");
@@ -705,14 +763,14 @@ export async function buildTransferTransaction(input: {
 
 async function readPriorityMicroLamports(signal: AbortSignal): Promise<number> {
   try {
-    const samples = await rpc<{ prioritizationFee: number }[]>("getRecentPrioritizationFees", [[]], signal);
+    const samples = await rpc<{ prioritizationFee: number }[]>("getRecentPrioritizationFees", [], signal);
     const fees = (samples || [])
       .map((row) => row.prioritizationFee)
-      .filter((value) => Number.isFinite(value) && value >= 0)
+      .filter((value) => Number.isFinite(value) && value >= 0 && value <= MAX_PRIORITY_MICRO_LAMPORTS * 10)
       .sort((a, b) => a - b);
     if (!fees.length) return DEFAULT_PRIORITY_MICRO_LAMPORTS;
     const p75 = fees[Math.min(fees.length - 1, Math.floor(fees.length * 0.75))] || 0;
-    return Math.max(1_000, Math.ceil(Math.max(p75, 1) * 1.2));
+    return Math.min(MAX_PRIORITY_MICRO_LAMPORTS, Math.max(1_000, Math.ceil(Math.max(p75, 1) * 1.2)));
   } catch {
     return DEFAULT_PRIORITY_MICRO_LAMPORTS;
   }
@@ -787,9 +845,13 @@ function sleep(ms: number) {
 }
 
 export function explorerTx(signature: string): string {
-  return `https://solscan.io/tx/${signature}`;
+  const clean = signature.trim();
+  if (!isSolanaSignature(clean)) return "https://solscan.io/";
+  return `https://solscan.io/tx/${encodeURIComponent(clean)}`;
 }
 
 export function explorerAddress(address: string): string {
-  return `https://solscan.io/account/${address}`;
+  const clean = address.trim();
+  if (!isSolanaAddress(clean)) return "https://solscan.io/";
+  return `https://solscan.io/account/${encodeURIComponent(clean)}`;
 }

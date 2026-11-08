@@ -21,6 +21,7 @@ import {
   formatSendInput,
   isSolanaAddress,
   loadWalletPortfolio,
+  safeAssetImage,
   parseLooseAmount,
   resolveHoldingUsdPrice,
   signatureFromBytes,
@@ -917,7 +918,7 @@ function WalletDeskLive() {
                 </div>
               ) : null}
             </div>
-            <a className="quiet-link" href={explorerAddress(address)} target="_blank" rel="noreferrer">
+            <a className="quiet-link" href={explorerAddress(address)} target="_blank" rel="noopener noreferrer">
               Hash
             </a>
           </div>
@@ -949,7 +950,7 @@ function WalletDeskLive() {
                         className={`wallet-activity-row ${item.direction} ${item.failed ? "failed" : ""}`}
                         href={explorerTx(item.signature)}
                         target="_blank"
-                        rel="noreferrer"
+                        rel="noopener noreferrer"
                       >
                         {row}
                       </a>
@@ -1270,7 +1271,7 @@ function WalletDeskLive() {
                 <p>{sendStatus.summary}</p>
                 {sendStatus.error ? <p className="wallet-error">{sendStatus.error}</p> : null}
                 {sendStatus.signature ? (
-                  <a className="quiet-link" href={explorerTx(sendStatus.signature)} target="_blank" rel="noreferrer">
+                  <a className="quiet-link" href={explorerTx(sendStatus.signature)} target="_blank" rel="noopener noreferrer">
                     View on Solscan · {shortAddress(sendStatus.signature)}
                   </a>
                 ) : null}
@@ -1310,11 +1311,12 @@ function ActivityMark({ item }: { item: WalletActivity }) {
     );
   }
 
-  if (item.image) {
+  const image = safeAssetImage(item.image);
+  if (image) {
     return (
       <span className={`wallet-activity-mark ${item.direction} has-logo`} aria-hidden="true">
         <img
-          src={item.image}
+          src={image}
           alt=""
           loading="lazy"
           decoding="async"
@@ -1339,12 +1341,13 @@ function ActivityMark({ item }: { item: WalletActivity }) {
 
 function AssetMark({ holding }: { holding: WalletHolding }) {
   const [broken, setBroken] = useState(false);
-  const showImage = Boolean(holding.image) && !broken;
+  const image = safeAssetImage(holding.image);
+  const showImage = Boolean(image) && !broken;
   return (
     <span className={`wallet-asset-mark ${showImage ? "has-logo" : ""}`} aria-hidden="true">
-      {showImage ? (
+      {showImage && image ? (
         <img
-          src={holding.image}
+          src={image}
           alt=""
           loading="lazy"
           decoding="async"

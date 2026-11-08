@@ -1,5 +1,5 @@
 import type { Report } from "./types";
-import type { WalletActivity } from "./engine/wallet";
+import { isSolanaAddress, isSolanaSignature, safeAssetImage, type WalletActivity } from "./engine/wallet";
 
 export type ThreadMessage = {
   id: string;
@@ -161,33 +161,68 @@ export function initials(name: string): string {
 function activityKey(userId: string | null | undefined, address: string): string | null {
   const scoped = scopedKey(WALLET_ACTIVITY, userId);
   const clean = address.trim();
-  if (!scoped || !clean) return null;
+  if (!scoped || !isSolanaAddress(clean)) return null;
   return `${scoped}.${clean}`;
 }
 
-function isActivity(value: unknown): value is WalletActivity {
-  if (!value || typeof value !== "object") return false;
+function scrubText(value: unknown, max = 120): string {
+  if (typeof value !== "string") return "";
+  return value.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+function isStoredActivitySignature(value: string): boolean {
+  const clean = value.trim();
+  if (/^local-[a-z0-9-]{4,64}$/i.test(clean)) return true;
+  return isSolanaSignature(clean);
+}
+
+function sanitizeActivity(value: unknown): WalletActivity | null {
+  if (!value || typeof value !== "object") return null;
   const row = value as Partial<WalletActivity>;
-  return typeof row.signature === "string" && row.signature.length > 8 && typeof row.title === "string";
+  if (typeof row.signature !== "string" || !isStoredActivitySignature(row.signature)) return null;
+  const title = scrubText(row.title, 80);
+  if (!title) return null;
+  const direction = row.direction === "in" || row.direction === "out" || row.direction === "unknown" ? row.direction : "unknown";
+  const image = safeAssetImage(typeof row.image === "string" ? row.image : undefined);
+  return {
+    signature: row.signature.trim(),
+    slot: typeof row.slot === "number" && Number.isFinite(row.slot) ? Math.max(0, Math.floor(row.slot)) : 0,
+    err: null,
+    blockTime: typeof row.blockTime === "number" && Number.isFinite(row.blockTime) ? row.blockTime : null,
+    failed: Boolean(row.failed),
+    direction,
+    title,
+    detail: scrubText(row.detail, 140) || "Confirmed on Solana",
+    ...(scrubText(row.amountText, 48) ? { amountText: scrubText(row.amountText, 48) } : {}),
+    ...(scrubText(row.symbol, 24) ? { symbol: scrubText(row.symbol, 24) } : {}),
+    ...(image ? { image } : {}),
+  };
 }
 
 export function loadWalletActivity(userId: string | null | undefined, address: string): WalletActivity[] {
   const key = activityKey(userId, address);
   if (!key) return [];
   const saved = read<unknown[]>(key, []);
-  return mergeWalletActivity([], saved.filter(isActivity));
+  return mergeWalletActivity([], saved.map(sanitizeActivity).filter((item): item is WalletActivity => Boolean(item)));
 }
 
 export function saveWalletActivity(userId: string | null | undefined, address: string, items: WalletActivity[]) {
   const key = activityKey(userId, address);
   if (!key) return;
-  write(key, mergeWalletActivity([], items).slice(0, ACTIVITY_LIMIT));
+  write(
+    key,
+    mergeWalletActivity([], items)
+      .map(sanitizeActivity)
+      .filter((item): item is WalletActivity => Boolean(item))
+      .slice(0, ACTIVITY_LIMIT),
+  );
 }
 
 export function mergeWalletActivity(...groups: WalletActivity[][]): WalletActivity[] {
   const map = new Map<string, WalletActivity>();
   for (const group of groups) {
-    for (const item of group) {
+    for (const raw of group) {
+      const item = sanitizeActivity(raw);
       if (!item?.signature) continue;
       const prev = map.get(item.signature);
       if (!prev) {
@@ -205,6 +240,7 @@ export function mergeWalletActivity(...groups: WalletActivity[][]): WalletActivi
         blockTime: item.blockTime ?? prev.blockTime,
         failed: item.failed || prev.failed,
         direction: item.direction !== "unknown" ? item.direction : prev.direction,
+        err: null,
       });
     }
   }

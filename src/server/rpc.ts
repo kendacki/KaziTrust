@@ -1,6 +1,8 @@
 import { loadEnv, type Connect, type Plugin } from "vite";
+import { prepareRpcRequest, prepareRpcResponse } from "../../mcp/rpc-guard.mjs";
 
 const PUBLIC_NODES = ["https://solana-rpc.publicnode.com", "https://api.mainnet-beta.solana.com", "https://api.mainnet.solana.com"];
+const FAIL = "The public Solana nodes did not answer. Try the read again.";
 
 type NodeRequest = {
   method?: string;
@@ -50,12 +52,24 @@ async function handle(req: NodeRequest, res: NodeResponse, nodes: string[], next
     send(res, 400, "The chain request was not readable.");
     return;
   }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    send(res, 400, "The chain request was not readable.");
+    return;
+  }
+  const prepared = prepareRpcRequest(parsed);
+  if (!prepared.ok) {
+    send(res, 400, prepared.message);
+    return;
+  }
   for (const url of nodes) {
     try {
       const response = await fetch(url, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body,
+        body: prepared.payload,
         signal: AbortSignal.timeout(12000),
       });
       if (!response.ok) continue;
@@ -63,17 +77,17 @@ async function handle(req: NodeRequest, res: NodeResponse, nodes: string[], next
       if (!text || text.length > 1_500_000) continue;
       const secret = new URL(url).searchParams.get("key");
       if (secret) text = text.split(secret).join("");
-      const parsed = JSON.parse(text) as { error?: { message?: string } };
-      if (parsed.error && /rate|limit|429|congested|too many/i.test(parsed.error.message ?? "")) continue;
+      const upstream = JSON.parse(text) as { error?: { message?: string } };
+      if (upstream.error && /rate|limit|429|congested|too many/i.test(upstream.error.message ?? "")) continue;
       res.statusCode = 200;
       res.setHeader("content-type", "application/json");
-      res.end(text);
+      res.end(prepareRpcResponse(upstream, prepared.id, FAIL));
       return;
     } catch {
       continue;
     }
   }
-  send(res, 502, "The public Solana nodes did not answer. Try the read again.");
+  send(res, 502, FAIL);
 }
 
 function readBody(req: NodeRequest): Promise<string> {
@@ -82,7 +96,7 @@ function readBody(req: NodeRequest): Promise<string> {
     let size = 0;
     req.on("data", (chunk) => {
       size += chunk.byteLength;
-      if (size > 200_000) {
+      if (size > 100_000) {
         reject(new Error("too large"));
         return;
       }

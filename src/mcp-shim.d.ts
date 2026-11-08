@@ -62,4 +62,11 @@ declare module "*.mjs" {
   ): T;
   export function stripKeyArgs(args: unknown): Record<string, unknown>;
   export function keyedMcpUrl(base?: string, key?: string): string;
+  export function prepareRpcRequest(
+    parsed: unknown,
+  ):
+    | { ok: true; payload: string; id: string | number }
+    | { ok: false; message: string };
+  export function prepareRpcResponse(body: unknown, id: string | number, failMessage: string): string;
+  export function isAllowedRpcMethod(method: unknown): boolean;
 }

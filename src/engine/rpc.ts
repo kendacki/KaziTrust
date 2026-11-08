@@ -48,7 +48,12 @@ function retryable(error: unknown): boolean {
 }
 
 function cleanNodeMessage(message: string | undefined, status: number): string {
-  if (message && !/status \d+|api key|upgrade/i.test(message)) return message;
+  const cleaned = String(message || "")
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 180);
+  if (cleaned && !/status \d+|api key|upgrade|stack|exception|<\s*script/i.test(cleaned)) return cleaned;
   if (status === 429) return "The public Solana node is limiting reads right now. Wait a moment and try again.";
   return "The public Solana nodes did not answer. Try the read again.";
 }
