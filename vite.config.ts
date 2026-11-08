@@ -29,6 +29,12 @@ function spa404(): Plugin {
 export default defineConfig({
   appType: "spa",
   plugins: [react(), spa404(), rpcPlugin(), groqPlugin(), solscanPlugin(), rugcheckPlugin(), restrictionsPlugin(), tokenMetaPlugin(), gatewayPlugin(), mcpPlugin(), analyticsPlugin()],
+  define: {
+    global: "globalThis",
+  },
+  optimizeDeps: {
+    include: ["buffer", "@solana/web3.js", "@solana/spl-token", "bs58"],
+  },
   server: {
     port: 5173,
     host: "127.0.0.1",

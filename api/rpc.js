@@ -9,6 +9,9 @@ const METHODS = new Set([
   "getSignaturesForAddress",
   "getTokenAccountsByOwner",
   "getTransaction",
+  "getLatestBlockhash",
+  "getSignatureStatuses",
+  "getMinimumBalanceForRentExemption",
 ]);
 
 const FAIL = "The public Solana nodes did not answer. Try the read again.";

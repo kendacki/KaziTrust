@@ -26,11 +26,13 @@ import {
   IconSignOut,
   IconStop,
   IconTrash,
+  IconWallet,
 } from "./icons";
 import { ApiDesk } from "./api";
 import { Lockup } from "./mark";
 import { EvidenceList, ReportView, reportPlainText } from "./report";
 import { VisualView, visualTitle } from "./visuals";
+import { HistoryWalletCard, WalletDesk } from "./wallet";
 
 type Panel =
   | { kind: "visual"; visual: Visual }
@@ -54,7 +56,7 @@ function contextAddresses(messages: ThreadMessage[]): string[] {
   return found;
 }
 
-export function Chat({ go, api = false }: { go: (to: string) => void; api?: boolean }) {
+export function Chat({ go, api = false, wallet = false }: { go: (to: string) => void; api?: boolean; wallet?: boolean }) {
   const { logout, user } = usePrivy();
   const [threads, setThreads] = useState<Thread[]>(() => loadThreads());
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -296,7 +298,7 @@ export function Chat({ go, api = false }: { go: (to: string) => void; api?: bool
     setMenu(null);
     setRename(null);
     if (window.innerWidth < 860) setSidebar(false);
-    if (api) go("/app");
+    if (api || wallet) go("/app");
   }
 
   const visible = useMemo(() => {
@@ -367,6 +369,8 @@ export function Chat({ go, api = false }: { go: (to: string) => void; api?: bool
           </button>
         </div>
         <div className="side-scroll">
+          <p className="side-label">Wallet</p>
+          <HistoryWalletCard go={go} active={wallet} />
           <p className="side-label">History</p>
           {Object.entries(groups).map(([label, items]) =>
             items.length ? (
@@ -388,7 +392,7 @@ export function Chat({ go, api = false }: { go: (to: string) => void; api?: bool
                           <input name="title" defaultValue={thread.title} aria-label="Chat title" autoFocus />
                         </form>
                       ) : (
-                        <button type="button" className={thread.id === activeId && !api ? "current" : ""} onClick={() => { setActiveId(thread.id); setPanel(null); if (api) go("/app"); if (window.innerWidth < 860) setSidebar(false); }}>
+                        <button type="button" className={thread.id === activeId && !api && !wallet ? "current" : ""} onClick={() => { setActiveId(thread.id); setPanel(null); if (api || wallet) go("/app"); if (window.innerWidth < 860) setSidebar(false); }}>
                           {thread.title}
                         </button>
                       )}
@@ -423,6 +427,10 @@ export function Chat({ go, api = false }: { go: (to: string) => void; api?: bool
             <IconKey size={16} />
             API
           </button>
+          <button type="button" className="api-entry" aria-current={wallet ? "page" : undefined} onClick={() => { setPanel(null); if (!wallet) go("/app/wallet"); if (window.innerWidth < 860) setSidebar(false); }}>
+            <IconWallet size={16} />
+            Wallet
+          </button>
           <ProfileName
             name={username || user?.google?.name || user?.email?.address?.split("@")[0] || "Reader"}
             detail={`${quota.remaining} of ${quota.limit} live reads left today`}
@@ -445,23 +453,24 @@ export function Chat({ go, api = false }: { go: (to: string) => void; api?: bool
           />
         </footer>
       </aside>
-      {api ? (
-        <section className="thread thread-api">
+      {api || wallet ? (
+        <section className={`thread ${api ? "thread-api" : "thread-wallet"}`}>
           {sidebar ? null : (
             <header className="thread-top">
               <div className="thread-start">
                 <button type="button" className="icon-btn" aria-label="Show history" onClick={toggleHistory}>
                   <IconSidebar size={22} />
                 </button>
+                {wallet ? <h1>Wallet</h1> : null}
               </div>
             </header>
           )}
           <div className="thread-scroll">
-            <ApiDesk />
+            {wallet ? <WalletDesk /> : <ApiDesk />}
           </div>
         </section>
       ) : null}
-      {api ? null : <section className="thread">
+      {api || wallet ? null : <section className="thread">
         <header className="thread-top">
           <div className="thread-start">
             {sidebar ? null : (

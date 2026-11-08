@@ -32,6 +32,9 @@ const UI_EVENTS = new Set([
   "thread_create",
   "client_error",
   "jailbreak_blocked",
+  "wallet_refresh",
+  "wallet_create",
+  "wallet_send",
 ]);
 
 export function isUiEventName(name) {

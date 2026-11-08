@@ -10,7 +10,7 @@ import { Chrome, Docs, Home, Method } from "./components/site";
 import { ApiEntry } from "./components/api";
 import { ease } from "./motion";
 
-const KNOWN = new Set(["/", "/app", "/app/api", "/docs", "/method", "/api", "/privacy", "/privacy/choices"]);
+const KNOWN = new Set(["/", "/app", "/app/api", "/app/wallet", "/docs", "/method", "/api", "/privacy", "/privacy/choices"]);
 
 function useOnline() {
   const [online, setOnline] = useState(() => navigator.onLine);
@@ -55,17 +55,19 @@ export function App() {
         ? "Page not found · KaziTrust"
         : path === "/app"
           ? "App · KaziTrust"
-          : path === "/docs"
-            ? "Docs · KaziTrust"
-            : path === "/method"
-              ? "Method · KaziTrust"
-              : path === "/api" || path === "/app/api"
-                ? "API · KaziTrust"
-                : path === "/privacy/choices"
-                  ? "Do Not Sell or Share · KaziTrust"
-                  : path === "/privacy"
-                    ? "Privacy · KaziTrust"
-                    : "KaziTrust AI";
+          : path === "/app/wallet"
+            ? "Wallet · KaziTrust"
+            : path === "/docs"
+              ? "Docs · KaziTrust"
+              : path === "/method"
+                ? "Method · KaziTrust"
+                : path === "/api" || path === "/app/api"
+                  ? "API · KaziTrust"
+                  : path === "/privacy/choices"
+                    ? "Do Not Sell or Share · KaziTrust"
+                    : path === "/privacy"
+                      ? "Privacy · KaziTrust"
+                      : "KaziTrust AI";
   }, [path, online, missing]);
 
   useEffect(() => {
@@ -97,7 +99,13 @@ export function App() {
   let body;
   if (!online) body = <Lost go={go} mode="offline" />;
   else if (missing) body = <Lost go={go} mode="missing" />;
-  else if (path === "/app" || path === "/app/api") body = <RequireAuth go={go}><Chat go={go} api={path === "/app/api"} /></RequireAuth>;
+  else if (path === "/app" || path === "/app/api" || path === "/app/wallet") {
+    body = (
+      <RequireAuth go={go}>
+        <Chat go={go} api={path === "/app/api"} wallet={path === "/app/wallet"} />
+      </RequireAuth>
+    );
+  }
   else if (path === "/docs") body = <Chrome path={path} go={go}><Docs go={go} /></Chrome>;
   else if (path === "/method") body = <Chrome path={path} go={go}><Method go={go} /></Chrome>;
   else if (path === "/privacy/choices") body = <PrivacyChoicesPage go={go} />;
@@ -110,7 +118,7 @@ export function App() {
       <AnimatePresence mode="wait">
         <motion.div
           key={!online ? "offline" : path}
-          className={!online || missing ? "page-fade lost-page" : path === "/app" || path === "/app/api" ? "page-app" : "page-fade"}
+          className={!online || missing ? "page-fade lost-page" : path.startsWith("/app") ? "page-app" : "page-fade"}
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}

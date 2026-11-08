@@ -17,10 +17,16 @@ export function AuthRoot({ children }: { children: ReactNode }) {
       appId={appId}
       config={{
         loginMethods: ["email", "google"],
-        appearance: { theme: "light", accentColor: "#0b0c0e", showWalletLoginFirst: false },
+        appearance: {
+          theme: "light",
+          accentColor: "#0b0c0e",
+          showWalletLoginFirst: false,
+          walletChainType: "solana-only",
+        },
         embeddedWallets: {
           ethereum: { createOnLogin: "off" },
-          solana: { createOnLogin: "off" },
+          // Privy creates a Solana embedded wallet on login so the user can receive any SPL token.
+          solana: { createOnLogin: "users-without-wallets" },
         },
       }}
     >

@@ -16,7 +16,11 @@
   },
   "dependencies": {
     "@privy-io/react-auth": "^3.51.0",
+    "@solana/spl-token": "^0.4.15",
+    "@solana/web3.js": "^1.99.0",
     "@vercel/analytics": "^2.0.1",
+    "bs58": "^6.0.0",
+    "buffer": "^6.0.3",
     "framer-motion": "^14.6.0",
     "jspdf": "^4.2.1",
     "react": "^19.1.0",
